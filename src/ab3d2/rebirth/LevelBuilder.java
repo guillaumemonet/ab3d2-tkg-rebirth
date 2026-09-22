@@ -1798,6 +1798,8 @@ public final class LevelBuilder {
         /** Vrai pour une entite dessinee en MODELE et non en panneau (cf. buildAliens). */
         final boolean vector;
         int lastZone = -1;
+        /** -1 inconnu, 0 ecarte, 1 affiche : sert a ne tracer qu'au CHANGEMENT. */
+        int shown = -1;
         /** Panneau du graphique AUXILIAIRE (eclat de tir), cree a la premiere frame qui en a un. */
         Geometry aux;
         int auxSheet = -1;
@@ -1881,6 +1883,16 @@ public final class LevelBuilder {
         long nv = alienViews.stream().filter(v -> v.vector).count();
         System.out.printf("[Level] aliens : %d entites%s%n", alienViews.size(),
                 nv == 0 ? "" : " (dont " + nv + " en modele)");
+        for (AlienView v : alienViews) {               // de quoi aller les regarder : -Pfreecam -Pat=x,y,z
+            if (v.vector) {
+                Vector3f t = v.geometry.getLocalTranslation();
+                System.out.printf(java.util.Locale.ROOT,          // a recopier tel quel dans -Pat
+                        "[Level]   modele %s zone %d a %.1f,%.1f,%.1f (%s, %d triangles)%n",
+                        v.proxy.name, v.proxy.zone, t.x, t.y, t.z,
+                        glf == null ? "?" : glf.vectorModel(v.proxy.model),
+                        v.geometry.getMesh().getTriangleCount());
+            }
+        }
         return node;
     }
 
@@ -1934,11 +1946,20 @@ public final class LevelBuilder {
         for (AlienView v : alienViews) {
             ab3d2.rebirth.sim.Aliens.Alien a = v.alien;
             if (!a.alive || a.zone < 0 || !visible(a.zone)) {
+                if (v.vector && v.shown != 0) {        // un modele est rare : on suit son sort
+                    v.shown = 0;
+                    System.out.printf("[Level] modele %s retire (vivant=%b zone=%d)%n",
+                            v.proxy.name, a.alive, a.zone);
+                }
                 v.geometry.setCullHint(com.jme3.scene.Spatial.CullHint.Always);
                 if (v.aux != null) {
                     v.aux.setCullHint(com.jme3.scene.Spatial.CullHint.Always);
                 }
                 continue;
+            }
+            if (v.vector && v.shown != 1) {
+                v.shown = 1;
+                System.out.printf("[Level] modele %s affiche (zone %d)%n", v.proxy.name, a.zone);
             }
             v.geometry.setCullHint(com.jme3.scene.Spatial.CullHint.Inherit);
             v.proxy.x = a.x;

@@ -1074,8 +1074,11 @@ public class Main extends SimpleApplication {
                 stepSim();
             }
             applyCamera();
+            // Les deux tris qui suivent partent du PVS de la ZONE DU JOUEUR. En camera libre la
+            // vue n'est plus celle du joueur : ils eteignaient la piece regardee et escamotaient
+            // les monstres qui s'y trouvent. On les desarme donc avec -Pfreecam.
             // N'allumer que ce qui peut se voir depuis la zone du joueur (PVS du jeu d'origine).
-            if (lights3d != null && !noPvsLights) {
+            if (lights3d != null && !noPvsLights && !freeCam) {
                 int zoneBefore = lights3d.litFrom();
                 lights3d.lightZonesVisibleFrom(player.zone);
                 if (lightLog && player.zone != zoneBefore) {
@@ -1083,7 +1086,7 @@ public class Main extends SimpleApplication {
                             player.zone, lights3d.litCount(), lights3d.lampCount());
                 }
             }
-            builder.setVisibleFrom(player.zone);        // tri de visibilite de la frame
+            builder.setVisibleFrom(freeCam ? -1 : player.zone); // tri de visibilite de la frame
             applyAnimatedGeometry();
             builder.updateShots(shots.shots());
             builder.updateAliens();

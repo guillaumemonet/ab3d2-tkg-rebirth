@@ -122,8 +122,17 @@ public final class LevelExport {
             int an = glf + Defs.GLFT_AlienAnims_l + def * Defs.A_AnimLen; // option 0, frame 0
             if (vec == 1) {
                 o.put("gclass", "vector");
-                o.put("model", Mem.w(glf + Defs.GLFT_AlienDefs_l + def * Defs.AlienT_SizeOf_l + Defs.AlienT_GFXType_w));
-                o.put("frame", objFrame);
+                // Index de modele : l'OCTET 0 du pas d'animation, exactement comme pour un
+                // objet vectoriel -- ai.s:1917 « move.b (a6,d1.w),9(a0) » ecrit ce meme octet
+                // dans le champ que draw_PolygonModel relit. C'est le SEUL endroit : le mot
+                // GFXType ne porte que le drapeau (octet bas = 1 = vectoriel), et le lire
+                // entier donnait 1 pour toutes ces entites, soit le modele SWITCH a la place
+                // du bon -- un boss Mantis dessine en interrupteur.
+                o.put("model", Mem.ub(an));
+                // Frame : l'octet 1, en valeur absolue moins un ; son SIGNE porte le miroir
+                // (ai.s:1918-1927), qui n'a pas de sens pour un maillage.
+                int f = Mem.b(an + 1);
+                o.put("frame", Math.max(0, Math.abs(f) - 1));
                 o.put("angle", Mem.uw(objAddr + Defs.EntT_CurrentAngle_w));
                 o.put("ceiling", false);
             } else {

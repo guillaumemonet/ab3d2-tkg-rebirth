@@ -107,6 +107,29 @@ passerelle au-dessus de l'escalier.*
 
 ---
 
+## Les entités : toutes ne sont pas des panneaux
+
+![Le boss Mantis, en polygones](docs/img/rebirth-mantis.png)
+
+*Niveau P. Le boss Mantis est un maillage de 256 triangles, pas un sprite — comme dans le jeu
+d'origine. À droite, un garde : lui est bien un panneau.*
+
+Le jeu range monstres et objets dans la même table d'entités, et choisit le dessin par une
+**donnée**, pas par une catégorie : `draw_Object` regarde un champ de l'entité et part sur
+`draw_Bitmap` ou sur `draw_PolygonModel`. Neuf monstres sont dans le second cas — les boss
+**Wasp**, **Crab** et **Mantis**, répartis dans H, L, O et P.
+
+Deux pièges s'y sont succédé. D'abord le remake forçait toutes les entités de la table des
+monstres en panneau ; comme une entité vectorielle n'a pas de champ « feuille de sprite », elles
+recevaient la feuille 0, donc un graphisme faux. Ensuite, une fois branchées sur leur modèle,
+elles affichaient toutes le **même** : l'extraction lisait l'index dans le mot `GFXType`, qui ne
+porte que le drapeau « vectoriel » et vaut donc 1 pour toutes. Le vrai index est l'**octet 0 du
+pas d'animation** (`ai.s:1917`), exactement comme pour un objet vectoriel. Le contrôle qui le
+prouve tient en une ligne : les noms d'entités et les noms de modèles coïncident désormais
+(*Mantis Boss* → `MANTIS`), ce qui n'était le cas pour aucun des neuf.
+
+---
+
 ## L'éclairage
 
 Une lumière par zone, toutes attachées à la racine. On n'allume que les zones **potentiellement
