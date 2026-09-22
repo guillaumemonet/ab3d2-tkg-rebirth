@@ -46,8 +46,38 @@ public final class LevelBuilder {
 
     /** Sprites : 32 px = 1 unite monde (meme echelle que Y). */
     private static final float SPRITE_PPU = 32f;
-    /** Modeles vectoriels : echelle reglee a l'oeil (pas encore la vraie echelle de projection). */
-    private static final float MODEL_SCALE = 0.75f;
+    /**
+     * Modeles vectoriels : 1 unite du .obj = 1 unite monde, tiree de l'ASM et non de l'oeil.
+     *
+     * <p>Un point de modele et la position de l'objet qui le porte se rencontrent dans le meme
+     * accumulateur, juste avant la division perspective ; leurs deux facteurs donnent donc le
+     * rapport d'unites, sans dependre de la projection. Sur les trois axes il vaut 1/4
+     * (objdrawhires.s, chemin petit ecran ; l'amplitude de SinCosTable_vw est 2^15) :
+     * <pre>
+     *   x : point = (x.sin - z.cos) &gt;&gt; 9        -> 64 par unite
+     *       objet = ObjRotated+4 (x.128) * 2      -> 256 par mot de niveau
+     *   y : point = y &lt;&lt; 6                       -> 64
+     *       objet = (y &lt;&lt; 7 - Plr_YOff) * 2       -> 256
+     *   z : point = swap(x.cos + z.sin)           -> 1/2
+     *       objet = ObjRotated+2 * 2              -> 2
+     * </pre>
+     * Soit 1 unite de modele = 1/4 mot de niveau, et le mot de niveau vaut 1/{@link #XZ_SCALE}
+     * d'unite monde : 1/256. Comme {@code VectObjExport} ecrit les .obj en coordonnees brutes
+     * divisees par 128, il reste 128/256 = 0,5. (La valeur precedente, 0,75, etait reglee a
+     * l'oeil : les modeles etaient de moitie trop gros.)
+     */
+    private static final float MODEL_SCALE = 0.5f;
+
+    /**
+     * L'arme en main echappe a {@link #MODEL_SCALE} : le jeu d'origine la traite a part.
+     *
+     * <p>Elle est bien un objet du monde (l'entite ENT_NEXT_2), mais {@code draw_PolygonModel}
+     * detecte ce cas et force sa profondeur a 1 au lieu de la vraie (objdrawhires.s,
+     * DRAW_VECTOR_NEAR_PLANE). Sa taille a l'ecran ne vient donc PAS de l'echelle du monde : la
+     * division perspective par z=1 la fixe a elle seule. Ici l'arme est posee a l'oeil de la
+     * camera, sans recul ; son facteur est le seul reglage disponible et il se regle a l'image.
+     */
+    private static final float WEAPON_SCALE = 0.75f;
     private final AssetManager assetManager;
     private final GlfData glf;
     private final float vSign;
@@ -1705,7 +1735,7 @@ public final class LevelBuilder {
                     mat = shadedModelMaterial();
                 }
                 weaponGeom.setMaterial(mat != null ? mat : atlasMaterial(false));
-                weaponGeom.setLocalScale(MODEL_SCALE);
+                weaponGeom.setLocalScale(WEAPON_SCALE);
                 // Collee a la camera : si elle projette, son ombre couvre la piece entiere.
                 weaponGeom.setShadowMode(com.jme3.renderer.queue.RenderQueue.ShadowMode.Off);
                 parent.attachChild(weaponGeom);

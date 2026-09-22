@@ -93,6 +93,7 @@ public class Main extends SimpleApplication {
     private final boolean noPvsLights = System.getProperty("rebirth.noPvsLights") != null;
     /** -PfpsLog : imprime le temps de frame moyen toutes les 120 frames. */
     private final boolean fpsLog = System.getProperty("rebirth.fpsLog") != null;
+    private boolean sceneCounted;
     private int fpsFrames;
     private float fpsAccum;
     private StatusPanel panel;
@@ -1002,6 +1003,10 @@ public class Main extends SimpleApplication {
                 }
                 System.out.printf("[fps] %.1f images/s  (%.2f ms par frame) %s%n",
                         fpsFrames / fpsAccum, fpsAccum * 1000f / fpsFrames, sb);
+                if (!sceneCounted) {
+                    sceneCounted = true;
+                    dumpSceneCounts();
+                }
                 fpsFrames = 0;
                 fpsAccum = 0f;
             }
@@ -1500,6 +1505,48 @@ public class Main extends SimpleApplication {
     }
 
     /** Panneaux de portes (toit qui monte), murs deformes, et sols d'ascenseurs. */
+    /**
+     * Combien de geometries l'arbre porte-t-il, et sous quelle branche ?
+     *
+     * <p>Les compteurs du moteur donnent le nombre de SOUMISSIONS, pas le nombre d'objets :
+     * une geometrie eclairee par plus de lumieres que le lot en compte est soumise plusieurs
+     * fois. Pour savoir si un chiffre eleve vient de la geometrie ou de l'eclairage, il faut
+     * les deux. Imprime une seule fois, avec -PfpsLog.
+     */
+    private void dumpSceneCounts() {
+        java.util.Map<String, int[]> par = new java.util.LinkedHashMap<>();
+        java.util.List<com.jme3.scene.Spatial> tops = new java.util.ArrayList<>();
+        for (com.jme3.scene.Spatial top : rootNode.getChildren()) {
+            // Un seul niveau de regroupement ne dit rien : la racine ne porte que le niveau et
+            // le ciel. On descend d'un cran dans les noeuds pour voir Walls / Flats / Objets.
+            if (top instanceof com.jme3.scene.Node n && !n.getChildren().isEmpty()) {
+                tops.addAll(n.getChildren());
+            } else {
+                tops.add(top);
+            }
+        }
+        for (com.jme3.scene.Spatial top : tops) {
+            int[] n = {0, 0};
+            top.depthFirstTraversal(sp -> {
+                if (sp instanceof com.jme3.scene.Geometry g) {
+                    n[0]++;
+                    n[1] += g.getMesh().getTriangleCount();
+                }
+            });
+            if (n[0] > 0) {
+                par.put(top.getName() == null ? "?" : top.getName(), n);
+            }
+        }
+        int tot = 0;
+        StringBuilder sb = new StringBuilder();
+        for (java.util.Map.Entry<String, int[]> e : par.entrySet()) {
+            sb.append(String.format("  %-16s %4d geo  %7d tri%n",
+                    e.getKey(), e.getValue()[0], e.getValue()[1]));
+            tot += e.getValue()[0];
+        }
+        System.out.printf("[scene] %d geometries dans l'arbre :%n%s", tot, sb);
+    }
+
     private void applyAnimatedGeometry() {
         int nDoors = level.doors == null ? 0 : level.doors.size();
         if (level.doors != null) {

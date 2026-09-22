@@ -53,6 +53,15 @@ Les **modèles vectoriels** restent en OBJ : chaque face porte ses données d'é
 directionnel (`frame_NNN.lvl`, niveau de base + secteur d'angle) et le maillage est *régénéré
 quand la lumière change*. Un `.j3o` figé casserait cet éclairage.
 
+Leur **échelle** vient de l'assembleur, pas de l'œil. Un point de modèle et la position de
+l'objet qui le porte se rencontrent dans le même accumulateur juste avant la division
+perspective : le rapport de leurs deux facteurs donne l'échelle exacte, sans dépendre de la
+projection. Il vaut 1/4 de mot de niveau sur les trois axes, soit **1 unité d'OBJ = 1 unité
+monde**. La valeur réglée à vue qui précédait (0,75) faisait des modèles de moitié trop gros :
+un fusil à pompe de 1,86 unité de long alors que l'œil du joueur est à 1,70. Seule l'arme en
+main y échappe — l'original force sa profondeur à 1 (`DRAW_VECTOR_NEAR_PLANE`), sa taille à
+l'écran ne vient donc pas du monde et garde son propre facteur.
+
 ### Deux pièges du `.j3m`
 
 - **`Repeat` est indispensable.** Sans lui les murs perdent leur motif et le bord de l'image
