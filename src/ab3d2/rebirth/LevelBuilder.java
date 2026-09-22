@@ -1832,10 +1832,55 @@ public final class LevelBuilder {
     }
 
     /** Applique l'etat de la simulation aux panneaux des monstres (position, frame, miroir). */
+    /** Zones potentiellement visibles depuis celle du joueur (le PVS du jeu d'origine). */
+    private boolean[] visible;
+
+    /**
+     * Prépare le tri de visibilité de la frame.
+     *
+     * <p>Le moteur d'origine ne dessine que les zones du PVS ; ici c'est jME qui décide, par
+     * tronc de vue. Or un monstre peut être dans le tronc ET derrière un mur : il est alors mis
+     * à jour et soumis pour rien. Le PVS, lui, tient compte des murs. On s'en sert pour écarter
+     * ces entités-là — ce qui économise à la fois le travail de mise à jour et l'appel de dessin.
+     *
+     * @param zone zone du joueur ; &lt; 0 ou inconnue = tout est considéré visible (repli sûr)
+     */
+    public void setVisibleFrom(int zone) {
+        if (level == null || level.zones == null) {
+            visible = null;
+            return;
+        }
+        LevelData.Zone z = zonesById.get(zone);
+        if (z == null || z.pvs == null) {
+            visible = null;                            // on ne cache rien si on ne sait pas
+            return;
+        }
+        int max = 0;
+        for (LevelData.Zone zz : level.zones) {
+            max = Math.max(max, zz.id);
+        }
+        if (visible == null || visible.length < max + 1) {
+            visible = new boolean[max + 1];
+        } else {
+            java.util.Arrays.fill(visible, false);
+        }
+        visible[zone] = true;
+        for (LevelData.Pvs v : z.pvs) {
+            if (v.zone >= 0 && v.zone < visible.length) {
+                visible[v.zone] = true;
+            }
+        }
+    }
+
+    /** Cette zone peut-elle se voir depuis celle du joueur ? */
+    private boolean visible(int zone) {
+        return visible == null || zone < 0 || zone >= visible.length || visible[zone];
+    }
+
     public void updateAliens() {
         for (AlienView v : alienViews) {
             ab3d2.rebirth.sim.Aliens.Alien a = v.alien;
-            if (!a.alive || a.zone < 0) {
+            if (!a.alive || a.zone < 0 || !visible(a.zone)) {
                 v.geometry.setCullHint(com.jme3.scene.Spatial.CullHint.Always);
                 if (v.aux != null) {
                     v.aux.setCullHint(com.jme3.scene.Spatial.CullHint.Always);

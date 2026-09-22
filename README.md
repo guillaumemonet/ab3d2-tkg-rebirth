@@ -100,9 +100,8 @@ passerelle au-dessus de l'escalier.*
 
 ## L'éclairage
 
-Une lumière par zone, mais **toutes attachées à la racine**. On n'allume désormais que les zones
-**potentiellement visibles** depuis celle du joueur — le PVS du jeu d'origine, qu'on extrait avec
-le reste :
+Une lumière par zone, toutes attachées à la racine. On n'allume que les zones **potentiellement
+visibles** depuis celle du joueur — le PVS du jeu d'origine, qu'on extrait avec le reste :
 
 | niveau | lumières | allumées |
 | --- | --- | --- |
@@ -110,19 +109,26 @@ le reste :
 | C | 199 | 14 |
 | O | 166 | 37 |
 
-**Le gain mesuré, VSync coupée** (`-PfpsLog -Pnovsync`, contre `-PnoPvsLights`) :
+**Écarter une lumière, c'est annuler son RAYON, pas sa couleur.** jME filtre les lumières en
+testant leur rayon contre le volume englobant de chaque géométrie (`DefaultLightFilter`) : une
+lumière noire mais de grand rayon reste dans le lot et coûte toujours sa passe. La première
+version de ce tri éteignait la couleur et ne gagnait donc **rien** — les compteurs du moteur
+donnaient le même nombre de soumissions avec et sans.
 
-| niveau | sans tri | avec tri |
-| --- | --- | --- |
-| A | 165 img/s | 196 img/s |
-| C | 315 img/s | 331 img/s |
-| O | 92 img/s | 107 img/s |
+Mesuré, VSync coupée, trois tirs par cas (`-PfpsLog -Pnovsync`, contre `-PnoPvsLights`) :
 
-Soit 5 à 19 % selon l'endroit — utile, mais loin du facteur qu'on pourrait croire en comptant les
-lumières. La raison : jME **filtre déjà** les lumières par rayon contre le volume englobant de
-chaque géométrie, donc la plupart des 134 ne coûtaient déjà rien. Ce que le PVS apporte en plus,
-c'est qu'il **respecte les murs** : une lumière proche mais dans la pièce d'à côté est écartée, ce
-qu'un test de rayon ne sait pas faire.
+| niveau | sans tri | avec tri | soumissions |
+| --- | --- | --- | --- |
+| A | 175-178 img/s | **231-233** | 306 → 157 |
+| C | 306-322 img/s | **360-406** | 135 → 74 |
+| O | 102-111 img/s | **147-150** | 718 → 580 |
+
+Soit 20 à 38 %, et environ moitié moins d'appels de dessin.
+
+Ce qui coûte dans ce moteur, ce sont les **soumissions**, pas l'ombrage : `-Pfullbright` ne gagne
+que 2 %, `-Pnoshadow` 9 %. Et agrandir le paquet de lumières est contre-productif — `lightBatch=8`
+descend à 456 soumissions mais tombe à 105 img/s, `16` à 349 et 92 img/s, chaque passe évaluant
+alors plus de lumières par fragment. Le défaut de **4** est le bon.
 
 Invisible à l'image (vérifié) : une lumière hors PVS n'éclairait rien de ce qu'on voit.
 

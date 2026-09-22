@@ -29,6 +29,8 @@ public final class Lights3D {
     private static final float LAMP_RADIUS = 14f;
     /** Nombre de lumieres dynamiques recyclees (tirs, explosions, torches). */
     public static final int DYNAMIC = 12;
+    /** Rayon donne a une lumiere ecartee : assez petit pour que le filtre de jME la rejette. */
+    private static final float OFF_RADIUS = 0.01f;
     /** Niveau de l'ambiante : ce qui reste visible d'une surface hors de portee de toute source. */
     private static final float AMBIENT_LEVEL = 0.34f;
     /** Reglage BRIGHTNESS du menu : multiplie l'ambiante (1,0 = valeur d'origine). */
@@ -41,6 +43,9 @@ public final class Lights3D {
     /** La lumiere de chaque zone, et sa couleur nominale (on l'eteint quand elle est ombree). */
     private final java.util.Map<Integer, PointLight> zoneLight = new java.util.HashMap<>();
     private final java.util.Map<Integer, ColorRGBA> zoneColour = new java.util.HashMap<>();
+    /** Rayon d'origine de chaque lumiere de zone : c'est LUI qu'on annule pour l'ecarter. */
+    private final java.util.Map<Integer, Float> zoneRadius = new java.util.HashMap<>();
+    private final java.util.Map<PointLight, Float> lampRadius = new java.util.HashMap<>();
     /** Zones potentiellement visibles depuis chaque zone — le PVS du jeu d'origine. */
     private final java.util.Map<Integer, int[]> pvsOf = new java.util.HashMap<>();
     /** Zone de chaque lampe d'objet (les « glares »), pour l'éteindre avec sa pièce. */
@@ -152,6 +157,7 @@ public final class Lights3D {
             lamps.add(p);
             zoneLight.put(z.id, p);
             zoneColour.put(z.id, p.getColor().clone());
+            zoneRadius.put(z.id, p.getRadius());
             if (z.pvs != null) {
                 int[] vis = new int[z.pvs.size()];
                 for (int i = 0; i < vis.length; i++) {
@@ -177,6 +183,7 @@ public final class Lights3D {
             lamps.add(p);
             lampZone.put(p, o.zone);
             lampColour.put(p, p.getColor().clone());
+            lampRadius.put(p, p.getRadius());
         }
 
         shadowLight = new PointLight();
@@ -221,8 +228,8 @@ public final class Lights3D {
         litFromZone = zone;
         int[] vis = pvsOf.get(zone);
         if (vis == null) {                             // zone inconnue : on ne prend pas de risque
-            zoneLight.forEach((z, p) -> p.setColor(zoneColour.get(z)));
-            lampColour.forEach(PointLight::setColor);
+            zoneLight.forEach((z, p) -> p.setRadius(zoneRadius.get(z)));
+            lampRadius.forEach(PointLight::setRadius);
             return;
         }
         java.util.Set<Integer> on = new java.util.HashSet<>();
@@ -230,10 +237,14 @@ public final class Lights3D {
             on.add(v);
         }
         on.add(zone);                                  // la sienne d'abord
+        // On annule le RAYON, pas la couleur : jME ecarte une lumiere en testant son rayon
+        // contre le volume englobant de la geometrie (DefaultLightFilter). Une lumiere noire
+        // mais de grand rayon reste dans le lot et continue de coûter une passe — mesure a
+        // l'appui : le nombre d'objets soumis ne bougeait pas d'un pouce.
         zoneLight.forEach((z, p) ->
-                p.setColor(on.contains(z) ? zoneColour.get(z) : ColorRGBA.BlackNoAlpha));
-        lampColour.forEach((p, c) ->
-                p.setColor(on.contains(lampZone.getOrDefault(p, -1)) ? c : ColorRGBA.BlackNoAlpha));
+                p.setRadius(on.contains(z) ? zoneRadius.get(z) : OFF_RADIUS));
+        lampRadius.forEach((p, r) ->
+                p.setRadius(on.contains(lampZone.getOrDefault(p, -1)) ? r : OFF_RADIUS));
     }
 
     /** Zone depuis laquelle l'allumage courant a été calculé. */
@@ -245,7 +256,7 @@ public final class Lights3D {
     public int litCount() {
         int n = 0;
         for (PointLight p : zoneLight.values()) {
-            if (p.getColor().r + p.getColor().g + p.getColor().b > 0f) {
+            if (p.getRadius() > OFF_RADIUS) {
                 n++;
             }
         }
@@ -338,6 +349,8 @@ public final class Lights3D {
         pvsOf.clear();
         lampZone.clear();
         lampColour.clear();
+        zoneRadius.clear();
+        lampRadius.clear();
         litFromZone = Integer.MIN_VALUE;
         if (shadowLight != null) {
             root.removeLight(shadowLight);

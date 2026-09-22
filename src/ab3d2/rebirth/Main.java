@@ -985,10 +985,23 @@ public class Main extends SimpleApplication {
     @Override
     public void simpleUpdate(float tpf) {
         if (fpsLog) {                                  // -PfpsLog : cout reel d'une frame
+            if (fpsFrames == 0 && fpsAccum == 0f) {
+                renderer.getStatistics().setEnabled(true);   // sinon elles restent a zero
+            }
             fpsAccum += tpf;
             if (++fpsFrames == 120) {
-                System.out.printf("[fps] %.1f images/s  (%.2f ms par frame)%n",
-                        fpsFrames / fpsAccum, fpsAccum * 1000f / fpsFrames);
+                com.jme3.renderer.Statistics st = renderer.getStatistics();
+                int[] d = new int[st.getLabels().length];
+                st.getData(d);
+                StringBuilder sb = new StringBuilder();
+                String[] lab = st.getLabels();
+                for (int i = 0; i < lab.length; i++) {
+                    if (d[i] > 0) {
+                        sb.append(' ').append(lab[i]).append('=').append(d[i]);
+                    }
+                }
+                System.out.printf("[fps] %.1f images/s  (%.2f ms par frame) %s%n",
+                        fpsFrames / fpsAccum, fpsAccum * 1000f / fpsFrames, sb);
                 fpsFrames = 0;
                 fpsAccum = 0f;
             }
@@ -1065,6 +1078,7 @@ public class Main extends SimpleApplication {
                             player.zone, lights3d.litCount(), lights3d.lampCount());
                 }
             }
+            builder.setVisibleFrom(player.zone);        // tri de visibilite de la frame
             applyAnimatedGeometry();
             builder.updateShots(shots.shots());
             builder.updateAliens();
