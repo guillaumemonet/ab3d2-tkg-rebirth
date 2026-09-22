@@ -1795,6 +1795,8 @@ public final class LevelBuilder {
         final ab3d2.rebirth.sim.Aliens.Alien alien;
         final LevelData.Obj proxy;
         final Geometry geometry;
+        /** Vrai pour une entite dessinee en MODELE et non en panneau (cf. buildAliens). */
+        final boolean vector;
         int lastZone = -1;
         /** Panneau du graphique AUXILIAIRE (eclat de tir), cree a la premiere frame qui en a un. */
         Geometry aux;
@@ -1802,10 +1804,11 @@ public final class LevelBuilder {
         int auxFrame = -1;
         float auxOx = Float.NaN;
 
-        AlienView(ab3d2.rebirth.sim.Aliens.Alien a, LevelData.Obj o, Geometry g) {
+        AlienView(ab3d2.rebirth.sim.Aliens.Alien a, LevelData.Obj o, Geometry g, boolean vector) {
             this.alien = a;
             this.proxy = o;
             this.geometry = g;
+            this.vector = vector;
         }
     }
 
@@ -1850,14 +1853,34 @@ public final class LevelBuilder {
                 proxy.sheet = 0;
                 proxy.lit = true;
             }
-            Geometry g = sprite(proxy, a.x / XZ_SCALE, -a.height / 64f, -a.z / XZ_SCALE);
+            // Toutes les entites « alien » ne sont pas des monstres, et toutes ne sont pas des
+            // panneaux : l'octet GFXType+1 de leur definition vaut 1 pour celles que le jeu
+            // dessine en POLYGONES (draw_Object teste ce cas avant d'appeler draw_Bitmap). Ce
+            // sont les interrupteurs muraux -- neuf en tout, dans H, L, O et P. Les traiter en
+            // sprite leur donnait la feuille 0 faute de champ `sheet`, donc un graphisme faux.
+            boolean vec = src != null && "vector".equals(src.gclass);
+            Geometry g;
+            if (vec) {
+                proxy.gclass = "vector";
+                proxy.model = src.model;
+                proxy.frame = src.frame;
+                proxy.angle = src.angle;
+                proxy.ceiling = src.ceiling;
+                proxy.wall = src.wall;
+                g = model(proxy, a.x / XZ_SCALE, -a.z / XZ_SCALE, 0f, 0f);
+            } else {
+                g = sprite(proxy, a.x / XZ_SCALE, -a.height / 64f, -a.z / XZ_SCALE);
+            }
             if (g == null) {
                 continue;
             }
+            g.setLocalTranslation(a.x / XZ_SCALE, -a.height / 64f, -a.z / XZ_SCALE);
             node.attachChild(g);
-            alienViews.add(new AlienView(a, proxy, g));
+            alienViews.add(new AlienView(a, proxy, g, vec));
         }
-        System.out.printf("[Level] aliens : %d entites%n", alienViews.size());
+        long nv = alienViews.stream().filter(v -> v.vector).count();
+        System.out.printf("[Level] aliens : %d entites%s%n", alienViews.size(),
+                nv == 0 ? "" : " (dont " + nv + " en modele)");
         return node;
     }
 
@@ -1928,6 +1951,11 @@ public final class LevelBuilder {
                 int vec = def == null ? 0 : (def.gfxType & 0xFF);
                 v.proxy.pal = Math.max(0, Math.min(3, vec - 2));
                 v.proxy.lit = vec >= 2 && vec < 6;
+            }
+            if (v.vector) {                            // un modele n'a ni feuille ni miroir
+                v.geometry.setLocalTranslation(a.x / XZ_SCALE, -a.height / 64f, -a.z / XZ_SCALE);
+                updateAux(v, a);
+                continue;
             }
             if (v.proxy.sheet != a.sheet || v.proxy.frame != a.frame) {
                 v.proxy.sheet = a.sheet;

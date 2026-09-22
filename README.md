@@ -156,9 +156,11 @@ Quelques options utiles : `-Pnolevelscene` (rebâtir au lieu de charger la scèn
 (émulation du rasteriseur d'origine), `-Pfullbright`, `-PlightLog`, `-PdeformLog`,
 `-Pshot=N` (capture après N frames), `-Pnosound`.
 
-Pour mesurer : `-PfpsLog` imprime le temps de frame moyen, `-Pnovsync` lève le plafond du
-rafraîchissement (sans elle toute mesure donne 60 et ne veut rien dire), `-PnoPvsLights` rallume
-toutes les lumières pour servir de référence.
+Pour mesurer : `-PfpsLog` imprime le temps de frame moyen, le nombre de soumissions et le
+découpage de l'arbre en géométries, `-Pnovsync` lève le plafond du rafraîchissement (sans elle
+toute mesure donne 60 et ne veut rien dire), `-PnoPvsLights` rallume toutes les lumières pour
+servir de référence — à ajouter aussi avec `-Pfreecam`, dont la caméra sort de la zone du joueur
+et se retrouve donc dans le noir.
 
 ## Ouvrir dans le SDK jME
 
