@@ -89,6 +89,12 @@ public class Main extends SimpleApplication {
     private Lights3D lights3d;
     /** -PlightLog : trace l'allumage selectif quand le joueur change de zone. */
     private final boolean lightLog = System.getProperty("rebirth.lightLog") != null;
+    /** -PnoPvsLights : garde TOUTES les lumieres allumees (mesure de reference). */
+    private final boolean noPvsLights = System.getProperty("rebirth.noPvsLights") != null;
+    /** -PfpsLog : imprime le temps de frame moyen toutes les 120 frames. */
+    private final boolean fpsLog = System.getProperty("rebirth.fpsLog") != null;
+    private int fpsFrames;
+    private float fpsAccum;
     private StatusPanel panel;
     /** La carte (TAB) ; refaite a chaque niveau. */
     private AutoMap automap;
@@ -176,7 +182,8 @@ public class Main extends SimpleApplication {
         settings.setTitle("Alien Breed 3D II - Rebirth");
         settings.setResolution(opts.width(), opts.height());
         settings.setFullscreen(opts.fullscreen);
-        settings.setVSync(opts.vsync);
+        // -Pnovsync : sans elle, impossible de mesurer le cout REEL d'une frame.
+        settings.setVSync(opts.vsync && System.getProperty("rebirth.novsync") == null);
         if (System.getProperty("rebirth.nosound") != null) {
             settings.setAudioRenderer(null);      // -Pnosound : aucun peripherique audio
         }
@@ -898,7 +905,7 @@ public class Main extends SimpleApplication {
         st.copyFrom(settings);
         st.setResolution(options.width(), options.height());
         st.setFullscreen(options.fullscreen);
-        st.setVSync(options.vsync);
+        st.setVSync(options.vsync && System.getProperty("rebirth.novsync") == null);
         setSettings(st);
         restart();
     }
@@ -977,6 +984,15 @@ public class Main extends SimpleApplication {
 
     @Override
     public void simpleUpdate(float tpf) {
+        if (fpsLog) {                                  // -PfpsLog : cout reel d'une frame
+            fpsAccum += tpf;
+            if (++fpsFrames == 120) {
+                System.out.printf("[fps] %.1f images/s  (%.2f ms par frame)%n",
+                        fpsFrames / fpsAccum, fpsAccum * 1000f / fpsFrames);
+                fpsFrames = 0;
+                fpsAccum = 0f;
+            }
+        }
         // La vue de l'arme a sa propre scene : PERSONNE ne la met a jour a notre place, et jME
         // refuse de dessiner une scene laissee « sale ». Elle doit donc etre mise a jour a
         // CHAQUE frame, quelle que soit la branche prise ci-dessous — d'ou le finally : les
@@ -1041,7 +1057,7 @@ public class Main extends SimpleApplication {
             }
             applyCamera();
             // N'allumer que ce qui peut se voir depuis la zone du joueur (PVS du jeu d'origine).
-            if (lights3d != null) {
+            if (lights3d != null && !noPvsLights) {
                 int zoneBefore = lights3d.litFrom();
                 lights3d.lightZonesVisibleFrom(player.zone);
                 if (lightLog && player.zone != zoneBefore) {

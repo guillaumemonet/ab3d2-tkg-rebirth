@@ -100,18 +100,29 @@ passerelle au-dessus de l'escalier.*
 
 ## L'éclairage
 
-Une lumière par zone, mais **toutes attachées à la racine** : jME les appliquait donc à toute la
-géométrie. Avec 134 lumières au niveau A et un paquet de 4 en SinglePass, c'était près de
-quarante passes sur chaque surface.
-
-On n'allume désormais que les zones **potentiellement visibles** depuis celle du joueur — le PVS
-du jeu d'origine, qu'on extrait avec le reste :
+Une lumière par zone, mais **toutes attachées à la racine**. On n'allume désormais que les zones
+**potentiellement visibles** depuis celle du joueur — le PVS du jeu d'origine, qu'on extrait avec
+le reste :
 
 | niveau | lumières | allumées |
 | --- | --- | --- |
 | A | 134 | 11 |
 | C | 199 | 14 |
 | O | 166 | 37 |
+
+**Le gain mesuré, VSync coupée** (`-PfpsLog -Pnovsync`, contre `-PnoPvsLights`) :
+
+| niveau | sans tri | avec tri |
+| --- | --- | --- |
+| A | 165 img/s | 196 img/s |
+| C | 315 img/s | 331 img/s |
+| O | 92 img/s | 107 img/s |
+
+Soit 5 à 19 % selon l'endroit — utile, mais loin du facteur qu'on pourrait croire en comptant les
+lumières. La raison : jME **filtre déjà** les lumières par rayon contre le volume englobant de
+chaque géométrie, donc la plupart des 134 ne coûtaient déjà rien. Ce que le PVS apporte en plus,
+c'est qu'il **respecte les murs** : une lumière proche mais dans la pièce d'à côté est écartée, ce
+qu'un test de rayon ne sait pas faire.
 
 Invisible à l'image (vérifié) : une lumière hors PVS n'éclairait rien de ce qu'on voit.
 
@@ -129,6 +140,10 @@ gradle -p rebirth menuTest            # le menu
 Quelques options utiles : `-Pnolevelscene` (rebâtir au lieu de charger la scène), `-Pretro`
 (émulation du rasteriseur d'origine), `-Pfullbright`, `-PlightLog`, `-PdeformLog`,
 `-Pshot=N` (capture après N frames), `-Pnosound`.
+
+Pour mesurer : `-PfpsLog` imprime le temps de frame moyen, `-Pnovsync` lève le plafond du
+rafraîchissement (sans elle toute mesure donne 60 et ne veut rien dire), `-PnoPvsLights` rallume
+toutes les lumières pour servir de référence.
 
 ## Ouvrir dans le SDK jME
 
