@@ -89,12 +89,16 @@ permet de comparer les deux à tout moment — ils sont **identiques au pixel pr
 La scène ne contient que le **décor**. Les objets (ramassages, décor animé, monstres) sont des
 entités que le jeu place et retire en cours de partie : les figer n'aurait pas de sens.
 
-Les parties **mobiles** du décor sont ré-attachées **par nom de nœud** après chargement :
+Les parties **mobiles** du décor sont ré-attachées **par nom de nœud** après chargement. Un nom
+qui désigne deux nœuds ne se voit pas — `Node.getChild` rend le premier venu, on anime le mauvais
+objet et rien ne proteste. Le chargement vérifie donc que chaque nœud rattaché porte bien la
+géométrie attendue, et le dit à voix haute sinon :
 
 | nœud | rôle |
 | --- | --- |
 | `lift_zone_<id>` | sol d'ascenseur |
 | `door_zone_<id>` | plafond de zone-porte (le dessous du battant) |
+| `jambs_zone_<id>` | murs propres d'une zone-porte ou -ascenseur : les jambages, **fixes** |
 | `deform_<n>_<clé>` | groupe de murs que la porte/l'ascenseur `<n>` déforme |
 | `water_<id>` | surface d'eau |
 | `flat_tile<n>`, `wall_<clé>` | décor statique |

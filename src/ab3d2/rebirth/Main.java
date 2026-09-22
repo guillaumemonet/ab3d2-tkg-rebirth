@@ -1572,13 +1572,10 @@ public class Main extends SimpleApplication {
         }
         if (level.lifts != null) {
             for (int i = 0; i < level.lifts.size(); i++) {
-                Node node = builder.liftFloors.get(level.lifts.get(i).zone);
-                if (node != null) {
-                    // le sol de la zone-ascenseur suit ZoneT_Floor (anime par LiftRoutine)
-                    float y = -anims.liftFloorH[i] / 8192f;
-                    float base = -level.lifts.get(i).bottom / 32f;   // hauteur initiale du flat
-                    node.setLocalTranslation(0f, y - base, 0f);
-                }
+                // le sol de la zone-ascenseur suit ZoneT_Floor (anime par LiftRoutine) ; la
+                // hauteur de repos est celle du flat, que LevelBuilder est seul a connaitre
+                builder.setLiftFloorHeight(level.lifts.get(i).zone,
+                        -anims.liftFloorH[i] / 8192f);
             }
         }
     }

@@ -98,6 +98,8 @@ public final class LevelBuilder {
     public final Map<Integer, DoorPanel> doorPanels = new LinkedHashMap<>();
     /** Sol des zones-ascenseurs : zone -&gt; noeud deplacable (pour LiftRoutine). */
     public final Map<Integer, Node> liftFloors = new LinkedHashMap<>();
+    /** Hauteur a laquelle ce sol a ete EMIS : un deplacement est relatif a elle. */
+    private final Map<Integer, Float> liftFloorBase = new LinkedHashMap<>();
     /** Plafond des zones-portes : zone -&gt; noeud deplacable (le DESSOUS du battant). */
     public final Map<Integer, Node> doorCeilings = new LinkedHashMap<>();
     /** Hauteur jME d'origine de ces plafonds, pour en deduire le deplacement. */
@@ -210,6 +212,23 @@ public final class LevelBuilder {
         return root;
     }
 
+    /**
+     * Verifie qu'un noeud raccorde par son nom contient bien la geometrie attendue.
+     *
+     * <p>Sans ce controle, un nom employe deux fois dans la scene passe inapercu : on anime
+     * silencieusement le mauvais noeud. C'est arrive -- les jambages d'une zone-porte et le
+     * plafond mobile de cette meme zone s'appelaient tous deux {@code door_zone_<id>}.
+     */
+    private static void checkBound(Map<Integer, Node> bound, String prefix, String quoi) {
+        for (Map.Entry<Integer, Node> e : bound.entrySet()) {
+            if (e.getValue().getChild(prefix + e.getKey()) == null) {
+                System.err.printf("[Level] ATTENTION : le %s de la zone %d est raccorde au noeud"
+                        + " « %s », qui ne contient pas %s%d — nom employe deux fois ?%n",
+                        quoi, e.getKey(), e.getValue().getName(), prefix, e.getKey());
+            }
+        }
+    }
+
     // ------------------------------------------------------------------ murs
 
     private Node buildWalls(LevelData lvl) {
@@ -284,7 +303,13 @@ public final class LevelBuilder {
 
         doorPanels.clear();
         for (Map.Entry<Integer, Map<String, List<LevelData.Wall>>> e : doorGroups.entrySet()) {
-            Node panel = new Node("door_zone_" + e.getKey());
+            // « jambs », PAS « door_zone » : ce nom-la designe deja le plafond mobile de la
+            // zone-porte (cf. buildFlats). Deux noeuds homonymes dans la meme scene et
+            // Node.getChild rend le premier venu -- en l'occurrence celui des murs, puisque
+            // Walls precede Flats : la porte rechargee depuis un .j3o faisait alors monter ses
+            // JAMBAGES et laissait le battant en place. Le nom couvre aussi les zones-ascenseurs,
+            // dont les murs propres arrivent dans le meme lot.
+            Node panel = new Node("jambs_zone_" + e.getKey());
             for (Map.Entry<String, List<LevelData.Wall>> g : e.getValue().entrySet()) {
                 Geometry geo = wallSurface(g.getValue(), lvl.points, g.getKey());
                 if (geo != null) {
@@ -356,6 +381,7 @@ public final class LevelBuilder {
         waterGeoms.clear();
         doorPanels.clear();
         liftFloors.clear();
+        liftFloorBase.clear();
         doorCeilings.clear();
         doorCeilBase.clear();
         deformed.clear();
@@ -379,16 +405,31 @@ public final class LevelBuilder {
         dynLights = new DynLights(lvl, zonesById, lights, sinCos);
 
         // --- les parties MOBILES du decor, retrouvees par leur nom ---
+        Map<Integer, LevelData.Flat> floorOf = new HashMap<>();
+        for (LevelData.Flat f : safe(lvl.flats)) {
+            if ("floor".equals(f.kind) && !f.upper) {
+                floorOf.putIfAbsent(f.zone, f);
+            }
+        }
         for (LevelData.Liftable lf : safe(lvl.lifts)) {
             com.jme3.scene.Spatial n = decor.getChild("lift_zone_" + lf.zone);
-            if (n instanceof Node node) {
+            LevelData.Flat f = floorOf.get(lf.zone);
+            if (n instanceof Node node && f != null) {
                 liftFloors.put(lf.zone, node);
+                liftFloorBase.put(lf.zone, -f.y / 128f);
             }
         }
         Map<Integer, LevelData.Flat> ceilOf = new HashMap<>();
         for (LevelData.Flat f : safe(lvl.flats)) {
             if (!"floor".equals(f.kind) && !"water".equals(f.kind) && !f.upper) {
                 ceilOf.putIfAbsent(f.zone, f);
+            }
+        }
+        for (List<LevelData.Liftable> arr : List.of(safe(lvl.doors), safe(lvl.lifts))) {
+            for (LevelData.Liftable d : arr) {         // jambages : statiques, mais les deux
+                if (decor.getChild("jambs_zone_" + d.zone) instanceof Node jn) {
+                    doorPanels.put(d.zone, new DoorPanel(jn));   // chemins doivent s'accorder
+                }
             }
         }
         for (LevelData.Liftable dr : safe(lvl.doors)) {
@@ -404,6 +445,11 @@ public final class LevelBuilder {
                 waterGeoms.add(g);
             }
         }
+        // On raccorde ces pieces mobiles PAR NOM, et un nom qui designe deux noeuds ne se voit
+        // pas : Node.getChild rend le premier venu, on anime le mauvais objet et rien ne
+        // proteste. On verifie donc que chaque noeud raccorde porte bien la geometrie attendue.
+        checkBound(liftFloors, "lift_floor_", "sol d'ascenseur");
+        checkBound(doorCeilings, "door_ceil_", "plafond de porte");
 
         // --- les murs DEFORMES : meme regroupement qu'a la construction, geometrie par nom ---
         Map<Integer, LevelData.Wall> byGfxOfs = new HashMap<>();
@@ -534,6 +580,22 @@ public final class LevelBuilder {
      * @param zone zone de la porte ({@code LevelData.Liftable.zone})
      * @param y    hauteur jME visee
      */
+    /**
+     * Pose le sol d'une zone-ascenseur a la hauteur monde {@code y}.
+     *
+     * <p>Jumeau de {@link #setDoorCeilingHeight} : le deplacement se compte depuis la hauteur a
+     * laquelle le flat a ete EMIS, la seule qui soit dans les bonnes unites. Main recalculait
+     * cette base a sa facon, avec un diviseur qui n'etait pas celui des flats -- le plateau
+     * partait trente unites trop haut et le puits n'avait plus de fond.
+     */
+    public void setLiftFloorHeight(int zone, float y) {
+        Node n = liftFloors.get(zone);
+        Float base = liftFloorBase.get(zone);
+        if (n != null && base != null) {
+            n.setLocalTranslation(0f, y - base, 0f);
+        }
+    }
+
     public void setDoorCeilingHeight(int zone, float y) {
         Node n = doorCeilings.get(zone);
         Float base = doorCeilBase.get(zone);
@@ -924,6 +986,7 @@ public final class LevelBuilder {
                     holder.attachChild(g);
                     node.attachChild(holder);
                     liftFloors.put(z.id, holder);
+                    liftFloorBase.put(z.id, -f.y / 128f);
                 } else {
                     emitFlat(byTile, ring, tri, -f.y / 128f, f.tile, srcFloor);
                 }
