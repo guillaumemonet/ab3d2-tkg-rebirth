@@ -1942,6 +1942,24 @@ public final class LevelBuilder {
         return visible == null || zone < 0 || zone >= visible.length || visible[zone];
     }
 
+    /**
+     * Repose le maillage d'une entite dessinee en modele, a la maniere de
+     * {@code setSpriteFrame} pour un panneau : meme geometrie, meme materiau, autre maillage.
+     * Si la frame demandee n'existe pas dans les donnees, on garde le maillage courant plutot
+     * que de faire disparaitre l'entite.
+     */
+    private void setModelFrame(Geometry g, LevelData.Obj o) {
+        String name = glf == null ? null : glf.vectorModel(o.model);
+        if (name == null) {
+            return;
+        }
+        ObjModels.Model m = ObjModels.load(String.format("models/%s/frame_%03d.obj", name, o.frame));
+        if (m == null) {
+            return;
+        }
+        g.setMesh(buildModelMesh(m, o));
+    }
+
     public void updateAliens() {
         for (AlienView v : alienViews) {
             ab3d2.rebirth.sim.Aliens.Alien a = v.alien;
@@ -1973,7 +1991,21 @@ public final class LevelBuilder {
                 v.proxy.pal = Math.max(0, Math.min(3, vec - 2));
                 v.proxy.lit = vec >= 2 && vec < 6;
             }
-            if (v.vector) {                            // un modele n'a ni feuille ni miroir
+            if (v.vector) {
+                // Un modele n'a ni feuille ni miroir : le champ que la simulation appelle
+                // `sheet` EST son index de modele (ai_DoWalkAnim pose a.sheet = octet 0 du pas
+                // d'animation, celui-la meme que draw_PolygonModel relit), et le signe de la
+                // frame, qui pour un panneau commande le miroir, n'a pas de sens ici.
+                if (v.proxy.model != a.sheet || v.proxy.frame != a.frame) {
+                    v.proxy.model = a.sheet;
+                    v.proxy.frame = a.frame;
+                    setModelFrame(v.geometry, v.proxy);
+                }
+                if (v.proxy.angle != a.angle) {        // un maillage TOURNE, il ne se billboarde pas
+                    v.proxy.angle = a.angle;
+                    v.geometry.setLocalRotation(
+                            new Quaternion().fromAngles(0f, modelYaw(a.angle), 0f));
+                }
                 v.geometry.setLocalTranslation(a.x / XZ_SCALE, -a.height / 64f, -a.z / XZ_SCALE);
                 updateAux(v, a);
                 continue;

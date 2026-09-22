@@ -128,6 +128,11 @@ pas d'animation** (`ai.s:1917`), exactement comme pour un objet vectoriel. Le co
 prouve tient en une ligne : les noms d'entités et les noms de modèles coïncident désormais
 (*Mantis Boss* → `MANTIS`), ce qui n'était le cas pour aucun des neuf.
 
+Ces boss **s'animent** comme les autres : le champ que la simulation appelle `sheet` est leur
+index de modèle, et sa frame choisit l'un des maillages (13 pour le Wasp, 20 pour le Crab et le
+Mantis). Contrairement à un panneau, un maillage **tourne** au lieu de se billboarder, et le
+signe de la frame — qui pour un sprite commande le miroir — ne s'applique pas.
+
 ---
 
 ## L'éclairage
