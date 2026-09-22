@@ -1,0 +1,21 @@
+// Eclairage fidele des modeles vectoriels : meme table que les sols
+// (shade[256*32 + niveau*256 + rawIdx]), niveau = base de la face + anneau directionnel.
+//   IndexMap : rawIdx par texel de l'atlas texture-maps (0 = transparent).
+//   Lut      : 256 (texel) x 32 (niveau 0..31).
+MaterialDef ModelShade {
+
+    MaterialParameters {
+        Texture2D IndexMap
+        Texture2D Lut
+    }
+
+    Technique {
+        VertexShader   GLSL100 GLSL150 : Shaders/WallShade.vert
+        FragmentShader GLSL100 GLSL150 : Shaders/ModelShade.frag
+
+        WorldParameters {
+            WorldViewProjectionMatrix
+            WorldViewMatrix
+        }
+    }
+}

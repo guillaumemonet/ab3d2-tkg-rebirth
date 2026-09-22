@@ -1,0 +1,20 @@
+// Eclairage fidele des sols/plafonds (cf. draw_GoraudFloor : shade[256*32 + niveau*256 + texel]).
+//   IndexMap : index de palette du texel (0..255), filtre Nearest.
+//   Lut      : 256 (texel) x 31 (niveau 0..30), niveau 0 = le plus clair.
+MaterialDef FloorShade {
+
+    MaterialParameters {
+        Texture2D IndexMap
+        Texture2D Lut
+    }
+
+    Technique {
+        VertexShader   GLSL100 GLSL150 : Shaders/WallShade.vert
+        FragmentShader GLSL100 GLSL150 : Shaders/FloorShade.frag
+
+        WorldParameters {
+            WorldViewProjectionMatrix
+            WorldViewMatrix
+        }
+    }
+}

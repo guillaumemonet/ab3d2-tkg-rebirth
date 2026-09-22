@@ -1,0 +1,25 @@
+// Surface d'eau (draw_WaterSurface, Hires.java:417).
+//   IndexMap : index de palette du SOL sous l'eau (la tuile du flat d'eau), filtre Nearest.
+//   Lut      : 256 (texel) x 29 (bloc de palette 16+n) = la teinte de l'eau.
+//   Waves    : 256 (position) x 8 (phase) = le decalage de BLOC donne par le fichier de vagues.
+//   Phase    : phase courante (0..7), Scroll : defilement (wateroff).
+MaterialDef WaterShade {
+
+    MaterialParameters {
+        Texture2D IndexMap
+        Texture2D Lut
+        Texture2D Waves
+        Float Phase
+        Float Scroll
+    }
+
+    Technique {
+        VertexShader   GLSL100 GLSL150 : Shaders/WallShade.vert
+        FragmentShader GLSL100 GLSL150 : Shaders/WaterShade.frag
+
+        WorldParameters {
+            WorldViewProjectionMatrix
+            WorldViewMatrix
+        }
+    }
+}

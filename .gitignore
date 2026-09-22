@@ -1,0 +1,25 @@
+# --- Sorties de build ---
+/build/
+/.gradle/
+/build-nb/
+/dist-nb/
+/nbproject/private/
+/nbproject/build-impl.xml
+/nbproject/assets-impl.xml
+
+# --- ASSETS : aucune donnee du jeu n'est versionnee ---
+# Tout assets/ est REGENERE depuis les disquettes :
+#   gradle -p rebirth extract     assets d'origine -> PNG/JSON/OBJ/WAV
+#   gradle -p rebirth materials   -> assets/materials/*.j3m
+#   gradle -p rebirth scenes      -> assets/Scenes/*.j3o
+# Seuls les SHADERS sont a nous, donc versionnes.
+/assets/*
+!/assets/Shaders/
+
+# --- Captures et diagnostics ---
+/*.png
+*.stackdump
+
+# --- IDE ---
+/.idea/
+*.iml

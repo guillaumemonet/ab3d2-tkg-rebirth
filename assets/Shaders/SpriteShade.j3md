@@ -1,0 +1,22 @@
+// Sprites eclaires (monstres) : la couleur vient de la palette de la feuille, ligne = variante,
+// colonne = niveau*8 + (index & 7). Le niveau de chaque groupe de 8 couleurs est calcule cote CPU
+// (SpriteLight, port de drawBitmapLighted) et passe en tableau d'uniformes.
+MaterialDef SpriteShade {
+
+    MaterialParameters {
+        Texture2D IndexMap
+        Texture2D Lut
+        Float PalRow
+        FloatArray Levels
+    }
+
+    Technique {
+        VertexShader   GLSL100 GLSL150 : Shaders/WallShade.vert
+        FragmentShader GLSL100 GLSL150 : Shaders/SpriteShade.frag
+
+        WorldParameters {
+            WorldViewProjectionMatrix
+            WorldViewMatrix
+        }
+    }
+}

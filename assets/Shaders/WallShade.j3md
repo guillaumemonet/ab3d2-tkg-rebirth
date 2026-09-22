@@ -1,0 +1,20 @@
+// Eclairage fidele des murs (cf. Hireswall : palette[ shade[bloc*64 + sr*2] ]).
+//   IndexMap : selecteur de rampe 5 bits par texel (0..31), filtre Nearest.
+//   Lut      : 32 (sr) x 32 (bloc de luminosite) de la texture, bloc 0 = le plus clair.
+MaterialDef WallShade {
+
+    MaterialParameters {
+        Texture2D IndexMap
+        Texture2D Lut
+    }
+
+    Technique {
+        VertexShader   GLSL100 GLSL150 : Shaders/WallShade.vert
+        FragmentShader GLSL100 GLSL150 : Shaders/WallShade.frag
+
+        WorldParameters {
+            WorldViewProjectionMatrix
+            WorldViewMatrix
+        }
+    }
+}

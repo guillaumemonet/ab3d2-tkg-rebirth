@@ -1,0 +1,183 @@
+// ---------------------------------------------------------------------------
+// AB3D2 REBIRTH — le remake FULL 3D, projet a part entiere.
+//
+// Moteur : jMonkeyEngine 3. Le portage Java fidele (../java) n'est PAS le moteur :
+// il sert de LECTEUR autoritatif des formats d'origine pour l'extraction des assets,
+// et d'ORACLE quand une regle de jeu est douteuse (au besoin on remonte a l'ASM,
+// ../../ab3d2-tkg/ab3d2_source). On ne modifie pas son code.
+//
+//   gradle -p rebirth run                    # le jeu
+//   gradle -p rebirth extract                # (re)fabrique les assets modernes
+//   gradle -p rebirth moveTest shotTest alienTest
+// ---------------------------------------------------------------------------
+plugins {
+    id 'application'
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    jmeVersion = '3.9.0-stable'      // validee avec JDK 21
+    lwjglVersion = '3.3.4'           // requis par le portage-lecteur (couche hote)
+    lwjglNatives = 'natives-windows'
+}
+
+dependencies {
+    // jME 3 + backend LWJGL3 (apporte transitivement glfw/opengl/openal + natives).
+    implementation "org.jmonkeyengine:jme3-core:$jmeVersion"
+    implementation "org.jmonkeyengine:jme3-desktop:$jmeVersion"
+    implementation "org.jmonkeyengine:jme3-lwjgl3:$jmeVersion"
+    // Effets : BloomFilter, SSAO, eau... (fournit aussi Common/MatDefs/Post).
+    implementation "org.jmonkeyengine:jme3-effects:$jmeVersion"
+    // Chargement/ecriture des formats jME natifs (j3o), utile aux outils d'assets.
+    implementation "org.jmonkeyengine:jme3-plugins:$jmeVersion"
+
+    implementation 'com.google.code.gson:gson:2.11.0'
+
+    // Le portage-lecteur compile contre LWJGL (sa couche hote), meme quand on ne
+    // l'utilise qu'en tete pour lire les formats d'origine.
+    implementation platform("org.lwjgl:lwjgl-bom:$lwjglVersion")
+    implementation 'org.lwjgl:lwjgl'
+    implementation 'org.lwjgl:lwjgl-glfw'
+    implementation 'org.lwjgl:lwjgl-opengl'
+    implementation 'org.lwjgl:lwjgl-openal'
+    runtimeOnly "org.lwjgl:lwjgl::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-glfw::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-opengl::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-openal::$lwjglNatives"
+}
+
+// On compile le remake AVEC les sources du portage : l'extraction s'appuie dessus
+// pour lire les formats d'origine. Le portage reste buildable seul (gradle -p java).
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src', '../java/src']
+        }
+        resources {
+            // Les shaders du remake vivent desormais dans assets/Shaders : ils sont ainsi
+            // VISIBLES et modifiables dans le SDK jME, comme le reste des assets. Ne reste
+            // sur le classpath que ce qui appartient au portage (ses tables et polices, que
+            // Assets.incbin charge pendant l'extraction).
+            srcDirs = ['../java/resources']
+        }
+    }
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+application {
+    mainClass = 'ab3d2.rebirth.Main'
+    applicationName = 'AlienBreed3D2-Rebirth'
+}
+
+// Les assets d'ORIGINE (cache depacke des disquettes) sont a la racine de l'espace de
+// travail. On les cherche en remontant, comme le fait le portage.
+def findAssetRoot = {
+    def d = projectDir
+    for (int i = 0; i < 5 && d != null; i++, d = d.parentFile) {
+        if (new File(d, 'medias/original').isDirectory()) {
+            return d
+        }
+    }
+    return projectDir.parentFile
+}
+def assetRoot = findAssetRoot()
+
+// Les assets MODERNES produits par `extract`, consommes par le jeu.
+def assetsDir = new File(projectDir, 'assets')
+
+// Les options -P<nom> deviennent -Drebirth.<nom>. Un drapeau nu vaut '1'.
+def flags = { JavaExec t, List<String> names ->
+    names.each { n ->
+        if (project.hasProperty(n)) {
+            def v = project.property(n).toString()
+            t.systemProperty("rebirth.$n", v.isEmpty() ? '1' : v)
+        }
+    }
+}
+
+tasks.named('run') {
+    workingDir = projectDir
+    systemProperty 'rebirth.assets', assetsDir.absolutePath
+    flags(it, [
+        'level', 'shot', 'freecam', 'at', 'noAction', 'health', 'sfxLog', 'nosound',
+        'stats', 'weaponLog', 'shimmer', 'deformLog', 'dynLog', 'shotLog', 'fire',
+        'gun', 'demo', 'spawn', 'autoplay', 'weaponInScene', 'story', 'startmenu',
+        'map', 'mapAll', 'angle', 'pitch', 'lightLog', 'lightBatch', 'noshadow',
+        'ssao', 'retro', 'fullbright', 'vsign', 'nolevelscene',
+    ])
+}
+
+tasks.register('extract', JavaExec) {
+    group = 'assets'
+    description = "Extrait les assets d'origine en formats modernes"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.rebirth.extract.Extract'
+    workingDir = assetRoot                 // pour qu'Assets.root resolve medias/original
+    systemProperty 'rebirth.assets', assetsDir.absolutePath
+    if (project.hasProperty('what')) {
+        args(project.property('what').toString())
+    }
+    flags(it, ['sprPal'])
+}
+
+// --- validations headless de la simulation (doivent afficher PASS) ---
+['moveTest': 'ab3d2.rebirth.sim.MoveTest',
+ 'shotTest': 'ab3d2.rebirth.sim.ShotTest',
+ 'alienTest': 'ab3d2.rebirth.sim.AlienTest'].each { name, cls ->
+    tasks.register(name, JavaExec) {
+        group = 'verification'
+        description = "Teste la simulation sans fenetre ($name)"
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = cls
+        workingDir = projectDir
+        systemProperty 'rebirth.assets', assetsDir.absolutePath
+        flags(it, ['level', 'spawn', 'aiTrace', 'alienLog'])
+    }
+}
+
+tasks.register('lightTest', JavaExec) {
+    group = 'verification'
+    description = "Affiche l'anneau d'eclairage d'un objet (-Pring=x,z,zone)"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.rebirth.LightTest'
+    workingDir = projectDir
+    systemProperty 'rebirth.assets', assetsDir.absolutePath
+    flags(it, ['anim', 'spr', 'ring', 'level'])
+}
+
+tasks.register('menuTest', JavaExec) {
+    group = 'verification'
+    description = "Affiche l'ecran du menu (fond defilant, feu, texte)"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.rebirth.menu.MenuTest'
+    workingDir = projectDir
+    systemProperty 'rebirth.assets', assetsDir.absolutePath
+    flags(it, ['shot', 'page'])
+}
+
+tasks.register('materials', JavaExec) {
+    group = 'assets'
+    description = "Ecrit les materiaux du decor en .j3m (editables a la main / dans le SDK jME)"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.rebirth.extract.MaterialExport'
+    workingDir = projectDir
+    systemProperty 'rebirth.assets', assetsDir.absolutePath
+}
+
+tasks.register('scenes', JavaExec) {
+    group = 'assets'
+    description = "Ecrit les niveaux en scenes .j3o (ouvrables dans le SDK jME)"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.rebirth.extract.SceneExport'
+    workingDir = projectDir
+    systemProperty 'rebirth.assets', assetsDir.absolutePath
+    flags(it, ['level'])
+}

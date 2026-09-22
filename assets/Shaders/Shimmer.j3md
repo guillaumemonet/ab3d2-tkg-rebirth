@@ -1,0 +1,24 @@
+// Effet de DEMATERIALISATION (c2p_Convert1xTeleFx, modules/c2p/teleport_fx/routines.s).
+//   Texture  : l'image deja rendue (fournie par le FilterPostProcessor de jME).
+//   Displace : 80 colonnes (demi-groupes de 4 pixels d'origine) x 256 lignes x 8 frames,
+//              R = dx + 128, G = dy + 128, en pixels de l'ecran d'ORIGINE (320x256).
+//   Frame    : la frame courante, 0 a 7 (l'amplitude croit avec elle).
+MaterialDef Shimmer {
+
+    MaterialParameters {
+        // Pose par le FilterPostProcessor de jME quand le viewport est multi-echantillonne :
+        // on ne s'en sert pas, mais le parametre doit exister.
+        Int NumSamples
+        Texture2D Texture
+        Texture2D Displace
+        Float Frame
+    }
+
+    Technique {
+        VertexShader   GLSL100 GLSL150 : Shaders/Shimmer.vert
+        FragmentShader GLSL100 GLSL150 : Shaders/Shimmer.frag
+
+        WorldParameters {
+        }
+    }
+}
