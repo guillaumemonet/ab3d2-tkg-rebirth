@@ -5,6 +5,11 @@ Remake **full 3D** d'*Alien Breed 3D II : The Killing Grounds* (Team17, Amiga, 1
 
 > ⚠️ **Chantier en cours**, pas une version jouable de bout en bout.
 
+![Le niveau A en vraie 3D](docs/img/rebirth-niveau.png)
+
+*Le niveau A. Même simulation que le portage d'origine, éclairage par lampes, ombres portées,
+visée verticale réelle.*
+
 ---
 
 ## Le principe
@@ -58,6 +63,14 @@ quand la lumière change*. Un `.j3o` figé casserait cet éclairage.
 
 ---
 
+![Le menu](docs/img/rebirth-menu.png)
+
+*Le menu d'origine — fond qui défile, texte qui brûle — reporté à l'identique. Le feu est un
+portage littéral des trois blits Amiga `D = A_décalé | (B & C)`, où `A` est un plan de la police :
+c'est le texte lui-même qui alimente les flammes.*
+
+---
+
 ## Les scènes `.j3o`
 
 Le jeu **charge** `assets/Scenes/level_<x>.j3o` quand il existe : corriger un mur dans le SDK se
@@ -76,6 +89,12 @@ Les parties **mobiles** du décor sont ré-attachées **par nom de nœud** aprè
 | `deform_<n>_<clé>` | groupe de murs que la porte/l'ascenseur `<n>` déforme |
 | `water_<id>` | surface d'eau |
 | `flat_tile<n>`, `wall_<clé>` | décor statique |
+
+![Le niveau C, deux étages dans un même secteur](docs/img/rebirth-etage.png)
+
+*Niveau C, zone 117. Le jeu empile deux planchers dans un même secteur : une zone porte **deux**
+flux de géométrie. L'extraction n'en lisait qu'un et tout l'étage supérieur manquait — ici la
+passerelle au-dessus de l'escalier.*
 
 ---
 
