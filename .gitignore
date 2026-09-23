@@ -4,8 +4,10 @@
 /build-nb/
 /dist-nb/
 /nbproject/private/
+# build-impl.xml est REGENERE par NetBeans a l'ouverture ; assets-impl.xml, NON :
+# le SDK ne l'ecrit qu'a la CREATION du projet. Absent, l'extension « assets »
+# declaree dans project.xml pointe dans le vide et le projet s'ouvre incomplet.
 /nbproject/build-impl.xml
-/nbproject/assets-impl.xml
 
 # --- ASSETS : aucune donnee du jeu n'est versionnee ---
 # Tout assets/ est REGENERE depuis les disquettes :

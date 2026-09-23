@@ -196,8 +196,25 @@ et se retrouve donc dans le noir.
 
 ## Ouvrir dans le SDK jME
 
+**Extraire les assets d'abord.** `assets/` ne contient, après clonage, que les shaders — tout le
+reste vient des disquettes. Un SDK ouvert sur un dossier vide n'a rien à montrer :
+
+```bash
+gradle -p rebirth extract && gradle -p rebirth materials && gradle -p rebirth scenes
+```
+
 Le dossier est un projet jME (`nbproject/`, calqué sur le gabarit officiel du SDK). Gradle reste
 le build de référence ; le build Ant écrit dans `build-nb/` pour ne pas marcher dessus.
+
+Deux détails de ce `nbproject/` méritent d'être connus, parce qu'ils se ressemblent et ne se
+traitent pas pareil. `build-impl.xml` est **régénéré** par NetBeans à chaque ouverture : il n'a
+rien à faire dans le dépôt. `assets-impl.xml`, lui, n'est écrit qu'à la **création** du projet par
+l'assistant ; il est donc versionné. L'avoir ignoré faisait pointer dans le vide l'extension
+`assets` déclarée par `project.xml`, et le projet s'ouvrait sans ses assets.
+
+Enfin, `assets.excludes` est **vide** chez nous, alors que le gabarit du SDK y écarte les formats
+sources destinés à être convertis en `.j3o`. Ici ce sont des données d'exécution : les modèles
+vectoriels restent en `.obj` et les tables du jeu sont des `.bin`.
 
 ---
 
