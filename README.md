@@ -111,13 +111,46 @@ son tour (même code 68k, juste après). Une fois séparés :
 
 Aucun nom de fichier dans ses chaînes : l'intro est auto-suffisante, elle ne charge rien.
 
+### Ce que fait l'intro
+
+Le hunk 0 se désassemble (Capstone sait lire du 68k). L'entrée saute en `$1548`, qui prend la
+main sur le matériel, appelle **`$2a00`** — le corps — puis la rend. Et `$2a00` tient en quinze
+lignes : trois initialisations, une boucle de **11 942 itérations** sur trois routines, l'attente
+du balayage, et l'arrêt.
+
+La routine de rendu (`$2b56`) écrit **16 000 mots longs, soit exactement 320 × 200 octets**, par
+consultation de tables : à chaque pixel une paire lue dans une table de parcours, une
+perturbation prise dans une seconde, et une couleur sortie d'une troisième. C'est à cela que
+sert le tampon de 1,4 Mo — il ne contient que des tables précalculées. `$2aea` divise `640` par
+la profondeur : une division de perspective. Et quatre phases de sinus, avancées de −7, +2, +4 et
+−3 par image, font bouger le tout.
+
+Les images, elles, se trouvent là où l'intro va les chercher — le désassemblage donne les trois
+instructions :
+
+| adresse | instruction | ce qu'elle charge |
+| --- | --- | --- |
+| `$310C` | `lea $75f8,a0` | le titre, 320 × 40 |
+| `$316A` | `lea $a7f8,a0` | le logo Team17, 160 × 48 |
+| `$317E` | `lea $c5f8,a0` | le logo Ocean, 160 × 48 |
+
 ![Le titre de l'intro](docs/img/intro-titre.png)
 
-Les images sont du **chunky 4 bits** — un octet par pixel, valeurs 0 à 15 — rangé colonne par
-colonne et de bas en haut. On les repère sans rien deviner : ce sont les plages où aucun octet
-ne dépasse 15, d'une longueur multiple de 40. La seule qui porte quelque chose fait 320 × 40,
-c'est le titre, anticrénelé sur 16 niveaux. La palette n'y est pas — l'intro la construit à
-l'exécution — d'où le rendu en niveaux de gris, qui restitue fidèlement l'anticrénelage.
+Le titre n'est pas affiché tel quel. `$310C` l'estampe colonne par colonne dans deux tables de
+hunk 1, **au pas de 0x201** — soit une ligne plus bas et une colonne plus loin à chaque octet,
+donc en diagonale dans une carte de 512 de large — en ne gardant que le maximum. Autrement dit :
+le titre est **gravé en relief dans la carte de bosses** que le moteur déforme ensuite. C'est
+pour ça qu'on ne le trouve nulle part sous forme d'écran.
+
+![Team17](docs/img/intro-team17.png) ![Ocean](docs/img/intro-ocean.png)
+
+Les deux logos passent par une routine de conversion chunky → plans de bits qui écrit dans la
+mémoire CHIP par rangées de 20 octets : 160 pixels de large, 48 de haut.
+
+Les images sont du **chunky** — un octet par pixel — le titre rangé colonne par colonne et de bas
+en haut, les logos ligne par ligne. La palette n'y est pas, l'intro la construit à l'exécution :
+les PNG sortent donc en niveaux de gris, normalisés sur le maximum de chaque image, ce qui
+restitue l'anticrénelage d'origine mais pas ses couleurs.
 
 ```bash
 gradle -p rebirth intro

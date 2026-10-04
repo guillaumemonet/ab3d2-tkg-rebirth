@@ -46,13 +46,24 @@ import javax.imageio.ImageIO;
  */
 public final class IntroExport {
 
-    /** Hauteur des bandes chunky de l'intro, en pixels (= octets par colonne). */
-    private static final int BAND_H = 40;
-    /** En deçà, une plage d'octets ≤ 15 est un hasard, pas une image. */
-    private static final int MIN_RUN = 2000;
+    /**
+     * Les trois images de l'intro, aux adresses où l'intro elle-même va les chercher.
+     *
+     * <p>Rien n'est deviné ici : le désassemblage du hunk 0 donne les trois instructions.
+     * {@code 0x310C : lea $75f8,a0} charge le titre et l'estampe, colonne par colonne et au
+     * pas de 0x201, dans deux tables de hunk 1 — c'est-à-dire qu'il le grave en relief dans la
+     * carte de bosses que le moteur affiche ensuite. {@code 0x316A : lea $a7f8,a0} et
+     * {@code 0x317E : lea $c5f8,a0} passent les deux logos à une routine de conversion
+     * chunky → plans de bits qui écrit dans la mémoire CHIP par rangées de 20 octets, d'où
+     * leurs 160 pixels de large.
+     */
+    private record Asset(int off, int w, int h, boolean colMajor, String name) { }
 
-    private IntroExport() {
-    }
+    private static final Asset[] ASSETS = {
+        new Asset(0x75F8, 320, 40, true,  "titre"),       // « Alien Breed 3D II »
+        new Asset(0xA7F8, 160, 48, false, "team17"),
+        new Asset(0xC5F8, 160, 48, false, "ocean"),
+    };
 
     public static void main(String[] args) throws IOException {
         byte[] exe;
@@ -82,22 +93,15 @@ public final class IntroExport {
             }
         }
 
-        int n = 0;
-        for (byte[] h : img.hunks()) {
-            if (used(h) == 0) {
-                continue;                       // hunk de travail : alloue, jamais charge
-            }
-            for (int[] run : chunkyRuns(h)) {
-                int cols = (run[1] - run[0]) / BAND_H;
-                BufferedImage png = band(h, run[0], cols);
-                String name = String.format("banniere_%dx%d.png", cols, BAND_H);
-                ImageIO.write(png, "png", out.resolve(name).toFile());
-                System.out.printf("[intro]   image %3d x %d  (offset 0x%X)  -> %s%n",
-                        cols, BAND_H, run[0], name);
-                n++;
-            }
+        byte[] code = img.hunks().get(0);
+        for (Asset a : ASSETS) {
+            BufferedImage png = grey(code, a);
+            String file = String.format("%s_%dx%d.png", a.name(), a.w(), a.h());
+            ImageIO.write(png, "png", out.resolve(file).toFile());
+            System.out.printf("[intro]   %-7s %3d x %2d  (offset 0x%X)  -> %s%n",
+                    a.name(), a.w(), a.h(), a.off(), file);
         }
-        System.out.printf("[intro] %d image(s) dans %s%n", n, out);
+        System.out.printf("[intro] %d image(s) dans %s%n", ASSETS.length, out);
     }
 
     /** Longueur utile : le hunk est alloué bien plus grand que ce que le fichier remplit. */
@@ -110,50 +114,24 @@ public final class IntroExport {
     }
 
     /**
-     * Plages où aucun octet ne dépasse 15 et dont la longueur tient un nombre entier de
-     * colonnes : les images chunky. Tout le reste du hunk est du code ou des tables.
+     * Une image de l'intro, en niveaux de gris.
+     *
+     * <p>Un octet par pixel. Le titre est rangé <b>colonne par colonne et de bas en haut</b>,
+     * les logos ligne par ligne. La palette, elle, n'est pas dans les données : l'intro la
+     * construit à l'exécution. On normalise donc sur le maximum de l'image, ce qui restitue
+     * l'anticrénelage d'origine mais pas ses couleurs.
      */
-    private static List<int[]> chunkyRuns(byte[] h) {
-        List<int[]> runs = new ArrayList<>();
-        int s = -1;
-        for (int i = 0; i <= h.length; i++) {
-            boolean low = i < h.length && (h[i] & 0xFF) <= 15;
-            if (low) {
-                if (s < 0) {
-                    s = i;
-                }
-            } else {
-                if (s >= 0 && i - s >= MIN_RUN) {
-                    int cols = (i - s) / BAND_H;
-                    if (cols > 0 && !blank(h, s, cols * BAND_H)) {
-                        runs.add(new int[] {s, s + cols * BAND_H});
-                    }
-                }
-                s = -1;
-            }
+    private static BufferedImage grey(byte[] h, Asset a) {
+        int max = 1;
+        for (int i = 0; i < a.w() * a.h(); i++) {
+            max = Math.max(max, h[a.off() + i] & 0xFF);
         }
-        return runs;
-    }
-
-    /** Une plage de zeros n'est pas une image : c'est de la memoire mise a blanc. */
-    private static boolean blank(byte[] h, int off, int len) {
-        for (int i = off; i < off + len; i++) {
-            if (h[i] != 0) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /** Une bande chunky : colonne par colonne, de bas en haut, en niveaux de gris. */
-    private static BufferedImage band(byte[] h, int off, int cols) {
-        BufferedImage img = new BufferedImage(cols, BAND_H, BufferedImage.TYPE_INT_RGB);
-        for (int c = 0; c < cols; c++) {
-            for (int y = 0; y < BAND_H; y++) {
-                int v = h[off + c * BAND_H + y] & 15;
-                int g = v * 255 / 15;
-                img.setRGB(c, BAND_H - 1 - y, (g << 16) | (g << 8) | g);
-            }
+        BufferedImage img = new BufferedImage(a.w(), a.h(), BufferedImage.TYPE_INT_RGB);
+        for (int i = 0; i < a.w() * a.h(); i++) {
+            int x = a.colMajor() ? i / a.h() : i % a.w();
+            int y = a.colMajor() ? a.h() - 1 - i % a.h() : i / a.w();
+            int g = (h[a.off() + i] & 0xFF) * 255 / max;
+            img.setRGB(x, y, (g << 16) | (g << 8) | g);
         }
         return img;
     }
