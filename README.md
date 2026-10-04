@@ -170,6 +170,42 @@ Le titre, lui, n'a pas de palette propre : gravé dans la carte de bosses, il pr
 que le moteur calcule. Il sort donc en niveaux de gris, normalisés sur son maximum, ce qui
 restitue l'anticrénelage d'origine mais pas ses teintes.
 
+### La carte complète du hunk 0
+
+En relevant toutes les adresses que le code va chercher — 31 en tout, toutes des `lea` ou des
+`move` absolus — on referme la carte exactement sur la fin du hunk. Il ne reste rien d'inexpliqué :
+
+| plage | contenu |
+| --- | --- |
+| `0x00000`–`0x04F00` | le code |
+| `0x04F14`–`0x04F5E` | variables de travail du rastériseur (un quad, ses sommets) |
+| `0x05760`, `0x06160` | ses tampons de bords |
+| `0x06B60`–`0x06B78` | les variables de mouvement : quatre phases de sinus, la position |
+| `0x06B78`–`0x06F78` | **palette du tunnel**, 256 couleurs |
+| `0x06F38`–`0x06F78` | 16 entrées écrites à l'exécution par `$2C02` (une rampe de rouge) |
+| `0x06F78`–`0x071F8` | **5 bancs de 32 couleurs** |
+| `0x071F8`–`0x075F8` | **table de sinus**, 512 entrées, amplitude 1023 |
+| `0x075F8`–`0x0A7F8` | le titre, 320 × 40 |
+| `0x0A7F8`–`0x0C5F8` | le logo Team17, 160 × 48 |
+| `0x0C5F8`–`0x0E3F5` | le logo Ocean, 160 × 48 — et c'est la fin du hunk |
+
+![Les cinq bancs](docs/img/intro-palette.png)
+
+![La palette du tunnel](docs/img/intro-palette-tunnel.png)
+
+Les deux palettes ne servent pas au même endroit. Les bancs habillent l'écran des logos ; la
+rampe de 256 couleurs, elle, est étendue par `$2C1A` vers `hunk1+0x030000` — précisément la table
+que la boucle de rendu consulte à chaque groupe de pixels. C'est donc celle du **tunnel**.
+
+Et l'effet se laisse deviner dans ses tables : `$2C3A` remplit une carte de 256 × 256 avec
+`(x − 127)² + (y − 127)²` passé dans une table inverse et ramené à 0–63. Un champ radial —
+la signature d'un tunnel. Le reste des 1,4 Mo est du même tonneau : des tables, rien que des
+tables, ce qui explique qu'elles soient absentes du fichier et reconstruites au lancement.
+
+**Ce qui n'est pas extractible :** la séquence elle-même. Elle n'est stockée nulle part, elle se
+calcule image par image. La reproduire demanderait de porter le générateur de tables, le
+rastériseur et la boucle de rendu — un autre chantier que celui-ci.
+
 ### La musique
 
 Le hunk 2 — les 10 Ko en mémoire CHIP, la seule que Paula sait lire — est le morceau. C'est un

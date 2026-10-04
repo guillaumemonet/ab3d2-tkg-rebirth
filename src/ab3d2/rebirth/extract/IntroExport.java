@@ -79,8 +79,16 @@ public final class IntroExport {
      * ({@code $316A} : hunk 3 +0 et +20 octets), ils partagent donc forcément leurs couleurs.
      */
     private static final int PALETTE = 0x6F78;
-    private static final int BANKS = 4;
+    private static final int BANKS = 5;              // le 5e, en 0x7178, est charge a part ($2CB8)
     private static final int COLORS = 32;
+    /**
+     * La table de 256 couleurs en 0x6B78, que {@code $2C1A} etend vers {@code hunk1+0x030000} —
+     * precisement la table que la boucle de rendu consulte pour chaque groupe de pixels.
+     * C'est donc la palette du TUNNEL, par opposition aux bancs ci-dessus qui habillent l'ecran
+     * des logos.
+     */
+    private static final int RAMP = 0x6B78;
+    private static final int RAMP_COLORS = 256;
     /** Les deux bancs qui habillent les logos. */
     private static final int[] LOGO_BANKS = {0, 2};
 
@@ -132,9 +140,14 @@ public final class IntroExport {
             }
         }
         music(img.hunks().get(2), out);
-        ImageIO.write(swatches(code), "png", out.resolve("palette.png").toFile());
+        ImageIO.write(swatches(code, PALETTE, COLORS, BANKS, 12), "png",
+                out.resolve("palette.png").toFile());
         System.out.printf("[intro]   palette %d bancs de %d                     -> palette.png%n",
                 BANKS, COLORS);
+        ImageIO.write(swatches(code, RAMP, RAMP_COLORS, 1, 4), "png",
+                out.resolve("palette_tunnel.png").toFile());
+        System.out.printf("[intro]   palette du tunnel, %d couleurs            -> palette_tunnel.png%n",
+                RAMP_COLORS);
         System.out.printf("[intro] %d image(s) dans %s%n", n + 1, out);
     }
 
@@ -243,14 +256,14 @@ public final class IntroExport {
         return img;
     }
 
-    /** Les quatre bancs en nuancier, une ligne par banc. */
-    private static BufferedImage swatches(byte[] h) {
-        int cell = 12;
-        BufferedImage img = new BufferedImage(COLORS * cell, BANKS * cell,
+    /** Un nuancier : une ligne par banc. */
+    private static BufferedImage swatches(byte[] h, int base, int n, int banks, int cell) {
+        BufferedImage img = new BufferedImage(n * cell, banks * cell,
                 BufferedImage.TYPE_INT_RGB);
-        for (int b = 0; b < BANKS; b++) {
-            for (int i = 0; i < COLORS; i++) {
-                int c = rgb(h, b, i);
+        for (int b = 0; b < banks; b++) {
+            for (int i = 0; i < n; i++) {
+                int a = base + (b * n + i) * 4;
+                int c = ((h[a + 1] & 0xFF) << 16) | ((h[a + 2] & 0xFF) << 8) | (h[a + 3] & 0xFF);
                 for (int y = 0; y < cell; y++) {
                     for (int x = 0; x < cell; x++) {
                         img.setRGB(i * cell + x, b * cell + y, c);
