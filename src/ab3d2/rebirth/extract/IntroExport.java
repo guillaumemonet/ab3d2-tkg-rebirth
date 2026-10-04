@@ -131,10 +131,100 @@ public final class IntroExport {
                 n++;
             }
         }
+        music(img.hunks().get(2), out);
         ImageIO.write(swatches(code), "png", out.resolve("palette.png").toFile());
         System.out.printf("[intro]   palette %d bancs de %d                     -> palette.png%n",
                 BANKS, COLORS);
         System.out.printf("[intro] %d image(s) dans %s%n", n + 1, out);
+    }
+
+    /**
+     * La musique : le hunk 2, converti en {@code .mod} lisible par n'importe quel lecteur.
+     *
+     * <p>C'est un tracker maison, mais d'une parenté évidente avec le MOD : ses cellules font
+     * quatre octets et se lisent exactement pareil. Le lecteur est en {@code $0008} et sa
+     * disposition s'y lit :
+     * <pre>
+     *   0x000  31 entrées de 8 octets : longueur, volume, boucle, longueur de boucle
+     *   0x0F8  longueur du morceau, puis un drapeau « table déjà convertie »
+     *   0x0FA  4 voies x 128 positions : un numéro de PISTE par case (rangé PAR VOIE)
+     *   0x2FA  nb_pistes x 64 mots : chaque mot indexe une cellule
+     *   ....   un mot long donnant la taille du vivier, puis les cellules, puis l'échantillon
+     * </pre>
+     *
+     * <p>L'astuce du format est là : les cellules ne sont pas répétées, les pistes les
+     * désignent. D'où un morceau complet en 10 Ko. Le MOD reconstruit, lui, déplie tout — une
+     * piste par voie et par position — ce qui le rend plus gros mais universel.
+     *
+     * <p>Contrôle de la lecture : l'échantillon doit tomber EXACTEMENT à la fin du hunk.
+     */
+    private static void music(byte[] m, Path out) throws IOException {
+        int songLen = m[0xF8] & 0xFF;
+        int tracks = 0;
+        for (int i = 0; i < 512; i++) {
+            tracks = Math.max(tracks, m[0xFA + i] & 0xFF);
+        }
+        tracks++;
+        int idx = 0x2FA;
+        int poolSize = i32(m, idx + tracks * 128);
+        int pool = idx + tracks * 128 + 4;
+        int smp = pool + poolSize;
+        int sampleBytes = i16(m, 0) * 2;
+        if (smp + sampleBytes != m.length) {
+            System.err.printf("[intro] musique : l'echantillon ne tombe pas juste (%d + %d != %d)%n",
+                    smp, sampleBytes, m.length);
+            return;
+        }
+
+        var mod = new java.io.ByteArrayOutputStream();
+        mod.write(pad("AB3D2 intro", 20));
+        for (int i = 0; i < 31; i++) {
+            mod.write(pad("", 22));                     // les noms d'instruments ne sont pas gardes
+            mod.write(be16(i16(m, i * 8)));              // longueur, en mots
+            mod.write(0);                                // finetune
+            mod.write(Math.min(i16(m, i * 8 + 2), 64));  // volume
+            mod.write(be16(i16(m, i * 8 + 4)));          // debut de boucle
+            mod.write(be16(Math.max(i16(m, i * 8 + 6), 1)));
+        }
+        mod.write(songLen);
+        mod.write(127);
+        for (int i = 0; i < 128; i++) {
+            mod.write(i < songLen ? i : 0);
+        }
+        mod.write('M'); mod.write('.'); mod.write('K'); mod.write('.');
+        for (int p = 0; p < songLen; p++) {
+            for (int r = 0; r < 64; r++) {
+                for (int c = 0; c < 4; c++) {
+                    int track = m[0xFA + c * 128 + p] & 0xFF;   // table rangee PAR VOIE
+                    int w = i16(m, idx + track * 128 + r * 2);
+                    mod.write(m, pool + w * 4, 4);
+                }
+            }
+        }
+        mod.write(m, smp, sampleBytes);
+        Files.write(out.resolve("musique.mod"), mod.toByteArray());
+        System.out.printf("[intro]   musique %d positions, %d pistes, %d cellules, echantillon %d o"
+                + "  -> musique.mod (%d o)%n",
+                songLen, tracks, poolSize / 4, sampleBytes, mod.size());
+    }
+
+    private static byte[] pad(String s, int n) {
+        byte[] b = new byte[n];
+        byte[] t = s.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        System.arraycopy(t, 0, b, 0, Math.min(t.length, n));
+        return b;
+    }
+
+    private static byte[] be16(int v) {
+        return new byte[] {(byte) (v >> 8), (byte) v};
+    }
+
+    private static int i16(byte[] b, int o) {
+        return ((b[o] & 0xFF) << 8) | (b[o + 1] & 0xFF);
+    }
+
+    private static int i32(byte[] b, int o) {
+        return (i16(b, o) << 16) | i16(b, o + 2);
     }
 
     /** Une couleur de la table source : quatre octets, le premier inutilise. */

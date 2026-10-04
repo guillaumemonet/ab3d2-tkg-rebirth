@@ -170,6 +170,28 @@ Le titre, lui, n'a pas de palette propre : gravé dans la carte de bosses, il pr
 que le moteur calcule. Il sort donc en niveaux de gris, normalisés sur son maximum, ce qui
 restitue l'anticrénelage d'origine mais pas ses teintes.
 
+### La musique
+
+Le hunk 2 — les 10 Ko en mémoire CHIP, la seule que Paula sait lire — est le morceau. C'est un
+tracker maison, mais d'une parenté évidente avec le MOD : ses cellules font quatre octets et se
+lisent exactement pareil. Son lecteur est en `$0008`, et la disposition s'y lit :
+
+| offset | contenu |
+| --- | --- |
+| `0x000` | 31 entrées de 8 octets : longueur, volume, boucle, longueur de boucle |
+| `0x0F8` | longueur du morceau, puis un drapeau « table déjà convertie » |
+| `0x0FA` | 4 voies × 128 positions : un numéro de **piste** par case, rangé **par voie** |
+| `0x2FA` | `nb_pistes × 64` mots : chaque mot désigne une cellule |
+| … | un mot long donnant la taille du vivier, puis les cellules, puis l'échantillon |
+
+L'astuce est là : les cellules ne sont **pas répétées**, les pistes les désignent. Ce morceau
+tient en 41 cellules — un seul échantillon de 8 Ko, cinq notes, et vingt-huit réglages de volume
+qui lui sculptent ses enveloppes à la main. Le `.mod` reconstruit déplie tout, une piste par voie
+et par position : plus gros, mais lisible par n'importe quel lecteur.
+
+Le contrôle de lecture est que l'échantillon tombe **exactement** à la fin du hunk — à l'octet
+près, ce qui ne laisse guère de place à une mauvaise interprétation de la disposition.
+
 ```bash
 gradle -p rebirth intro
 ```
