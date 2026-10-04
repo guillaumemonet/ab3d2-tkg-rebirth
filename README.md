@@ -142,15 +142,33 @@ donc en diagonale dans une carte de 512 de large — en ne gardant que le maximu
 le titre est **gravé en relief dans la carte de bosses** que le moteur déforme ensuite. C'est
 pour ça qu'on ne le trouve nulle part sous forme d'écran.
 
-![Team17](docs/img/intro-team17.png) ![Ocean](docs/img/intro-ocean.png)
-
 Les deux logos passent par une routine de conversion chunky → plans de bits qui écrit dans la
 mémoire CHIP par rangées de 20 octets : 160 pixels de large, 48 de haut.
 
 Les images sont du **chunky** — un octet par pixel — le titre rangé colonne par colonne et de bas
-en haut, les logos ligne par ligne. La palette n'y est pas, l'intro la construit à l'exécution :
-les PNG sortent donc en niveaux de gris, normalisés sur le maximum de chaque image, ce qui
-restitue l'anticrénelage d'origine mais pas ses couleurs.
+en haut, les logos ligne par ligne.
+
+### La palette
+
+Elle n'est pas rangée avec les images : l'intro la construit, et son constructeur est en
+`$320E`. La table source est en **`$6F78`** — quatre bancs de 32 couleurs, quatre octets chacune
+(`00 RR GG BB`), donc du **24 bits**. Le code met chaque composante à l'échelle d'un facteur de
+fondu, puis la coupe en deux — poids forts et poids faibles — pour écrire **deux** listes Copper
+encadrées de `BPLCON3 = $0000` et `$0200` : le procédé AGA qui donne 8 bits par canal là où le
+Copper n'en adresse que 4.
+
+![Les quatre bancs](docs/img/intro-palette.png)
+
+Les bancs 1 et 3 sont une roue de teintes suivie d'une rampe de gris parfaite, à l'usage du
+moteur. Les bancs 0 (rose) et 2 (bleu) habillent l'écran des logos — et c'est bien un seul écran :
+`$316A` écrit les deux logos **côte à côte**, en hunk 3 `+0` et `+20` octets, soit 160 + 160 = 320
+pixels. Ils partagent donc forcément leurs couleurs, et l'intro passe d'une ambiance à l'autre.
+
+![Team17](docs/img/intro-team17.png) ![Ocean](docs/img/intro-ocean.png)
+
+Le titre, lui, n'a pas de palette propre : gravé dans la carte de bosses, il prend les couleurs
+que le moteur calcule. Il sort donc en niveaux de gris, normalisés sur son maximum, ce qui
+restitue l'anticrénelage d'origine mais pas ses teintes.
 
 ```bash
 gradle -p rebirth intro

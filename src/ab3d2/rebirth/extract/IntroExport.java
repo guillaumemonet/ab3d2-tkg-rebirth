@@ -65,6 +65,25 @@ public final class IntroExport {
         new Asset(0xC5F8, 160, 48, false, "ocean"),
     };
 
+    /**
+     * La palette source, en 0x6F78 : quatre bancs de 32 couleurs, quatre octets chacune
+     * ({@code 00 RR GG BB}).
+     *
+     * <p>Le constructeur est en {@code $320E}. Il lit cette table, met chaque composante à
+     * l'échelle d'un facteur de fondu, puis la coupe en deux — poids forts et poids faibles —
+     * pour écrire DEUX listes Copper encadrées de {@code BPLCON3 = $0000} et {@code $0200}.
+     * C'est le procédé AGA qui donne 8 bits par canal là où le Copper n'en adresse que 4. Les
+     * bancs 1 et 3 sont une roue de teintes suivie d'une rampe de gris, à l'usage du moteur ;
+     * les bancs 0 (rose) et 2 (bleu) habillent l'écran des logos, que l'intro fait passer de
+     * l'un à l'autre — les deux logos sont écrits côte à côte dans le MÊME écran de 320
+     * ({@code $316A} : hunk 3 +0 et +20 octets), ils partagent donc forcément leurs couleurs.
+     */
+    private static final int PALETTE = 0x6F78;
+    private static final int BANKS = 4;
+    private static final int COLORS = 32;
+    /** Les deux bancs qui habillent les logos. */
+    private static final int[] LOGO_BANKS = {0, 2};
+
     public static void main(String[] args) throws IOException {
         byte[] exe;
         try {
@@ -94,14 +113,62 @@ public final class IntroExport {
         }
 
         byte[] code = img.hunks().get(0);
+        int n = 0;
         for (Asset a : ASSETS) {
-            BufferedImage png = grey(code, a);
             String file = String.format("%s_%dx%d.png", a.name(), a.w(), a.h());
-            ImageIO.write(png, "png", out.resolve(file).toFile());
+            ImageIO.write(grey(code, a), "png", out.resolve(file).toFile());
             System.out.printf("[intro]   %-7s %3d x %2d  (offset 0x%X)  -> %s%n",
                     a.name(), a.w(), a.h(), a.off(), file);
+            n++;
+            if (a.colMajor()) {
+                continue;                       // le titre n'a pas de palette : voir plus bas
+            }
+            for (int b : LOGO_BANKS) {
+                String f = String.format("%s_banc%d.png", a.name(), b);
+                ImageIO.write(color(code, a, b), "png", out.resolve(f).toFile());
+                System.out.printf("[intro]   %-7s banc %d                        -> %s%n",
+                        a.name(), b, f);
+                n++;
+            }
         }
-        System.out.printf("[intro] %d image(s) dans %s%n", ASSETS.length, out);
+        ImageIO.write(swatches(code), "png", out.resolve("palette.png").toFile());
+        System.out.printf("[intro]   palette %d bancs de %d                     -> palette.png%n",
+                BANKS, COLORS);
+        System.out.printf("[intro] %d image(s) dans %s%n", n + 1, out);
+    }
+
+    /** Une couleur de la table source : quatre octets, le premier inutilise. */
+    private static int rgb(byte[] h, int bank, int i) {
+        int a = PALETTE + bank * COLORS * 4 + i * 4;
+        return ((h[a + 1] & 0xFF) << 16) | ((h[a + 2] & 0xFF) << 8) | (h[a + 3] & 0xFF);
+    }
+
+    /** Une image avec ses vraies couleurs. */
+    private static BufferedImage color(byte[] h, Asset a, int bank) {
+        BufferedImage img = new BufferedImage(a.w(), a.h(), BufferedImage.TYPE_INT_RGB);
+        for (int i = 0; i < a.w() * a.h(); i++) {
+            int v = a.off() + i < h.length ? h[a.off() + i] & 0xFF : 0;
+            img.setRGB(i % a.w(), i / a.w(), rgb(h, bank, Math.min(v, COLORS - 1)));
+        }
+        return img;
+    }
+
+    /** Les quatre bancs en nuancier, une ligne par banc. */
+    private static BufferedImage swatches(byte[] h) {
+        int cell = 12;
+        BufferedImage img = new BufferedImage(COLORS * cell, BANKS * cell,
+                BufferedImage.TYPE_INT_RGB);
+        for (int b = 0; b < BANKS; b++) {
+            for (int i = 0; i < COLORS; i++) {
+                int c = rgb(h, b, i);
+                for (int y = 0; y < cell; y++) {
+                    for (int x = 0; x < cell; x++) {
+                        img.setRGB(i * cell + x, b * cell + y, c);
+                    }
+                }
+            }
+        }
+        return img;
     }
 
     /** Longueur utile : le hunk est alloué bien plus grand que ce que le fichier remplit. */
