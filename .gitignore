@@ -25,3 +25,8 @@
 # --- IDE ---
 /.idea/
 *.iml
+
+# --- outil d'archeologie de l'intro : ses entrees et sorties se regenerent ---
+/tools/intro68k/*.bin
+/tools/intro68k/*.png
+/tools/intro68k/__pycache__/

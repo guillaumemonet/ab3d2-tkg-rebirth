@@ -202,9 +202,43 @@ Et l'effet se laisse deviner dans ses tables : `$2C3A` remplit une carte de 256 
 la signature d'un tunnel. Le reste des 1,4 Mo est du même tonneau : des tables, rien que des
 tables, ce qui explique qu'elles soient absentes du fichier et reconstruites au lancement.
 
-**Ce qui n'est pas extractible :** la séquence elle-même. Elle n'est stockée nulle part, elle se
-calcule image par image. La reproduire demanderait de porter le générateur de tables, le
-rastériseur et la boucle de rendu — un autre chantier que celui-ci.
+### Faire tourner le moteur
+
+La séquence n'est stockée nulle part : elle se calcule. Plutôt que de **transcrire** le moteur —
+une dizaine de routines de génération de tables, où la moindre erreur passerait inaperçue — on
+l'**exécute**. `tools/intro68k/` contient un interpréteur 68000 d'environ cinq cents lignes
+(décodage par Capstone) et un harnais qui appelle les mêmes routines que `$2A00`, dans le même
+ordre, en sautant seulement celles qui ne parlent qu'au matériel.
+
+Deux choses doivent être fournies à la main, parce qu'elles viennent du système et non du
+programme : le bit 0 de `$15DF`, que le cadre de démarrage met quand son interruption de balayage
+est en place, et `$2EC2` elle-même — c'est cette interruption qui fait avancer le temps, donc on
+l'appelle une fois par image. Sans le premier, `$2EC2` rend la main aussitôt et rien ne bouge.
+
+![La carte de normales](docs/img/intro-normales.png)
+
+Voilà la preuve que la chaîne entière est juste. Cette image est la **carte de normales** que
+`$2DAA` calcule après 26 millions d'instructions : un champ marbré, et **« Alien Breed 3D II »
+gravé en diagonale** au travers — exactement là où le pas de `0x201` de `$310C` le place. Le
+titre n'est donc pas affiché, il est *bosselé* : c'est un effet de **bump mapping**, le relief du
+texte éclairé par une tache de lumière qui se déplace.
+
+![Une image rendue](docs/img/intro-rendu.png)
+
+Et voici une image rendue — un sol en perspective, texturé et bosselé, avec sa ligne d'horizon.
+Le tramage est d'origine : chaque entrée de la table de couleurs tient **quatre pixels** dans un
+mot long, ce qui donne ces dégradés en damier qui se fondaient sur un écran cathodique.
+
+```bash
+gradle -p rebirth intro                  # depose les hunks dans assets/intro/
+cd tools/intro68k && python3 runintro.py 200
+```
+
+Une mise en garde : rien ici ne certifie la **fidélité au pixel**. Faute de référence — il
+faudrait un émulateur à côté — je peux dire que le moteur tourne, que ses tables sont celles
+qu'il construit vraiment et que le titre s'y trouve, mais pas que l'image est identique à celle
+de 1996. Comptez une seconde par image ; l'interpréteur est en Python, c'est un outil
+d'archéologie, pas de rendu.
 
 ### La musique
 

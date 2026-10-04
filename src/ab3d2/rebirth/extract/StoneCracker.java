@@ -238,12 +238,13 @@ public final class StoneCracker {
             sizes.add((s & 0x3FFFFFFF) * 4);
         }
         List<byte[]> hunks = new ArrayList<>();
+        // Bases PARLANTES : le hunk i vit a i << 28, donc une adresse absolue relue dans le
+        // code dit d'elle-meme dans quel hunk elle tombe et a quel offset. C'est ce qui rend
+        // le desassemblage lisible, et c'est la convention qu'attend tools/intro68k.
         int[] base = new int[n];
-        int a = 0x1000;
         for (int i = 0; i < n; i++) {
             hunks.add(new byte[sizes.get(i)]);
-            base[i] = a;
-            a += sizes.get(i) + 0x100;
+            base[i] = i << 28;
         }
 
         int cur = -1;                                                // d7
