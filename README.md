@@ -80,6 +80,51 @@ c'est le texte lui-même qui alimente les flammes.*
 
 ---
 
+## L'intro, qui était compilée
+
+La séquence de démarrage des disquettes de boot tient en deux lignes :
+
+```
+intro.exe
+tkg1:tkg
+```
+
+L'intro est donc un programme à part, lancé avant le jeu — et on n'y voit rien en l'ouvrant,
+parce que c'est un exécutable Amiga **crunché** (StoneCracker 4.04) : 24 724 octets qui se
+déplient en 69 474.
+
+Le dépaqueteur n'a pas été reconstitué de mémoire : il est porté **instruction par instruction**
+du 68k que le fichier transporte lui-même, le hunk 1 commençant par 0x188 octets de décruncheur
+suivis du marqueur `S404`. Le flux se lit à l'envers — lecture et écriture descendent, les bits
+sortent par le haut d'une fenêtre de 16 bits — et le contrôle est que les deux pointeurs se
+rejoignent **exactement** : un dépaqueteur faux ne tomberait pas juste au bit près.
+
+Ce qu'on obtient n'est pas une image mémoire plate mais un flux de hunks, qu'il faut dérouler à
+son tour (même code 68k, juste après). Une fois séparés :
+
+| hunk | mémoire | taille | contenu |
+| --- | --- | --- | --- |
+| 0 | rapide | 58 Ko | le code, ses tables, les images |
+| 1 | rapide | 1,4 Mo | tampon de travail, vide dans le fichier |
+| 2 | **CHIP** | 10 Ko | ce que le matériel lit directement |
+| 3 | CHIP | 313 Ko | les écrans, vides dans le fichier |
+
+Aucun nom de fichier dans ses chaînes : l'intro est auto-suffisante, elle ne charge rien.
+
+![Le titre de l'intro](docs/img/intro-titre.png)
+
+Les images sont du **chunky 4 bits** — un octet par pixel, valeurs 0 à 15 — rangé colonne par
+colonne et de bas en haut. On les repère sans rien deviner : ce sont les plages où aucun octet
+ne dépasse 15, d'une longueur multiple de 40. La seule qui porte quelque chose fait 320 × 40,
+c'est le titre, anticrénelé sur 16 niveaux. La palette n'y est pas — l'intro la construit à
+l'exécution — d'où le rendu en niveaux de gris, qui restitue fidèlement l'anticrénelage.
+
+```bash
+gradle -p rebirth intro
+```
+
+---
+
 ## Les scènes `.j3o`
 
 Le jeu **charge** `assets/Scenes/level_<x>.j3o` quand il existe : corriger un mur dans le SDK se

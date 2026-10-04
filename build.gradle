@@ -163,6 +163,15 @@ tasks.register('menuTest', JavaExec) {
     flags(it, ['shot', 'page'])
 }
 
+tasks.register('intro', JavaExec) {
+    group = 'assets'
+    description = "Deplie l'INTRO (intro.exe, crunchee StoneCracker) et en sort les images"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.rebirth.extract.IntroExport'
+    workingDir = assetRoot                 // pour qu'Assets.root resolve medias/original
+    systemProperty 'rebirth.assets', assetsDir.absolutePath
+}
+
 tasks.register('materials', JavaExec) {
     group = 'assets'
     description = "Ecrit les materiaux du decor en .j3m (editables a la main / dans le SDK jME)"
