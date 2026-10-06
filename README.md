@@ -225,9 +225,26 @@ texte éclairé par une tache de lumière qui se déplace.
 
 ![Une image rendue](docs/img/intro-rendu.png)
 
-Et voici une image rendue — un sol en perspective, texturé et bosselé, avec sa ligne d'horizon.
-Le tramage est d'origine : chaque entrée de la table de couleurs tient **quatre pixels** dans un
-mot long, ce qui donne ces dégradés en damier qui se fondaient sur un écran cathodique.
+Et voici ce que ça donne : une **boule lumineuse survole un plan sombre et l'éclaire au passage**.
+Le relief du plan — et le titre qui y est gravé — n'existe que là où la lumière tombe.
+
+![Dix secondes d'intro](docs/img/intro-planche.png)
+
+Une image toutes les 40, de la 40ᵉ à la 320ᵉ : la boule entre par la droite, la bande éclairée
+enfle, balaie, puis s'efface.
+
+**La palette est un piège.** Il y en a deux, et j'ai d'abord pris la mauvaise. Celle de `0x6B78`,
+256 couleurs, est la palette **source du moteur** : `$2C1A` l'étend vers `hunk1+0x030000` pour que
+la boucle de rendu y pioche. Mais ce que le rendu *écrit*, ce sont des index d'écran — et l'écran
+est décrit par le gabarit Copper : `BPLCON0 = $7201` en `0x44CA`, soit **sept plans de bits**.
+Donc **128 couleurs**, et le bit 7 de l'octet de pixel n'est pas affiché.
+
+Ces 128 couleurs sont les quatre bancs de 32 que `$320E` envoie au Copper, **un banc par passe** —
+`addi.l #$2000,d6`, le champ BANK de `BPLCON3`. Appliquer la palette source donnait des formes
+justes sur un fond rouge sombre ; la bonne donne un fond noir et une lumière bleu-blanc-rose.
+
+Le tramage, lui, est d'origine : chaque entrée de la table de couleurs tient **quatre pixels**
+dans un mot long, ce qui donne ces dégradés en damier qui se fondaient sur un écran cathodique.
 
 ```bash
 gradle -p rebirth intro                  # depose les hunks dans assets/intro/

@@ -72,13 +72,26 @@ def init(cpu, mem, bavard=True):
 
 
 def palette(mem):
-    """La rampe de 256 couleurs en 0x6B78 : celle du moteur, pas celle des logos."""
+    """La palette d'AFFICHAGE : 128 couleurs, les quatre bancs de 0x6F78.
+
+    Ne pas confondre avec la rampe de 256 couleurs en 0x6B78 : celle-la est la palette SOURCE
+    du moteur, que $2C1A etend vers hunk1+0x030000 pour que la boucle de rendu y pioche. Ce que
+    le rendu ECRIT, ce sont des index de l'ecran, et l'ecran est decrit par le gabarit Copper :
+    BPLCON0 = $7201 en 0x44CA, soit SEPT plans de bits. Donc 128 couleurs, et le bit 7 de
+    l'octet de pixel n'est pas affiche.
+
+    Ces 128 couleurs sont les quatre bancs de 32 que $320E envoie au Copper, un banc par passe
+    (addi.l #$2000,d6 : le champ BANK de BPLCON3). Chaque couleur part en DEUX ecritures, poids
+    forts puis poids faibles, ce qui donne les 8 bits par canal de l'AGA.
+
+    On prend ici le fondu a fond : le facteur de $32E6/$32E8 vaut 0 au demarrage et c'est le
+    sequenceur qui le monte, or on ne le fait pas tourner."""
     h0, _ = mem._find(0)
     out = []
-    for i in range(256):
-        a = 0x6B78 + i * 4
+    for i in range(128):
+        a = 0x6F78 + i * 4
         out += [h0[a + 1], h0[a + 2], h0[a + 3]]
-    return out
+    return out + out                      # bit 7 non affiche : on replie 128..255
 
 
 def normales(mem, chemin):
