@@ -60,6 +60,11 @@ public final class LevelExport {
     }
 
     /** Charge le niveau {@code lvl} (prologue Game_Begin, sans boucle ni rendu). */
+    static void loadLevelForTools(int lvl) {
+        loadLevel(lvl);
+    }
+
+    /** Charge le niveau {@code lvl} (prologue Game_Begin, sans boucle ni rendu). */
     private static void loadLevel(int lvl) {
         Mem.ww(ab3d2.ControlloopData.Game_LevelNumber_w, lvl);
         ab3d2.Controlloop.DEFAULTGAME();

@@ -38,6 +38,9 @@ public final class Extract {
         if (all || what.equals("sprites")) {
             Sprites.extract(out.resolve("textures").resolve("objects"), PortReader.paletteRGB());
         }
+        if (what.equals("xform")) {                  // oracle de la transformation de vue
+            XformExport.extract(out);
+        }
         if (all || what.equals("levels")) {
             LevelExport.extractAll(out);
         }
