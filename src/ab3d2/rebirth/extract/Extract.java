@@ -50,6 +50,9 @@ public final class Extract {
         if (what.equals("edgepvs")) {                // oracle du PVS par arete
             EdgePvsExport.extract(out);
         }
+        if (what.equals("visedges")) {               // oracle des ouvertures visibles
+            VisibleEdgesExport.extract(out);
+        }
         if (all || what.equals("levels")) {
             LevelExport.extractAll(out);
         }
