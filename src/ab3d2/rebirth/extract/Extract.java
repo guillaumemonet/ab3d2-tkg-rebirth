@@ -47,6 +47,9 @@ public final class Extract {
         if (what.equals("clips")) {                  // oracle de la fenetre de dessin
             ClipExport.extract(out);
         }
+        if (what.equals("edgepvs")) {                // oracle du PVS par arete
+            EdgePvsExport.extract(out);
+        }
         if (all || what.equals("levels")) {
             LevelExport.extractAll(out);
         }
