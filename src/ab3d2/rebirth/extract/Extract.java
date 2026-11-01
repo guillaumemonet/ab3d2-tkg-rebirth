@@ -44,6 +44,9 @@ public final class Extract {
         if (what.equals("xform")) {                  // oracle de la transformation de vue
             XformExport.extract(out);
         }
+        if (what.equals("clips")) {                  // oracle de la fenetre de dessin
+            ClipExport.extract(out);
+        }
         if (all || what.equals("levels")) {
             LevelExport.extractAll(out);
         }
