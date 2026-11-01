@@ -68,6 +68,9 @@ public final class Extract {
         if (what.equals("flatpaint")) {              // oracle du placage des sols
             FlatPaintExport.extract(out);
         }
+        if (what.equals("gourflatpaint")) {          // oracle du placage des sols degrades
+            GourFlatPaintExport.extract(out);
+        }
         if (what.equals("lights")) {                 // oracle de l'eclairage
             LightExport.extract(out);
         }
