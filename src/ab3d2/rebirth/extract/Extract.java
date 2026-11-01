@@ -62,6 +62,9 @@ public final class Extract {
         if (what.equals("wallpaint")) {              // oracle du placage des murs
             WallPaintExport.extract(out);
         }
+        if (what.equals("flatpaint")) {              // oracle du placage des sols
+            FlatPaintExport.extract(out);
+        }
         if (all || what.equals("levels")) {
             LevelExport.extractAll(out);
         }
