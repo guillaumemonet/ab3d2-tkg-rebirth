@@ -53,6 +53,9 @@ public final class Extract {
         if (what.equals("visedges")) {               // oracle des ouvertures visibles
             VisibleEdgesExport.extract(out);
         }
+        if (what.equals("walls")) {                  // oracle de la projection des murs
+            WallExport.extract(out);
+        }
         if (all || what.equals("levels")) {
             LevelExport.extractAll(out);
         }
