@@ -47,6 +47,12 @@ public final class BitmapPaintExport {
     /** La hauteur du tampon, celle que la vérification remplit aussi. */
     private static final int HAUTEUR = 256;
 
+    /** {@code TKG1:INCLUDES/BIGBULLET} : palette de huit mille, donc mélange additif. */
+    private static final int FEUILLE_GROS_TIRS = 2;
+
+    /** {@code TKG1:INCLUDES/EXPLOSION} : l'autre palette de huit mille. */
+    private static final int FEUILLE_EXPLOSIONS = 4;
+
     private BitmapPaintExport() {
     }
 
@@ -85,8 +91,16 @@ public final class BitmapPaintExport {
             }
             BitmapExport.seme(objets, n);
             for (int e = 0; e < n; e++) {
-                // Seuls l'endroit et l'envers : les autres boucles ne sont pas portées.
-                Mem.wb(objets + e * ab3d2.Defs.ObjT_SizeOf_l + 10, e % 2 == 0 ? 0 : 0x80);
+                int o = objets + e * ab3d2.Defs.ObjT_SizeOf_l;
+                // L'image éclairée n'est pas portée : restent la boucle simple et le mélange
+                // additif, chacune à l'endroit et à l'envers. L'additif lit une table à deux
+                // entrées de huit mille cent quatre-vingt-douze octets, et DEUX feuilles
+                // seulement en portent autant — les gros projectiles et les explosions. On
+                // sème donc l'additif sur celles-là et la boucle simple sur les autres,
+                // comme le jeu le fait.
+                boolean additif = Mem.uw(o + 8) == FEUILLE_GROS_TIRS
+                        || Mem.uw(o + 8) == FEUILLE_EXPLOSIONS;
+                Mem.wb(o + 10, (additif ? 6 : 0) | (e % 2 == 0 ? 0 : 0x80));
             }
             champsParNiveau.put(String.valueOf(c), BitmapExport.champs(objets, n));
 
