@@ -46,6 +46,14 @@ public final class SkyExport {
      */
     private static final int[] HORIZONS = {0, 1, 2, 3, 40, 119, 120, 200, 239};
 
+    /**
+     * Les horizons relevés dans la vue encadrée.
+     *
+     * <p>Ils montent moins haut : le recul dans l'image y vaut une fois et demie l'horizon, et
+     * au-delà de cent soixante la lecture remonterait avant la colonne.
+     */
+    private static final int[] HORIZONS_PETIT = {0, 1, 2, 3, 40, 79, 80, 120, 159};
+
     /** Le pas entre deux orientations : premier avec huit mille, donc sans retour. */
     private static final int PAS = 331;
 
@@ -90,12 +98,12 @@ public final class SkyExport {
             Mem.wb(ab3d2.bss.ZoneBss.Zone_BackdropDisable_vb + i, 0);
         }
 
-        Mem.wb(ab3d2.bss.VidBss.Vid_FullScreen_b, 0xFF);
-
         List<Object> cas = new ArrayList<>();
         Base64.Encoder encodeur = Base64.getEncoder();
         long octets = 0;
-        for (int horizon : HORIZONS) {
+        for (int plein = 1; plein >= 0; plein--) {
+            Mem.wb(ab3d2.bss.VidBss.Vid_FullScreen_b, plein != 0 ? 0xFF : 0);
+            for (int horizon : plein != 0 ? HORIZONS : HORIZONS_PETIT) {
             for (int i = 0; i < ORIENTATIONS; i++) {
                 int angle = (i * PAS) & 8191;
                 Mem.ww(ab3d2.HireswallData.Vid_CentreY_w, horizon);
@@ -115,6 +123,7 @@ public final class SkyExport {
                 octets += pixels.length;
 
                 Map<String, Object> un = new LinkedHashMap<>();
+                un.put("full", plein != 0);
                 un.put("angle", angle);
                 un.put("centreY", horizon);
                 un.put("lines", lignes);
@@ -122,6 +131,7 @@ public final class SkyExport {
                 un.put("column", ((angle & 4095) * SKY_W >> 12));
                 un.put("pixels", encodeur.encodeToString(pixels));
                 cas.add(un);
+            }
             }
         }
 
