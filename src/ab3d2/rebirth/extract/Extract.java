@@ -89,6 +89,9 @@ public final class Extract {
         if (what.equals("bitmappaint")) {            // oracle des pixels du sprite
             BitmapPaintExport.extract(out);
         }
+        if (what.equals("zonegraph")) {              // oracle de la mise en scene
+            ZoneGraphExport.extract(out);
+        }
         if (what.equals("lights")) {                 // oracle de l'eclairage
             LightExport.extract(out);
         }
