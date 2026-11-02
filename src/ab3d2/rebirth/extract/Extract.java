@@ -80,6 +80,9 @@ public final class Extract {
         if (what.equals("objxform")) {               // oracle de la rotation des choses
             ObjXformExport.extract(out);
         }
+        if (what.equals("spriteorder")) {            // oracle du tri des choses
+            SpriteOrderExport.extract(out);
+        }
         if (what.equals("lights")) {                 // oracle de l'eclairage
             LightExport.extract(out);
         }

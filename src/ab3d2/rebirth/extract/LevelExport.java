@@ -671,7 +671,7 @@ public final class LevelExport {
             // EntT_DoorsAndLiftsHeld_l : bits des portes/ascenseurs que cet objet déverrouille
             // (les CLÉS). Un objet qui en tient est toujours ramassable (Plr1_CollectItem).
             o.put("doorsHeld", Mem.l(a0 + Defs.EntT_DoorsAndLiftsHeld_l));
-            o.put("upperZone", Mem.ub(a0 + Defs.ShotT_InUpperZone_b) != 0);
+            o.put("upperZone", Mem.ub(a0 + Defs.ShotT_InUpperZone_b));
             // EntT_DisplayText_w : index du message de niveau a afficher (ramassage, mort) ; < 0 = aucun
             o.put("displayText", Mem.w(a0 + Defs.EntT_DisplayText_w));
             if (typeID == 0) {                               // ALIEN : état initial de l'entité
