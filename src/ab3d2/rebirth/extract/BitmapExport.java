@@ -122,7 +122,7 @@ public final class BitmapExport {
      * et la routine écarte alors chaque sprite ou sort de ses tables. Il faut se poser AU
      * MILIEU des choses pour que la pose ait lieu.
      */
-    private static List<int[]> pointsDeVue() {
+    static List<int[]> pointsDeVue() {
         int nz = Mem.uw(ab3d2.bss.LevelBss.Lvl_NumZones_w);
         int zptrs = Mem.l(ab3d2.bss.LevelBss.Lvl_ZonePtrsPtr_l);
         int coords = Mem.l(ab3d2.bss.LevelBss.Lvl_ControlPointCoordsPtr_l);
@@ -167,7 +167,7 @@ public final class BitmapExport {
      * <p>La semence ne change pas d'une vue à l'autre : les répéter par vue ferait un relevé de
      * deux cents mégaoctets pour la même information.
      */
-    private static List<Object> champs(int objets, int n) {
+    static List<Object> champs(int objets, int n) {
         List<Object> objs = new ArrayList<>();
         for (int e = 0; e < n; e++) {
             int o = objets + e * ab3d2.Defs.ObjT_SizeOf_l;
@@ -198,18 +198,18 @@ public final class BitmapExport {
      * routine prend quand elle s'apprête à diviser par elle, et elle ne se rencontrerait pas
      * autrement.
      */
-    private static void seme(int objets, int n) {
+    static void seme(int objets, int n) {
         for (int e = 0; e < n; e++) {
             int o = objets + e * ab3d2.Defs.ObjT_SizeOf_l;
-            // Les demi-tailles restent dans la fourchette du jeu : trop petites, le rapport
-            // qui entre dans la table des pas la dépasserait de loin, et l'original irait lire
-            // des centaines de milliers d'octets plus loin. Ce n'est pas un état du jeu.
-            int largeur = e % 31 == 7 ? 0 : 40 + (e * 7) % 120;
+            int largeur = 0;                                    // posé plus bas
             Mem.ww(o + 2, (e * 17) % 60 - 10);                  // luminosité propre
             Mem.ww(o + 4, ((e * 37) % 400 - 200) * 16);         // hauteur
-            Mem.wb(o + 6, largeur);                             // demi-largeur (255 = vecteur)
-            Mem.wb(o + 7, e % 29 == 11 ? 0 : 40 + (e * 13) % 120); // demi-hauteur
-            int feuille = (e * 5) % 30;
+            // Les demi-tailles sont posées APRÈS l'image, et D'APRÈS elle : dans le jeu
+            // la taille du monde suit celle du dessin, et les découpler ferait lire la
+            // texture bien au-delà de ce que la feuille contient.
+            // Seules QUATORZE feuilles sur trente portent un nom : les seize autres n'ont
+            // aucun fichier, et le jeu y dessinerait depuis un pointeur nul.
+            int feuille = (e * 5) % 14;
             Mem.ww(o + 8, feuille);
             Mem.wb(o + 10, DRAPEAUX[(e * 3) % DRAPEAUX.length]);
             // Les cases INUTILISEES de la table des images ont une demi-largeur nulle, ce qui
@@ -244,9 +244,21 @@ public final class BitmapExport {
                 }
             }
             Mem.wb(o + 11, image);
+
+            int glf2 = Mem.l(ab3d2.HiresData.GLF_DatabasePtr_l);
+            int dl = demiLargeur(glf2, feuille, image);
+            int dh = demiHauteur(glf2, feuille, image);
+            largeur = e % 31 == 7 ? 0 : borne(dl + (e * 7) % 21 - 10);
+            Mem.wb(o + 6, largeur);                             // demi-largeur (255 = vecteur)
+            Mem.wb(o + 7, e % 29 == 11 ? 0 : borne(dh + (e * 13) % 21 - 10)); // demi-hauteur
             Mem.ww(o + ab3d2.Defs.ShotT_AuxOffsetX_w, (e * 23) % 100 - 50);
             Mem.ww(o + ab3d2.Defs.ShotT_AuxOffsetY_w, (e * 29) % 100 - 50);
         }
+    }
+
+    /** Une demi-taille utilisable : jamais nulle, jamais la marque du modèle vectoriel. */
+    private static int borne(int v) {
+        return Math.max(4, Math.min(240, v));
     }
 
     /** La demi-hauteur d'une image, dans la table de la base de liaison. */
@@ -298,6 +310,7 @@ public final class BitmapExport {
                 continue;
             }
             ab3d2.tools.BitmapPlace.reset();
+            ab3d2.tools.BitmapPlace.stop = true;
             ab3d2.tools.BitmapPlace.capturing = true;
             ab3d2.Objdrawhires.draw_Object(e);
             ab3d2.tools.BitmapPlace.capturing = false;

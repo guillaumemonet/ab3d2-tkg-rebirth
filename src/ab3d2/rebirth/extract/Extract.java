@@ -86,6 +86,9 @@ public final class Extract {
         if (what.equals("bitmap")) {                 // oracle de la pose du sprite
             BitmapExport.extract(out);
         }
+        if (what.equals("bitmappaint")) {            // oracle des pixels du sprite
+            BitmapPaintExport.extract(out);
+        }
         if (what.equals("lights")) {                 // oracle de l'eclairage
             LightExport.extract(out);
         }
