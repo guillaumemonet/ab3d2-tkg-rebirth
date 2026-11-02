@@ -77,6 +77,9 @@ public final class Extract {
         if (what.equals("sky")) {                    // oracle du ciel
             SkyExport.extract(out);
         }
+        if (what.equals("objxform")) {               // oracle de la rotation des choses
+            ObjXformExport.extract(out);
+        }
         if (what.equals("lights")) {                 // oracle de l'eclairage
             LightExport.extract(out);
         }
