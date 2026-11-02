@@ -74,6 +74,9 @@ public final class Extract {
         if (what.equals("waterpaint")) {             // oracle du placage de l'eau
             WaterPaintExport.extract(out);
         }
+        if (what.equals("sky")) {                    // oracle du ciel
+            SkyExport.extract(out);
+        }
         if (what.equals("lights")) {                 // oracle de l'eclairage
             LightExport.extract(out);
         }
