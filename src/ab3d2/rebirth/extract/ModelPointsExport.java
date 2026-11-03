@@ -213,11 +213,14 @@ public final class ModelPointsExport {
             Mem.ww(o + 2, ((e * 37) % 60 - 30) * 8);            // luminosite propre
             Mem.ww(o + 4, ((e * 23) % 400 - 200) * 16);         // hauteur
             Mem.wb(o + 6, 0xFF);                                // la marque du modele
-            int modele = e % MODELES;
+            // Le modele suit le rang ECHANTILLONNE, sinon le sous-echantillonnage n'en
+            // atteindrait qu'une poignee : la guepe, dont quatre parties designent des points
+            // au-dela de son propre compte, ne serait jamais relevee.
+            int modele = (e / UNE_SUR) % MODELES;
             int ptr = Mem.l(ab3d2.bss.DrawBss.Draw_PolyObjects_vl + modele * 4);
             int poses = ptr == 0 ? 1 : Mem.uw(ptr + 4);
             Mem.ww(o + 8, modele);
-            Mem.ww(o + 10, poses == 0 ? 0 : (e * 7) % poses);
+            Mem.ww(o + 10, poses == 0 ? 0 : (e / UNE_SUR * 3) % poses);
             Mem.ww(o + ab3d2.Defs.EntT_CurrentAngle_w, (e * 613) & 8190);
             Mem.wb(o + ab3d2.Defs.ShotT_InUpperZone_b, e % 5 == 2 ? 0xFF : 0);
         }
@@ -298,6 +301,13 @@ public final class ModelPointsExport {
                 }
                 pts.add(un);
             }
+            List<Object> parties = new ArrayList<>();
+            for (int[] q : ab3d2.tools.ModelPoints.parts) {
+                List<Object> une = new ArrayList<>();
+                une.add(q[0]);
+                une.add(q[1]);
+                parties.add(une);
+            }
             List<Object> grille = new ArrayList<>(256);
             for (int v : ab3d2.tools.ModelPoints.grid) {
                 grille.add(v);
@@ -307,6 +317,7 @@ public final class ModelPointsExport {
             un.put("sortIt", ab3d2.tools.ModelPoints.sortIt);
             un.put("onOff", ab3d2.tools.ModelPoints.onOff);
             un.put("grid", grille);
+            un.put("parts", parties);
             un.put("points", pts);
             modeles.add(un);
         }
