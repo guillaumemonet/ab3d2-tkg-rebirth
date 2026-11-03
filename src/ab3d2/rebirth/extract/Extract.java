@@ -95,6 +95,9 @@ public final class Extract {
         if (what.equals("brightrings")) {            // oracle des anneaux de lumiere
             BrightRingsExport.extract(out);
         }
+        if (what.equals("modelpoints")) {            // oracle des points d'un modele
+            ModelPointsExport.extract(out);
+        }
         if (what.equals("objanim")) {                // oracle de l'apparence des choses
             ObjAnimExport.extract(out);
         }
