@@ -92,6 +92,9 @@ public final class Extract {
         if (what.equals("glare")) {                  // oracle du miroitement
             GlareExport.extract(out);
         }
+        if (what.equals("brightrings")) {            // oracle des anneaux de lumiere
+            BrightRingsExport.extract(out);
+        }
         if (what.equals("objanim")) {                // oracle de l'apparence des choses
             ObjAnimExport.extract(out);
         }
