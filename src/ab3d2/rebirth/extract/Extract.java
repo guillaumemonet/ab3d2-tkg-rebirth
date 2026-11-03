@@ -89,6 +89,9 @@ public final class Extract {
         if (what.equals("bitmappaint")) {            // oracle des pixels du sprite
             BitmapPaintExport.extract(out);
         }
+        if (what.equals("glare")) {                  // oracle du miroitement
+            GlareExport.extract(out);
+        }
         if (what.equals("objanim")) {                // oracle de l'apparence des choses
             ObjAnimExport.extract(out);
         }
