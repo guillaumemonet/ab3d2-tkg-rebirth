@@ -113,6 +113,9 @@ public final class Extract {
         if (what.equals("objanim")) {                // oracle de l'apparence des choses
             ObjAnimExport.extract(out);
         }
+        if (what.equals("alienanim")) {              // oracle du record de dessin d'un monstre
+            AlienAnimExport.extract(out);
+        }
         if (what.equals("zonegraph")) {              // oracle de la mise en scene
             ZoneGraphExport.extract(out);
         }
