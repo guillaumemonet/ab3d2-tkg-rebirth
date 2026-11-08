@@ -104,6 +104,9 @@ public final class Extract {
         if (what.equals("modeledges")) {             // oracle des bords d'une face
             ModelEdgesExport.extract(out);
         }
+        if (what.equals("modelpixels")) {            // oracle des pixels d'un modele
+            ModelPixelsExport.extract(out);
+        }
         if (what.equals("objanim")) {                // oracle de l'apparence des choses
             ObjAnimExport.extract(out);
         }
