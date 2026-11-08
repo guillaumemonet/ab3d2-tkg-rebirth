@@ -101,6 +101,9 @@ public final class Extract {
         if (what.equals("modelfaces")) {             // oracle des faces d'un modele
             ModelFacesExport.extract(out);
         }
+        if (what.equals("modeledges")) {             // oracle des bords d'une face
+            ModelEdgesExport.extract(out);
+        }
         if (what.equals("objanim")) {                // oracle de l'apparence des choses
             ObjAnimExport.extract(out);
         }
