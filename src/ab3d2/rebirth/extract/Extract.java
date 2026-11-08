@@ -98,6 +98,9 @@ public final class Extract {
         if (what.equals("modelpoints")) {            // oracle des points d'un modele
             ModelPointsExport.extract(out);
         }
+        if (what.equals("modelfaces")) {             // oracle des faces d'un modele
+            ModelFacesExport.extract(out);
+        }
         if (what.equals("objanim")) {                // oracle de l'apparence des choses
             ObjAnimExport.extract(out);
         }

@@ -36,7 +36,7 @@ import java.util.Map;
 public final class ModelPointsExport {
 
     /** Combien d'images de clignotement on laisse passer. */
-    private static final int IMAGES = 9;
+    static final int IMAGES = 9;
 
     /** Dix points de bord par secteur, quatre luminosites chacun. */
     private static final int PAR_SECTEUR = 40;
@@ -48,10 +48,10 @@ public final class ModelPointsExport {
      * des mots : le jeu n'en produit jamais d'impair, et {@code AMOD_A} le garantit. Un angle
      * impair ferait lire un mot a cheval sur deux entrees, ce qui n'arrive pas.
      */
-    private static final int[] ANGLES = {0, 2048, 4776};
+    static final int[] ANGLES = {0, 2048, 4776};
 
     /** Les hauteurs d'oeil relevees. */
-    private static final int[] HAUTEURS = {0, 60000};
+    static final int[] HAUTEURS = {0, 60000};
 
     /**
      * On ne garde qu'une entite sur treize, et qu'un point de vue sur deux.
@@ -61,11 +61,11 @@ public final class ModelPointsExport {
      * ce qui fait varier le calcul — la pose, l'orientation, l'etage, la distance — varie deja
      * d'une entite a l'autre. Les vingt-deux modeles et toutes leurs poses restent atteints.
      */
-    private static final int UNE_SUR = 17;
-    private static final int VUE_SUR = 2;
+    static final int UNE_SUR = 17;
+    static final int VUE_SUR = 2;
 
     /** Combien de modeles la base nomme. */
-    private static final int MODELES = 22;
+    static final int MODELES = 22;
 
     private ModelPointsExport() {
     }
@@ -133,11 +133,24 @@ public final class ModelPointsExport {
                 cas.size(), captures, points, f);
     }
 
+    /** Pose l'ecran plein et la hauteur de l'oeil. */
+    static void cadre(int y) {
+        int largeur = ab3d2.Hires.FS_WIDTH;
+        int hauteur = ab3d2.Hires.FS_HEIGHT;
+        Mem.ww(ab3d2.HiresData.Vid_CentreX_w, largeur / 2);
+        Mem.ww(ab3d2.HireswallData.Vid_CentreY_w, hauteur / 2);
+        Mem.wl(ab3d2.HiresData.Plr_YOff_l, y);
+        Mem.ww(ab3d2.HireswallData.draw_TopClip_w, 0);
+        Mem.ww(ab3d2.HireswallData.draw_BottomClip_w, hauteur);
+        Mem.ww(ab3d2.HireswallData.Draw_LeftClip_w, 0);
+        Mem.ww(ab3d2.HireswallData.Draw_RightClip_w, largeur);
+    }
+
     /** Les lumieres mobiles posees, relevees pour que la verification les rejoue. */
-    private static final List<Object> LUMIERES = new ArrayList<>();
+    static final List<Object> LUMIERES = new ArrayList<>();
 
     /** Seme l'eclairage comme l'oracle des anneaux, et rend le secteur regarde. */
-    private static int eclaire(char lettre) {
+    static int eclaire(char lettre) {
         LUMIERES.clear();
         int nz = Mem.uw(ab3d2.bss.LevelBss.Lvl_NumZones_w);
         int zptrs = Mem.l(ab3d2.bss.LevelBss.Lvl_ZonePtrsPtr_l);
@@ -207,7 +220,18 @@ public final class ModelPointsExport {
     }
 
     /** Fait de chaque entite un MODELE, avec sa pose et son etage. */
-    private static void seme(int objets, int n) {
+    static void seme(int objets, int n) {
+        seme(objets, n, UNE_SUR);
+    }
+
+    /**
+     * La meme semaille, au PAS d'echantillonnage de l'oracle qui la demande.
+     *
+     * <p>Le modele suit le rang ECHANTILLONNE : c'est la seule facon d'atteindre les
+     * vingt-deux modeles, et donc les faces rares — celles qui ont des trous, celles que le
+     * modeleur a voulues plus sombres.
+     */
+    static void seme(int objets, int n, int pas) {
         for (int e = 0; e < n; e++) {
             int o = objets + e * ab3d2.Defs.ObjT_SizeOf_l;
             Mem.ww(o + 2, ((e * 37) % 60 - 30) * 8);            // luminosite propre
@@ -216,18 +240,18 @@ public final class ModelPointsExport {
             // Le modele suit le rang ECHANTILLONNE, sinon le sous-echantillonnage n'en
             // atteindrait qu'une poignee : la guepe, dont quatre parties designent des points
             // au-dela de son propre compte, ne serait jamais relevee.
-            int modele = (e / UNE_SUR) % MODELES;
+            int modele = (e / pas) % MODELES;
             int ptr = Mem.l(ab3d2.bss.DrawBss.Draw_PolyObjects_vl + modele * 4);
             int poses = ptr == 0 ? 1 : Mem.uw(ptr + 4);
             Mem.ww(o + 8, modele);
-            Mem.ww(o + 10, poses == 0 ? 0 : (e / UNE_SUR * 3) % poses);
+            Mem.ww(o + 10, poses == 0 ? 0 : (e / pas * 3) % poses);
             Mem.ww(o + ab3d2.Defs.EntT_CurrentAngle_w, (e * 613) & 8190);
             Mem.wb(o + ab3d2.Defs.ShotT_InUpperZone_b, e % 5 == 2 ? 0xFF : 0);
         }
     }
 
     /** Les champs semes d'un niveau, releves UNE fois. */
-    private static List<Object> champs(int objets, int n) {
+    static List<Object> champs(int objets, int n) {
         int pts = Mem.l(ab3d2.bss.LevelBss.Lvl_ObjectPointsPtr_l);
         List<Object> objs = new ArrayList<>();
         for (int e = 0; e < n; e++) {
@@ -248,7 +272,7 @@ public final class ModelPointsExport {
     }
 
     /** Pose l'oeil et fait tourner les points des choses. */
-    private static void tourne(int x, int z, int angle) {
+    static void tourne(int x, int z, int angle) {
         Mem.wl(ab3d2.HiresData.Plr_XOff_l, x << 16);
         Mem.wl(ab3d2.HiresData.Plr_ZOff_l, z << 16);
         Mem.ww(ab3d2.HiresData.Vis_AngPos_w, angle);
@@ -269,13 +293,7 @@ public final class ModelPointsExport {
             int angle, int y, int x, int z) {
         int largeur = ab3d2.Hires.FS_WIDTH;
         int hauteur = ab3d2.Hires.FS_HEIGHT;
-        Mem.ww(ab3d2.HiresData.Vid_CentreX_w, largeur / 2);
-        Mem.ww(ab3d2.HireswallData.Vid_CentreY_w, hauteur / 2);
-        Mem.wl(ab3d2.HiresData.Plr_YOff_l, y);
-        Mem.ww(ab3d2.HireswallData.draw_TopClip_w, 0);
-        Mem.ww(ab3d2.HireswallData.draw_BottomClip_w, hauteur);
-        Mem.ww(ab3d2.HireswallData.Draw_LeftClip_w, 0);
-        Mem.ww(ab3d2.HireswallData.Draw_RightClip_w, largeur);
+        cadre(y);
 
         List<Object> modeles = new ArrayList<>();
         for (int e = 0; e < n; e += UNE_SUR) {
