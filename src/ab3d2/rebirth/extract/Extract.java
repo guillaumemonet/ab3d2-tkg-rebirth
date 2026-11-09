@@ -131,6 +131,9 @@ public final class Extract {
         if (what.equals("paula")) {                  // oracle du moteur audio
             PaulaExport.extract(out);
         }
+        if (what.equals("musicplay")) {              // oracle du lecteur de musique
+            MusicExport2.extract(out);
+        }
         if (all || what.equals("levels")) {
             LevelExport.extractAll(out);
         }
