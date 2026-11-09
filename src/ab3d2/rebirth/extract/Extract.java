@@ -122,6 +122,12 @@ public final class Extract {
         if (what.equals("lights")) {                 // oracle de l'eclairage
             LightExport.extract(out);
         }
+        if (what.equals("hudraster")) {              // oracle du tableau de bord
+            HudRasterExport.extract(out);
+        }
+        if (what.equals("gunhold")) {                // oracle de l'arme en main
+            GunHoldExport.extract(out);
+        }
         if (all || what.equals("levels")) {
             LevelExport.extractAll(out);
         }
