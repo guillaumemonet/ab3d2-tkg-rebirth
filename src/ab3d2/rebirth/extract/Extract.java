@@ -128,6 +128,9 @@ public final class Extract {
         if (what.equals("gunhold")) {                // oracle de l'arme en main
             GunHoldExport.extract(out);
         }
+        if (what.equals("paula")) {                  // oracle du moteur audio
+            PaulaExport.extract(out);
+        }
         if (all || what.equals("levels")) {
             LevelExport.extractAll(out);
         }
