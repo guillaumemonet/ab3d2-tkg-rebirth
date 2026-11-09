@@ -65,6 +65,15 @@ import java.util.Map;
  * reste alors au sol, et c'est le seul endroit ou l'on voie qu'une CLE, elle, se ramasse
  * toujours.
  *
+ * <p>Dans ces trois-la, le drapeau d'inquietude est ARME SUR TOUT a chaque image : c'est le
+ * monde le plus eveille que le jeu puisse presenter, et ce qu'on y mesure est la routine, pas
+ * la visibilite.
+ *
+ * <p>La QUATRIEME ne l'arme plus : elle appelle {@code markVisibleAndWorry} pour de bon, a la
+ * fin de chaque image comme la boucle de jeu le fait, et promene le joueur de secteur en
+ * secteur. On y voit la porte s'ouvrir et se refermer — et l'on y voit surtout que deux des
+ * quatre familles ne la referment jamais.
+ *
  * <p>L'etat du joueur et l'inventaire de depart sont EXPORTES, pour que le rejeu n'ait rien a
  * redeviner.
  */
@@ -95,7 +104,7 @@ public final class ObjectLifeExport {
         for (int lvl : NIVEAUX) {
             Map<String, Object> un = unNiveau(lvl);
             niveaux.add(un);
-            for (String quelle : new String[] {"idle", "contact", "full"}) {
+            for (String quelle : new String[] {"idle", "contact", "full", "pvs"}) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> serie = (Map<String, Object>) un.get(quelle);
                 etats += ((List<?>) serie.get("frames")).size()
@@ -120,16 +129,22 @@ public final class ObjectLifeExport {
         out.put("idle", uneSerie(lvl, 0));
         out.put("contact", uneSerie(lvl, 1));
         out.put("full", uneSerie(lvl, 2));
+        out.put("pvs", uneSerie(lvl, 3));
         return out;
     }
 
     /**
      * Une serie : zero, le joueur loin de tout ; un, pose sur chaque chose a tour de role ;
-     * deux, la meme chose l'inventaire plein.
+     * deux, la meme chose l'inventaire plein ; trois, le joueur promene de secteur en secteur
+     * et la vraie porte de l'inquietude.
      */
     private static Map<String, Object> uneSerie(int lvl, int quelle) {
         LevelExport.loadLevelForTools(lvl);
-        boolean contact = quelle != 0;
+        boolean contact = quelle == 1 || quelle == 2;
+        // La vraie porte de l'inquietude : dans la serie de CONTACT aussi, car c'est la seule
+        // ou un interrupteur s'enclenche — donc la seule ou l'on puisse voir qu'il cesse de
+        // vieillir des qu'on lui tourne le dos.
+        boolean parLaVue = quelle == 1 || quelle == 3;
         if (quelle == 2) {
             remplirInventaire();
         }
@@ -188,14 +203,37 @@ public final class ObjectLifeExport {
                 visites.add(rang);
             }
         }
+        // Le chemin de la quatrieme serie : on passe d'abord par les secteurs qui PORTENT
+        // quelque chose, puis par les autres. Deux images dans chacun, le temps de voir la
+        // porte s'ouvrir et se refermer.
+        List<Integer> chemin = new ArrayList<>();
+        for (int rang : rangs) {
+            int z = Mem.w(objData + rang * Defs.ObjT_SizeOf_l + Defs.ObjT_ZoneID_w);
+            if (z >= 0 && !chemin.contains(z)) {
+                chemin.add(z);
+            }
+        }
+        int combien = Mem.uw(ab3d2.bss.LevelBss.Lvl_NumZones_w);
+        for (int z = 0; z < combien; z++) {
+            if (!chemin.contains(z)) {
+                chemin.add(z);
+            }
+        }
 
         // L'echelle de degats : posee, pas ajoutee, pour que le rejeu soit exact.
         List<Object> poses = new ArrayList<>();
         List<Object> images = new ArrayList<>();
-        for (int f = 0; f < IMAGES; f++) {
-            Map<String, Object> joueur = contact && !visites.isEmpty()
-                    ? poseJoueur(objData, visites.get((f / TEMPS) % visites.size()), f)
-                    : loinDeTout();
+        int combienImages = parLaVue ? IMAGES_VUE : IMAGES;
+        int zptrs = Mem.l(ab3d2.bss.LevelBss.Lvl_ZonePtrsPtr_l);
+        for (int f = 0; f < combienImages; f++) {
+            Map<String, Object> joueur;
+            if (quelle == 3) {
+                joueur = promene(zptrs, chemin.get((f / 2) % chemin.size()));
+            } else if (contact && !visites.isEmpty()) {
+                joueur = poseJoueur(objData, visites.get((f / TEMPS) % visites.size()), f);
+            } else {
+                joueur = loinDeTout();
+            }
             // move.w #0,Anim_DoorAndLiftLocks_l : la routine des portes efface le MOT fort, et
             // la boucle des objets le reconstruit entierement a chaque image.
             Mem.ww(ab3d2.bss.AnimBss.Anim_DoorAndLiftLocks_l, 0);
@@ -213,8 +251,11 @@ public final class ObjectLifeExport {
                     p.put("value", degats);
                     poses.add(p);
                 }
-                // markVisibleAndWorry : tout est vu.
-                Mem.wb(e + Defs.ShotT_Worry_b, Mem.ub(e + Defs.ShotT_Worry_b) | WORRY);
+                if (!parLaVue) {
+                    // Les trois premieres series arment TOUT : ce qu'elles mesurent est la
+                    // routine, pas la visibilite.
+                    Mem.wb(e + Defs.ShotT_Worry_b, Mem.ub(e + Defs.ShotT_Worry_b) | WORRY);
+                }
                 // La boucle recopie le secteur AVANT de choisir la famille, et saute les
                 // retires (newanims.s:1782).
                 Mem.ww(e + Defs.EntT_ZoneID_w, Mem.uw(e + Defs.ObjT_ZoneID_w));
@@ -222,6 +263,12 @@ public final class ObjectLifeExport {
                     continue;
                 }
                 ab3d2.Newaliencontrol.ItsAnObject(e);
+            }
+
+            if (parLaVue) {
+                // La DERNIERE chose que la boucle de jeu fait, apres avoir dessine : ce qu'elle
+                // arme ici, c'est l'image suivante qui le consomme.
+                ab3d2.Hires.markVisibleAndWorry();
             }
 
             Map<String, Object> img = new LinkedHashMap<>();
@@ -238,6 +285,7 @@ public final class ObjectLifeExport {
         }
 
         Map<String, Object> out = new LinkedHashMap<>();
+        out.put("byVisibility", parLaVue);
         out.put("startInventory", debut);
         out.put("entities", entites);
         out.put("damage", poses);
@@ -264,7 +312,20 @@ public final class ObjectLifeExport {
     private static Map<String, Object> poseJoueur(int objData, int rang, int image) {
         int e = objData + rang * Defs.ObjT_SizeOf_l;
         int haut = Mem.ub(e + Defs.ShotT_InUpperZone_b);
-        Mem.ww(ab3d2.bss.PlayerBss.Plr1_Zone_w, Mem.uw(e + Defs.ObjT_ZoneID_w));
+        int sonZone = Mem.uw(e + Defs.ObjT_ZoneID_w);
+        if (Mem.w(e + Defs.ObjT_ZoneID_w) < 0) {
+            // Deja ramassee : le joueur ne va pas la ou il n'y a plus rien. Il reste ou
+            // il etait, et son pointeur de secteur avec lui.
+            Mem.wb(ab3d2.bss.PlayerBss.Plr1_TmpSpcTap_b, 0);
+            Map<String, Object> ou = etatJoueur(false);
+            ou.put("lookZone", Mem.uw(Mem.l(ab3d2.bss.PlayerBss.Plr1_ZonePtr_l)));
+            return ou;
+        }
+        Mem.ww(ab3d2.bss.PlayerBss.Plr1_Zone_w, sonZone);
+        // markVisibleAndWorry ne lit pas Plr1_Zone_w mais le POINTEUR de secteur : on le pose
+        // aussi, sans quoi le joueur regarderait d'ou il vient.
+        Mem.wl(ab3d2.bss.PlayerBss.Plr1_ZonePtr_l,
+                Mem.l(Mem.l(ab3d2.bss.LevelBss.Lvl_ZonePtrsPtr_l) + (short) sonZone * 4));
         Mem.wb(ab3d2.bss.PlayerBss.Plr1_StoodInTop_b, haut == 0 ? 0 : 0xFF);
         int points = Mem.l(ab3d2.bss.LevelBss.Lvl_ObjectPointsPtr_l);
         int pt = Mem.uw(e);
@@ -294,11 +355,30 @@ public final class ObjectLifeExport {
         Mem.wl(ab3d2.bss.PlayerBss.Plr1_YOff_l, (vise << 7) - TAILLE / 2);
         boolean action = temps == 1 || temps == 5 || temps == TEMPS - 1;
         Mem.wb(ab3d2.bss.PlayerBss.Plr1_TmpSpcTap_b, action ? 0xFF : 0);
-        return etatJoueur(action);
+        Map<String, Object> p = etatJoueur(action);
+        p.put("lookZone", sonZone);
+        return p;
     }
 
     /** Combien d'images le joueur reste sur une meme chose. */
     private static final int TEMPS = 8;
+
+    /** Combien d'images dure la serie qui promene le joueur de secteur en secteur. */
+    private static final int IMAGES_VUE = 200;
+
+    /**
+     * Le joueur promene : il n'est dans AUCUNE zone pour ce qui est du ramassage
+     * ({@code Plr1_Zone_w = -1}), mais {@code Plr1_ZonePtr_l} designe bien le secteur ou il se
+     * tient — et c'est ce pointeur-la, et lui seul, que {@code markVisibleAndWorry} lit.
+     */
+    private static Map<String, Object> promene(int zptrs, int zone) {
+        Mem.ww(ab3d2.bss.PlayerBss.Plr1_Zone_w, -1);
+        Mem.wb(ab3d2.bss.PlayerBss.Plr1_TmpSpcTap_b, 0);
+        Mem.wl(ab3d2.bss.PlayerBss.Plr1_ZonePtr_l, Mem.l(zptrs + zone * 4));
+        Map<String, Object> p = etatJoueur(false);
+        p.put("lookZone", zone);
+        return p;
+    }
 
     /**
      * L'inventaire pousse a ses PLAFONDS ({@code gmp_MaxInventory}) : tout ce qui ne donne
