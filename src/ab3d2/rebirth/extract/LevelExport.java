@@ -73,6 +73,13 @@ public final class LevelExport {
             Mem.wl(Plr1_Health_w + i * 4, v);
             Mem.wl(Plr2_Health_w + i * 4, v);
         }
+        // controlloop.s:164 : le prologue copie DEUX blocs, pas un. Le second porte le
+        // bouclier et les ARMES, et l'oublier laissait l'inventaire du niveau precedent.
+        for (int i = 0; i < 6; i++) {                        // template Plr_Shield_w
+            int v = Mem.l(Plr_Shield_w + i * 4);
+            Mem.wl(Plr1_Shield_w + i * 4, v);
+            Mem.wl(Plr2_Shield_w + i * 4, v);
+        }
         ab3d2.Hires.loopFrameLimit = 0;                      // prologue seul (game_main_loop sort à 0 frame)
         ab3d2.Hires.Game_Begin();
     }
