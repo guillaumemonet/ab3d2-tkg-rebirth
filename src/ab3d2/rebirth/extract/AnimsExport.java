@@ -55,6 +55,10 @@ public final class AnimsExport {
     private static int liftBase;
     private static int edges;
     private static int zptrs;
+    /** Les EAUX commencent la ou le bloc des ascenseurs finit, terminateur compris. */
+    private static int waterBase;
+    /** Combien d'animations d'eau la routine lit, quoi qu'il y ait dans le fichier. */
+    private static final int EAUX = 21;
 
     private AnimsExport() {
     }
@@ -108,6 +112,46 @@ public final class AnimsExport {
         liftBase = Mem.l(ab3d2.bss.LevelBss.Lvl_LiftDataPtr_l);
         edges = Mem.l(ab3d2.bss.LevelBss.Lvl_ZoneEdgePtr_l);
         zptrs = Mem.l(ab3d2.bss.LevelBss.Lvl_ZonePtrsPtr_l);
+        waterBase = finDuBloc(liftBase) + 2;
+    }
+
+    /**
+     * Les vingt et une animations d'eau. {@code DoWaterAnims} en lit toujours vingt et une —
+     * {@code move.w #20,d0} puis {@code dbra} — sans sentinelle d'aucune sorte : c'est au
+     * fichier de niveau d'en porter autant.
+     */
+    private static List<int[]> eaux() {
+        List<int[]> l = new ArrayList<>();
+        int a0 = waterBase;
+        for (int i = 0; i < EAUX; i++) {
+            int tete = a0;
+            a0 += 14;                                  // haut, bas (longs), position (long), vitesse (mot)
+            int n = 0;
+            while (Mem.w(a0) >= 0) {
+                a0 += 6;                               // secteur (mot) + pointeur graphique (long)
+                n++;
+            }
+            a0 += 2;                                   // le terminateur
+            l.add(new int[] {tete, n});
+        }
+        return l;
+    }
+
+    private static Map<String, Object> dessusEau(int[] e, int i) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("index", i);
+        m.put("top", Mem.l(e[0]));
+        m.put("bottom", Mem.l(e[0] + 4));
+        m.put("position", Mem.l(e[0] + 8));
+        m.put("speed", Mem.w(e[0] + 12));
+        List<Integer> zs = new ArrayList<>();
+        int a0 = e[0] + 14;
+        for (int k = 0; k < e[1]; k++) {
+            zs.add(Mem.w(a0));
+            a0 += 6;
+        }
+        m.put("zones", zs);
+        return m;
     }
 
     private static List<Integer> murs(int rec) {
@@ -162,6 +206,11 @@ public final class AnimsExport {
         // tous tourner sur quatre : l'arete armee etait alors toujours celle de la porte
         // verrouillee, et pas un panneau ne bougeait de toute la campagne.
         prendreEmpreinte(portes, asc);
+        List<Object> dessusEaux = new ArrayList<>();
+        List<int[]> ee = eaux();
+        for (int i = 0; i < ee.size(); i++) {
+            dessusEaux.add(dessusEau(ee.get(i), i));
+        }
         List<Object> cases = new ArrayList<>();
         int combien = 36;
         for (int s = 0; s < combien; s++) {
@@ -200,6 +249,32 @@ public final class AnimsExport {
             cas.put("arm", ARMES[s % ARMES.length]);
             cas.put("armWho", (s / 2) % 4);            // 0 rien, 1 porte, 2 ascenseur, 3 tout
             cas.put("armOnce", s % 13 == 2);
+            // L'EAU. Les seize niveaux portent vingt et une animations d'eau toutes INERTES
+            // (hauts et bas a zero, aucun secteur) : la routine existe, le jeu ne s'en sert
+            // nulle part. Un oracle qui se contenterait de les relever ne prouverait rien, on
+            // en POSE donc une vraie, entre le toit et le sol d'un secteur reel.
+            int zEau = portes.isEmpty() ? (asc.isEmpty() ? -1 : Mem.w(asc.get(0) + 30))
+                    : Mem.w(portes.get(0) + 30);
+            int zEau2 = asc.isEmpty() ? -1 : Mem.w(asc.get(0) + 30);
+            List<Integer> secteursEau = new ArrayList<>();
+            if (zEau >= 0) {
+                secteursEau.add(zEau);
+            }
+            if (zEau2 >= 0 && zEau2 != zEau) {
+                secteursEau.add(zEau2);
+            }
+            boolean plante = s % 3 != 2 && !secteursEau.isEmpty();
+            cas.put("plant", plante);
+            cas.put("plantZones", secteursEau);
+            int toit = secteursEau.isEmpty() ? 0
+                    : Mem.l(Mem.l(zptrs + secteursEau.get(0) * 4) + Defs.ZoneT_Roof_l);
+            int sol = secteursEau.isEmpty() ? 0
+                    : Mem.l(Mem.l(zptrs + secteursEau.get(0) * 4) + Defs.ZoneT_Floor_l);
+            cas.put("plantTop", toit);
+            cas.put("plantBottom", sol);
+            cas.put("plantPos", (toit + sol) / 2);
+            // Une vitesse qui ne divise pas la course : c'est ainsi que les butees se voient.
+            cas.put("plantSpeed", new int[] {97, -97, 1024, -3}[s % 4]);
             cas.put("images", uneScene(lvl, cas, portes, asc, toutesAretes));
             cases.add(cas);
         }
@@ -209,6 +284,7 @@ public final class AnimsExport {
         out.put("index", lvl);
         out.put("doors", dp);
         out.put("lifts", da);
+        out.put("waters", dessusEaux);
         out.put("edges", toutesAretes);
         out.put("cases", cases);
         return out;
@@ -256,17 +332,19 @@ public final class AnimsExport {
         for (int i = 0; i < instantaneAsc.length; i++) {
             instantaneAsc[i] = (byte) Mem.ub(liftBase + i);
         }
-        instantaneZones = new int[(portes.size() + asc.size()) * 2];
+        instantaneZones = new int[(portes.size() + asc.size()) * 3];
         int k = 0;
         for (int rec : portes) {
             int z = Mem.l(zptrs + Mem.w(rec + 30) * 4);
             instantaneZones[k++] = Mem.l(z + Defs.ZoneT_Floor_l);
             instantaneZones[k++] = Mem.l(z + Defs.ZoneT_Roof_l);
+            instantaneZones[k++] = Mem.l(z + Defs.ZoneT_Water_l);
         }
         for (int rec : asc) {
             int z = Mem.l(zptrs + Mem.w(rec + 30) * 4);
             instantaneZones[k++] = Mem.l(z + Defs.ZoneT_Floor_l);
             instantaneZones[k++] = Mem.l(z + Defs.ZoneT_Roof_l);
+            instantaneZones[k++] = Mem.l(z + Defs.ZoneT_Water_l);
         }
     }
 
@@ -299,18 +377,51 @@ public final class AnimsExport {
             int z = Mem.l(zptrs + Mem.w(rec + 30) * 4);
             Mem.wl(z + Defs.ZoneT_Floor_l, instantaneZones[k++]);
             Mem.wl(z + Defs.ZoneT_Roof_l, instantaneZones[k++]);
+            Mem.wl(z + Defs.ZoneT_Water_l, instantaneZones[k++]);
         }
         for (int rec : asc) {
             int z = Mem.l(zptrs + Mem.w(rec + 30) * 4);
             Mem.wl(z + Defs.ZoneT_Floor_l, instantaneZones[k++]);
             Mem.wl(z + Defs.ZoneT_Roof_l, instantaneZones[k++]);
+            Mem.wl(z + Defs.ZoneT_Water_l, instantaneZones[k++]);
         }
     }
 
     /** Une suite d'images, depuis le niveau tel que le fichier le pose. */
+    @SuppressWarnings("unchecked")
     private static List<Object> uneScene(int lvl, Map<String, Object> cas, List<Integer> portes,
                                          List<Integer> asc, List<Integer> toutesAretes) {
         reposerEmpreinte(portes, asc);
+        List<Integer> secteursEau = (List<Integer>) cas.get("plantZones");
+        if ((Boolean) cas.get("plant")) {
+            // Le bloc des eaux est un FLUX : une animation a qui l'on donne des secteurs
+            // grandit de six octets par secteur et pousse les suivantes. On le reecrit donc
+            // EN ENTIER — la plantee, puis vingt inertes a sa suite — faute de quoi les
+            // animations deux et trois lisent le milieu de la premiere et arrosent des
+            // secteurs au hasard. (Il en coute douze octets au-dela du bloc d'origine ; rien
+            // ne les lit, et l'empreinte les repose.)
+            int p = waterBase;
+            Mem.wl(p, (Integer) cas.get("plantTop"));
+            Mem.wl(p + 4, (Integer) cas.get("plantBottom"));
+            Mem.wl(p + 8, (Integer) cas.get("plantPos"));
+            Mem.ww(p + 12, (Integer) cas.get("plantSpeed"));
+            p += 14;
+            for (int z : secteursEau) {
+                Mem.ww(p, z);
+                Mem.wl(p + 2, 0);                      // pointeur graphique : la base du flux
+                p += 6;
+            }
+            Mem.ww(p, -1);                             // le terminateur de la liste
+            p += 2;
+            for (int i = 1; i < EAUX; i++) {           // les vingt autres, inertes
+                Mem.wl(p, 0);
+                Mem.wl(p + 4, 0);
+                Mem.wl(p + 8, 0);
+                Mem.ww(p + 12, 128);
+                Mem.ww(p + 14, -1);
+                p += 16;
+            }
+        }
         for (int e : toutesAretes) {
             Mem.ww(edges + e * 16 + 14, 0);
         }
@@ -355,7 +466,7 @@ public final class AnimsExport {
             Mem.ww(ab3d2.bss.PlayerBss.Plr2_FloorSpd_w, 0);
             ab3d2.Newanims.LiftRoutine();
 
-            images.add(releve(portes, asc, toutesAretes));
+            images.add(releve(portes, asc, toutesAretes, secteursEau));
         }
         return images;
     }
@@ -386,7 +497,8 @@ public final class AnimsExport {
     }
 
     private static Map<String, Object> releve(List<Integer> portes, List<Integer> asc,
-                                              List<Integer> toutesAretes) {
+                                              List<Integer> toutesAretes,
+                                              List<Integer> secteursEau) {
         Map<String, Object> m = new LinkedHashMap<>();
         List<Integer> dpos = new ArrayList<>();
         List<Integer> dspd = new ArrayList<>();
@@ -422,6 +534,23 @@ public final class AnimsExport {
         m.put("floorSpd", Mem.w(ab3d2.bss.PlayerBss.Plr1_FloorSpd_w));
         m.put("stood", Mem.ub(ab3d2.bss.PlayerBss.plr1_StoodOnLift_b));
         m.put("edgeFlags", fl);
+        // L'eau : la position et la vitesse de la PREMIERE animation, et le niveau que les
+        // secteurs ont recu.
+        int a0 = waterBase;
+        m.put("waterPos", Mem.l(a0 + 8));
+        // La vitesse des VINGT ET UNE : les inertes aussi sont pas-a-pas, et leur vitesse
+        // change de signe a chaque image puisque leurs deux bornes valent zero.
+        List<Integer> vits = new ArrayList<>();
+        for (int[] e : eaux()) {
+            vits.add(Mem.w(e[0] + 12));
+        }
+        m.put("waterSpd", vits.get(0));
+        m.put("waterSpeeds", vits);
+        List<Integer> niv = new ArrayList<>();
+        for (int z : secteursEau) {
+            niv.add(Mem.l(Mem.l(zptrs + z * 4) + Defs.ZoneT_Water_l));
+        }
+        m.put("waterLevel", niv);
         return m;
     }
 }
