@@ -116,6 +116,9 @@ public final class Extract {
         if (what.equals("blast")) {                  // oracle du souffle
             BlastExport.extract(out);
         }
+        if (what.equals("move")) {                   // oracle de la collision
+            MoveExport.extract(out);
+        }
         if (what.equals("objanim")) {                // oracle de l'apparence des choses
             ObjAnimExport.extract(out);
         }
