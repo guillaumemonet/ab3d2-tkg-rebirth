@@ -119,6 +119,9 @@ public final class Extract {
         if (what.equals("move")) {                   // oracle de la collision
             MoveExport.extract(out);
         }
+        if (what.equals("hit")) {                    // oracle du coup au but
+            HitExport.extract(out);
+        }
         if (what.equals("bits")) {                   // oracle de la gerbe de morceaux
             BitsExport.extract(out);
         }
