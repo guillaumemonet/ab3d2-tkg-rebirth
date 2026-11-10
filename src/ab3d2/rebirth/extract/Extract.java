@@ -119,6 +119,9 @@ public final class Extract {
         if (what.equals("move")) {                   // oracle de la collision
             MoveExport.extract(out);
         }
+        if (what.equals("bits")) {                   // oracle de la gerbe de morceaux
+            BitsExport.extract(out);
+        }
         if (what.equals("objanim")) {                // oracle de l'apparence des choses
             ObjAnimExport.extract(out);
         }
