@@ -122,6 +122,9 @@ public final class Extract {
         if (what.equals("bits")) {                   // oracle de la gerbe de morceaux
             BitsExport.extract(out);
         }
+        if (what.equals("anims")) {                  // oracle des portes et des ascenseurs
+            AnimsExport.extract(out);
+        }
         if (what.equals("objanim")) {                // oracle de l'apparence des choses
             ObjAnimExport.extract(out);
         }
