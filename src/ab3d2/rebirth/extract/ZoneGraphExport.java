@@ -42,6 +42,31 @@ public final class ZoneGraphExport {
     /** Les hauteurs d'œil relevées : sous le plafond du bas, puis très haut. */
     private static final int[] HAUTEURS = {0, -400 * 1024};
 
+    /**
+     * Les poses NOMMÉES : des points de vue relevés ailleurs, qu'on veut éprouver tels quels.
+     *
+     * <p>Les six premières sont les images maigres que {@code gameTest} signale dans le niveau
+     * n, et la septième — {@code n/904} — est la seule image NOIRE de tout le harnais : zéro
+     * pixel posé, alors que douze secteurs ont été parcourus. Les poses de ce fichier sont
+     * tirées de points de contrôle et ne tombent jamais là ; celles-ci viennent d'une partie.
+     *
+     * <p>Chaque ligne : niveau, secteur, x, z, angle, hauteur d'œil.
+     */
+    private static final int[][] POSES = {
+        {13, 10, -999, 1364, 5000, -79794},            // n/535
+        {13, 10, -1120, 1345, 4930, -79390},           // n/572
+        {13, 11, -1132, 1300, 5130, -77344},           // n/579
+        {13, 11, -1132, 1294, 5170, -76966},           // n/580
+        {13, 11, -1132, 1288, 5210, -76576},           // n/581
+        {13, 11, -1132, 1282, 5250, -76178},           // n/582
+        {13, 11, -1122, 1284, 232, -75978},            // n/904 — l'image NOIRE
+        {13, 11, -1121, 1294, 232, -76178},            // n/905
+        {13, 11, -1119, 1304, 232, -76772},            // n/906
+        {13, 11, -1118, 1315, 232, -77344},            // n/907
+        {13, 11, -1117, 1325, 232, -77882},            // n/908
+        {13, 11, -1115, 1336, 232, -78376},            // n/909
+    };
+
     private ZoneGraphExport() {
     }
 
@@ -95,6 +120,26 @@ public final class ZoneGraphExport {
                         ici += ((List<?>) un.get("plan")).size();
                     }
                 }
+            }
+            // Les poses nommées de ce niveau.
+            for (int[] p : POSES) {
+                if (p[0] != c - 'a') {
+                    continue;
+                }
+                int zonePtr = Mem.l(zptrs + p[1] * 4);
+                if (zonePtr == 0) {
+                    continue;
+                }
+                Map<String, Object> un = unCas(String.valueOf(c), p[1], zonePtr, p[2], p[3],
+                        p[4], p[5]);
+                if (un == null) {
+                    continue;
+                }
+                cas.add(un);
+                int n = ((List<?>) un.get("plan")).size();
+                ici += n;
+                System.out.printf("    pose nommée %s secteur %d en %d,%d angle %d œil %d :"
+                        + " %d commande(s)%n", c, p[1], p[2], p[3], p[4], p[5], n);
             }
             commandes += ici;
             System.out.printf("  niveau %s : %d secteurs, %d commandes relevées%n", c, nz, ici);

@@ -33,6 +33,23 @@ public final class XformExport {
         0, 1024, 2048, 3072, 4096, 5120, 6144, 7168, 333, 4777,
     };
 
+    /**
+     * Les poses NOMMEES : des points de vue releves ailleurs, qu'on veut eprouver tels quels.
+     *
+     * <p>Celle-ci est la seule image NOIRE du harnais de partie — niveau n, image 904 — ou le
+     * point de vue se trouve a quelques dizaines d'unites du PLAN des deux pans de son propre
+     * secteur. Les profondeurs tournees y valent 52, 14, -6 et 32 pour des ecarts lateraux de
+     * plusieurs milliers : c'est le cas limite que les poses regulieres de ce fichier, toutes
+     * prises au depart du joueur, ne rencontrent jamais.
+     *
+     * <p>Chaque ligne : niveau, x, z, angle.
+     */
+    private static final int[][] POSES = {
+        {13, -1122, 1284, 232},                        // n/904 — l'image noire
+        {13, -1121, 1294, 232},                        // n/905
+        {13, -1132, 1282, 5250},                       // n/582
+    };
+
     private XformExport() {
     }
 
@@ -66,7 +83,16 @@ public final class XformExport {
                     cas.add(unCas(String.valueOf(c), x, z, angle, plein != 0));
                 }
             }
-            System.out.printf("  niveau %s : %d poses%n", c, ANGLES.length * 2);
+            int nommees = 0;
+            for (int[] pose : POSES) {
+                if (pose[0] != lvl) {
+                    continue;
+                }
+                cas.add(unCas(String.valueOf(c), pose[1], pose[2], pose[3], true));
+                nommees++;
+            }
+            System.out.printf("  niveau %s : %d poses (dont %d nommees)%n", c,
+                    ANGLES.length * 2 + nommees, nommees);
         }
 
         Map<String, Object> root = new LinkedHashMap<>();
