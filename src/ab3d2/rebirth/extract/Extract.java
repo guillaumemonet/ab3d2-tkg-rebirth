@@ -113,6 +113,9 @@ public final class Extract {
         if (what.equals("objectlife")) {             // oracle de la vie des objets
             ObjectLifeExport.extract(out);
         }
+        if (what.equals("blast")) {                  // oracle du souffle
+            BlastExport.extract(out);
+        }
         if (what.equals("objanim")) {                // oracle de l'apparence des choses
             ObjAnimExport.extract(out);
         }
