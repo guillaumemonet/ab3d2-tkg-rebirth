@@ -122,6 +122,9 @@ public final class Extract {
         if (what.equals("hit")) {                    // oracle du coup au but
             HitExport.extract(out);
         }
+        if (what.equals("shoot")) {                  // oracle du tir hitscan du joueur
+            ShootExport.extract(out);
+        }
         if (what.equals("bits")) {                   // oracle de la gerbe de morceaux
             BitsExport.extract(out);
         }
