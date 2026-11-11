@@ -24,6 +24,11 @@ rasteriseur d'origine, il reconstruit les niveaux en vraie 3D et rejoue la même
 > Java sans mémoire plate ; et **ce remake**, qui change de moteur. Ce dépôt héberge aussi les
 > **extracteurs** qui produisent le corpus de référence des trois.
 
+> ⚠️ **Dette connue** : ce dépôt a fabriqué les instruments de mesure et ne s'est jamais mesuré.
+> Sa simulation (`src/ab3d2/rebirth/sim/`) est un fork pris **avant** la vingtaine de campagnes
+> d'oracles qui ont corrigé `full`. Constat chiffré, bugs identifiés et plan de rattrapage :
+> **[docs/DETTE-SIMULATION.md](docs/DETTE-SIMULATION.md)**.
+
 - **Le portage (`../java`) est l'oracle.** Il est compilé avec ce projet
   (`srcDirs = ['src', '../java/src']`) et sert de **lecteur autoritatif** des formats d'origine
   pour l'extraction des assets. Quand une règle de jeu est douteuse, c'est contre lui qu'on
