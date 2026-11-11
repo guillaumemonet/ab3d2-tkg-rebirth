@@ -206,7 +206,21 @@ public final class GourWallPaintExport {
         Mem.ww(ab3d2.bss.DrawBss.Draw_CurrentZone_w, zone);
         Mem.wb(ab3d2.bss.DrawBss.Draw_DoUpper_b, 0);
         Mem.ww(ab3d2.HiresData.Zone_Bright_w, 0);
-        Mem.ww(ab3d2.HireswallData.draw_WallYOffset_w, 0);
+        // LE CALAGE VERTICAL DE LA TEXTURE, et pourquoi il ne doit SURTOUT pas rester nul.
+        //
+        // Ce releve l'a longtemps force a zero, « pour simplifier ». La conversion le
+        // passait a zero elle aussi, et la verification tombait juste au pixel pres sur
+        // deux cent mille pixels — alors que le jeu, lui, mettait les textures des murs
+        // AILLEURS des que le joueur n'avait pas les yeux a hauteur zero.
+        //
+        // C'est le defaut classique d'un oracle : il avait fige la variable meme que le
+        // portage oubliait de faire varier. Le bug se voyait en jouant, jamais en
+        // verifiant — les murs semblaient suivre le personnage quand il montait.
+        //
+        // On le fait donc VARIER, et avec la formule du jeu :
+        //   DrawDisplay : move.l Plr_YOff_l,d0 ; asr.l #8,d0 ; add.w #224,d0 ; and.w #255
+        Mem.ww(ab3d2.HireswallData.draw_WallYOffset_w,
+                ((Mem.l(ab3d2.HiresData.Plr_YOff_l) >> 8) + 224) & 255);
 
         // La carte 2D, ou Draw_Wall inscrit les pans qu'il dessine.
         Mem.wl(ab3d2.HiresData.Lvl_BigMapPtr_l, ab3d2.bss.TablesBss.Lvl_BigMap_vl + zone * 40);
