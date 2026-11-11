@@ -17,6 +17,13 @@ visée verticale réelle.*
 Ce projet n'est pas un portage de plus : c'est un **autre moteur**. Il ne rejoue pas le
 rasteriseur d'origine, il reconstruit les niveaux en vraie 3D et rejoue la même logique de jeu.
 
+> **Les trois lectures du jeu** : le
+> [portage littéral](https://github.com/guillaumemonet/ab3d2-tkg-java), traduit instruction par
+> instruction, qui sert d'**oracle** aux deux autres ; la
+> [conversion objet](https://github.com/guillaumemonet/ab3d2-tkg-full-java), le même jeu en vrai
+> Java sans mémoire plate ; et **ce remake**, qui change de moteur. Ce dépôt héberge aussi les
+> **extracteurs** qui produisent le corpus de référence des trois.
+
 - **Le portage (`../java`) est l'oracle.** Il est compilé avec ce projet
   (`srcDirs = ['src', '../java/src']`) et sert de **lecteur autoritatif** des formats d'origine
   pour l'extraction des assets. Quand une règle de jeu est douteuse, c'est contre lui qu'on
