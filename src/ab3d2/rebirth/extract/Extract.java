@@ -122,6 +122,9 @@ public final class Extract {
         if (what.equals("hit")) {                    // oracle du coup au but
             HitExport.extract(out);
         }
+        if (what.equals("shimmerfx")) {              // oracle de la dematerialisation
+            ShimmerExport.extract(out);
+        }
         if (what.equals("shoot")) {                  // oracle du tir hitscan du joueur
             ShootExport.extract(out);
         }
