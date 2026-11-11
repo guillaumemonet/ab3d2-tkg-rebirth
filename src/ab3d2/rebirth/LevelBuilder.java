@@ -1266,9 +1266,9 @@ public final class LevelBuilder {
         }
         int h;
         if (def != null && def.floorCeiling != 0) {
-            h = o.upperZone ? z.upperRoofH : z.roofH;
+            h = o.upperZone != 0 ? z.upperRoofH : z.roofH;
         } else {
-            h = o.upperZone ? z.upperFloorH : z.floorH;
+            h = o.upperZone != 0 ? z.upperFloorH : z.floorH;
         }
         int word = (short) ((h >> 7) + 2 * o.animDelta);
         return -word / 64f;
@@ -1907,7 +1907,7 @@ public final class LevelBuilder {
             proxy.x = a.x;
             proxy.z = a.z;
             proxy.zone = a.zone;
-            proxy.upperZone = a.upperZone;
+            proxy.upperZone = a.upperZone ? 0xFF : 0;
             proxy.sheet = src != null ? src.sheet : 0;
             proxy.frame = 0;
             proxy.pal = src != null ? src.pal : 0;
@@ -2046,7 +2046,7 @@ public final class LevelBuilder {
             v.proxy.x = a.x;
             v.proxy.z = a.z;
             v.proxy.zone = a.zone;
-            v.proxy.upperZone = a.upperZone;
+            v.proxy.upperZone = a.upperZone ? 0xFF : 0;
             if (v.proxy.def != a.type) {               // alien ENGENDRE : autre definition
                 v.proxy.def = a.type;
                 GlfData.Alien def = glf == null ? null : glf.alien(a.type);

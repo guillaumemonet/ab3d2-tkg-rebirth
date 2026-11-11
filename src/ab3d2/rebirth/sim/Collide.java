@@ -104,7 +104,10 @@ public final class Collide {
             if (def == null) {
                 continue;
             }
-            if ((((o.upperZone ? 0xFF : 0) ^ d6) & 0xFF) != 0) {
+            // L'octet d'etage tel quel : le jeu compare par OU EXCLUSIF d'octets, et le
+            // reconstruire depuis un booleen perdait la seule entite du jeu qui n'y porte ni
+            // zero ni 255 (niveau n, rang 24).
+            if (((o.upperZone ^ d6) & 0xFF) != 0) {
                 continue;                              // eor.b d6,d1 ; bne
             }
             // Le second test de points de vie (comportement 2, DESTRUCTABLE) porte sur

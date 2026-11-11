@@ -134,7 +134,7 @@ public final class ObjectRuntime {
 
     /** Plr1_CheckObjectCollide. */
     private boolean collide(PlayerSim player, LevelData.Obj o) {
-        if (player.stoodInTop != o.upperZone) {
+        if (player.stoodInTop != (o.upperZone != 0)) {
             return false;                              // pas au même étage
         }
         if (player.zone != o.zone) {
@@ -174,9 +174,9 @@ public final class ObjectRuntime {
         }
         int h;
         if (def != null && def.floorCeiling != 0) {
-            h = o.upperZone ? z.upperRoofH : z.roofH;
+            h = o.upperZone != 0 ? z.upperRoofH : z.roofH;
         } else {
-            h = o.upperZone ? z.upperFloorH : z.floorH;
+            h = o.upperZone != 0 ? z.upperFloorH : z.floorH;
         }
         return (short) ((h >> 7) + 2 * o.animDelta);
     }

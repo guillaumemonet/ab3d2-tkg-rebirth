@@ -184,7 +184,15 @@ public final class LevelData {
         public boolean lit;              // sprite « lightsource » (monstres) : eclaire par l'anneau
         public int bright;               // luminosite propre de l'objet (draw_BrightToAdd_w)
         public int doorsHeld;            // EntT_DoorsAndLiftsHeld_l : portes dont il tient la cle
-        public boolean upperZone;        // ShotT_InUpperZone_b : etage haut de la zone
+        /**
+         * {@code ShotT_InUpperZone_b} : l'octet d'etage, et c'est bien un OCTET.
+         *
+         * <p>Le jeu ne le lit pas en oui-ou-non : il compare deux etages par OU EXCLUSIF
+         * d'octets (newanims.s, notasplut). La difference ne se verrait que sur un octet qui ne
+         * vaudrait ni zero ni 255 — il en existe UN dans tout le jeu (niveau n, rang 24, qui
+         * vaut un). Le declarer booleen faisait echouer Gson des le premier objet.
+         */
+        public int upperZone;
         /**
          * Decalage vertical du PAS D'ANIMATION courant (octet 4 du script, applique ×2).
          * Le jeu recalcule chaque frame {@code ObjT_ZPos_l = worryHeight + 2*delta} : c'est la

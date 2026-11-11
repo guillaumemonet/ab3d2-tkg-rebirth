@@ -226,7 +226,7 @@ public final class Aliens {
             a.x = o.x;
             a.z = o.z;
             a.zone = o.zone;
-            a.upperZone = o.upperZone;
+            a.upperZone = o.upperZone != 0;
             a.type = o.def;
             a.hitPoints = o.hitPoints;
             a.mode = o.mode;

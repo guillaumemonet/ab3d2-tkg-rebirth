@@ -132,9 +132,9 @@ public final class MoveTest {
             p.xOff = o.x << 16;
             p.zOff = o.z << 16;
             p.zone = o.zone;
-            p.stoodInTop = o.upperZone;
+            p.stoodInTop = o.upperZone != 0;
             LevelSim.Zone z = sim.zones[o.zone];
-            p.yOff = p.snapYOff = (o.upperZone ? z.upperFloorH : z.floorH) - PlayerSim.PLR_STAND_HEIGHT;
+            p.yOff = p.snapYOff = (o.upperZone != 0 ? z.upperFloorH : z.floorH) - PlayerSim.PLR_STAND_HEIGHT;
             pk.run(p, false);
             if (!pk.collected().isEmpty()) {
                 taken++;
@@ -157,9 +157,9 @@ public final class MoveTest {
             p.xOff = o.x << 16;
             p.zOff = o.z << 16;
             p.zone = o.zone;
-            p.stoodInTop = o.upperZone;
+            p.stoodInTop = o.upperZone != 0;
             LevelSim.Zone z = sim.zones[o.zone];
-            p.yOff = p.snapYOff = (o.upperZone ? z.upperFloorH : z.floorH) - PlayerSim.PLR_STAND_HEIGHT;
+            p.yOff = p.snapYOff = (o.upperZone != 0 ? z.upperFloorH : z.floorH) - PlayerSim.PLR_STAND_HEIGHT;
             pk.run(p, true);
             if (o.activated) {
                 switched++;
@@ -287,9 +287,9 @@ public final class MoveTest {
             }
             decor++;
             LevelSim.Zone z = sim.zones[o.zone];
-            int newy = (o.upperZone ? z.upperFloorH : z.floorH) - PlayerSim.PLR_STAND_HEIGHT;
+            int newy = (o.upperZone != 0 ? z.upperFloorH : z.floorH) - PlayerSim.PLR_STAND_HEIGHT;
             if (col.check(o.x - 40, o.z, o.x - 100, o.z, newy, PlayerSim.PLR_STAND_HEIGHT,
-                    o.zone, o.upperZone)) {
+                    o.zone, o.upperZone != 0)) {
                 decorBlocks++;
             }
         }
