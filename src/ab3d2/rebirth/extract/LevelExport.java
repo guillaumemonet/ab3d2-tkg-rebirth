@@ -97,7 +97,7 @@ public final class LevelExport {
         root.put("playerStarts", playerStarts());
         root.put("points", points());
         root.put("zones", zones(nz, zptrs, edgeBase));
-        root.put("edges", edges(edgeBase));
+        root.put("edges", edges(edgeBase, nz, zptrs));
         List<Object> wallsL = new ArrayList<>();
         List<Object> flatsL = new ArrayList<>();
         parseGraph(nz, wallsL, flatsL);
@@ -278,9 +278,25 @@ public final class LevelExport {
                         // Chaque mot de point : 12 bits bas = index de point du niveau, quartet
                         // FORT = index du point DANS LA ZONE (sideLoopGouraud : rol.w #4 ; and #$f),
                         // qui sert à retrouver sa luminosité (CurrentPointBrights[zone*40+p*4]).
+                        // SIDES + UN. Le mot @2 n'est pas le nombre de sommets : c'est le
+                        // compteur d'un « dbra », qui execute son corps N+1 fois
+                        // (hires.s:3790 « move.w (a0)+,d7 » puis « dbra d7,sideloop »). Chaque
+                        // tour consomme un point et REGARDE le suivant sans avancer, pour en
+                        // tirer une arete : un polygone de N+1 sommets.
+                        //
+                        // Le dump brut le confirme (niveau a, secteur 0, sides=3) :
+                        //   @4=3  @6=4098  @8=8196  @10=12293  @12=3  @14=0  @16=257
+                        // soit les points 3, 2, 4, 5 avec les emplacements de luminosite 0, 1,
+                        // 2, 3, puis le RETOUR AU PREMIER (3) qui referme le polygone, un mot
+                        // de remplissage, et la tuile. Et borderPoints du meme secteur vaut
+                        // exactement [3, 2, 4, 5].
+                        //
+                        // On lit donc sides+1 sommets. Le mot de retour n'est pas exporte : il
+                        // repete le premier. Le pied de page et le pas de l'enregistrement, eux,
+                        // etaient deja justes.
                         List<Integer> pts = new ArrayList<>();
                         List<Integer> slots = new ArrayList<>();
-                        for (int i = 0; i < sides; i++) {
+                        for (int i = 0; i <= sides; i++) {
                             int wpt = Mem.uw(a0 + 4 + i * 2);
                             pts.add(wpt & 0xFFF);
                             slots.add((wpt >> 12) & 0xF);
@@ -327,9 +343,31 @@ public final class LevelExport {
      * portage de MoveObject (collision/traversée de zones) et au handshake des portes.
      * w5 = EdgeT_Word_5 (diviseur du test de côté). joinZone < 0 = mur plein.
      */
-    private static List<Object> edges(int edgeBase) {
+    private static List<Object> edges(int edgeBase, int nz, int zptrs) {
         List<Object> l = new ArrayList<>();
-        int count = Math.abs(Mem.l(ab3d2.bss.LevelBss.Lvl_EdgeCount_l)) / Defs.EdgeT_SizeOf_l;
+        // COMBIEN D'ARETES ? Surtout pas Lvl_EdgeCount_l.
+        //
+        // Le jeu le calcule (hires.s:369) par
+        // « TLBT_ObjectDataOffset_l - TLBT_FloorLineOffset_l », sous un commentaire d'origine
+        // qui avoue la conjecture : « todo - Determine the number of edges. This is PROBABLY
+        // ... ». Et il ne le relit JAMAIS — ecrit une fois, mort. Mesure sur les seize
+        // niveaux : les donnees d'objets sont AVANT la table des aretes, donc la soustraction
+        // est NEGATIVE partout (de -12424 a -39704). L'extracteur en prenait la valeur absolue,
+        // ce qui donnait 1014 a 2481 aretes la ou le niveau n'en reference que 238 a 951 —
+        // deux a QUATRE FOIS ET DEMIE trop loin, soit des centaines d'enregistrements lus dans
+        // ce qui suit la table.
+        //
+        // La vraie borne est le PREMIER ENREGISTREMENT DE SECTEUR : les secteurs suivent
+        // immediatement les aretes. Mesure : cette borne vaut l'indice le plus haut reference
+        // plus zero a deux, sur les seize niveaux — elle colle.
+        int fin = Integer.MAX_VALUE;
+        for (int i = 0; i < nz; i++) {
+            int zp = Mem.l(zptrs + i * 4);
+            if (zp > edgeBase) {
+                fin = Math.min(fin, zp);
+            }
+        }
+        int count = fin == Integer.MAX_VALUE ? 0 : (fin - edgeBase) / Defs.EdgeT_SizeOf_l;
         for (int i = 0; i < count; i++) {
             int ed = edgeBase + i * Defs.EdgeT_SizeOf_l;
             Map<String, Object> e = new LinkedHashMap<>();
@@ -616,6 +654,15 @@ public final class LevelExport {
         List<Object> l = new ArrayList<>();
         int base = Mem.l(ab3d2.bss.LevelBss.Lvl_DataPtr_l);
         for (int i = 0; i < Defs.LVLT_MESSAGE_COUNT; i++) {
+            if (Mem.uw(ab3d2.ControlloopData.Game_LevelNumber_w) == 4 && i == 3) {
+                StringBuilder sb = new StringBuilder();
+                for (int q = 150; q < 172; q++) {
+                    int c = Mem.ub(base + i * Defs.LVLT_MESSAGE_LENGTH + q);
+                    sb.append(String.format(" %d:%d(%c)", q, c,
+                            c >= 32 && c < 127 ? (char) c : '?'));
+                }
+                System.out.println("[diag msg e/3 queue]" + sb);
+            }
             l.add(PortReader.fixedStr(base + i * Defs.LVLT_MESSAGE_LENGTH, Defs.LVLT_MESSAGE_LENGTH));
         }
         return l;
