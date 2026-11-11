@@ -122,6 +122,9 @@ public final class Extract {
         if (what.equals("hit")) {                    // oracle du coup au but
             HitExport.extract(out);
         }
+        if (what.equals("menufx")) {                 // oracle du feu et de la police du menu
+            MenuFxExport.extract(out);
+        }
         if (what.equals("shimmerfx")) {              // oracle de la dematerialisation
             ShimmerExport.extract(out);
         }
