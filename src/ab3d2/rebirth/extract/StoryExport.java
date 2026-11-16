@@ -56,6 +56,7 @@ public final class StoryExport {
         Files.createDirectories(dir);
         int[] widths = writeFont(dir);
         writeStory(dir, widths);
+        writeScreens(dir);
     }
 
     /**
@@ -140,6 +141,51 @@ public final class StoryExport {
         Files.writeString(dir.resolve("story.json"), json(m));
         System.out.printf("[story] story.json (%d niveaux x %d lignes d'intro, %d lignes de fin)%n",
                 levels.size(), LINES_PER_LEVEL, count);
+    }
+
+    /**
+     * LES SEIZE ECRANS RENDUS, tels que le jeu les pose.
+     *
+     * <p>Le texte seul ne prouve rien du DESSIN : la police est proportionnelle, le centrage
+     * se fait sur ce que la ligne occupe et non sur ce qu'elle contient, et l'ecran passe de
+     * six cent quarante pixels a trois cent vingt par un OU de paires. Autant de facons de se
+     * tromper qui laissent le texte intact.
+     *
+     * <p>On releve donc, par niveau, combien de pixels s'allument et une empreinte de l'ecran
+     * entier, plus les huit couleurs du fondu. Une empreinte ne dit pas OU est l'ecart, mais
+     * elle ne laisse rien passer ; pour le voir, {@code full storyShot} et
+     * {@code java menuTest -PintroText=N} donnent les deux images.
+     */
+    private static void writeScreens(Path dir) throws IOException {
+        List<Object> ecrans = new ArrayList<>();
+        for (int lvl = 0; lvl < LEVELS; lvl++) {
+            byte[] screen = ab3d2.c.ScreenC.introScreen(lvl);
+            if (screen == null) {
+                break;
+            }
+            int allumes = 0;
+            long empreinte = 0xCBF29CE484222325L;     // FNV-1a, 64 bits
+            for (byte b : screen) {
+                allumes += b & 1;
+                empreinte = (empreinte ^ (b & 0xFF)) * 0x100000001B3L;
+            }
+            Map<String, Object> un = new LinkedHashMap<>();
+            un.put("level", lvl);
+            un.put("lit", allumes);
+            un.put("fingerprint", Long.toHexString(empreinte));
+            ecrans.add(un);
+        }
+        List<Object> couleurs = new ArrayList<>();
+        for (int f = 0; f < 8; f++) {
+            couleurs.add(ab3d2.c.ScreenC.introColourAt(f));
+        }
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("width", 320);
+        m.put("height", 256);
+        m.put("fade", couleurs);
+        m.put("screens", ecrans);
+        Files.writeString(dir.resolve("storyscreens.json"), json(m));
+        System.out.printf("[story] storyscreens.json (%d ecrans rendus)%n", ecrans.size());
     }
 
     /** Un enregistrement de 82 octets -&gt; {centre, texte}. */
