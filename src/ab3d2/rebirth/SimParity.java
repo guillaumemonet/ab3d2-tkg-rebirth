@@ -118,8 +118,15 @@ public final class SimParity {
         // balle et l'arme en main occupent des rangs de la meme table. Le remake retire du
         // decor l'objet ramasse en se servant de ce rang : s'il glissait d'un cran, on
         // ramasserait une chose et une autre disparaitrait.
-        cmp(lettre, "nombre d'entites", json.objects == null ? 0 : json.objects.size(),
-                lu.entities().size());
+        List<LevelData.Obj> choses = json.objects == null ? List.of() : json.objects;
+        cmp(lettre, "nombre d'entites", choses.size(), lu.entities().size());
+        for (int r = 0; r < Math.min(choses.size(), lu.entities().size()); r++) {
+            String ou = lettre + " entite " + r;
+            cmp(ou, "x", choses.get(r).x, lu.entities().get(r).x());
+            cmp(ou, "z", choses.get(r).z, lu.entities().get(r).z());
+            cmp(ou, "secteur", choses.get(r).zone, lu.entities().get(r).zone());
+            cmp(ou, "definition", choses.get(r).def, lu.entities().get(r).def());
+        }
 
         System.out.printf("  niveau %c : %d secteurs, %d aretes, %d entites%s%n",
                 lettre, lu.zones().size(), b.size(), lu.entities().size(),
