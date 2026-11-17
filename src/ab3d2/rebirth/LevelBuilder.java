@@ -374,6 +374,11 @@ public final class LevelBuilder {
      */
     public Node buildFromScene(Node decor, LevelData lvl) {
         level = lvl;
+        // LE DECOR VIENT D'UN FICHIER, et ses materiaux avec lui : ils ne passent donc ni par
+        // litMaterial ni par j3m(). Le choix d'eclairage doit leur etre pose ICI, sinon la
+        // clarte d'origine que la scene porte deja dans ses couleurs par sommet n'est jamais
+        // lue. C'est tout ce qui manquait.
+        poserEclairage(decor);
         litMeshes.clear();
         litModels.clear();
         litSprites.clear();
@@ -821,6 +826,29 @@ public final class LevelBuilder {
      * module le terme diffus, si bien que l'ambiance de chaque piece reste celle voulue par les
      * auteurs, et les vraies lumieres de jME (lampes, tirs, explosions) s'ajoutent par-dessus.
      */
+    /**
+     * Pose le choix d'eclairage sur tous les materiaux d'une scene relue.
+     *
+     * <p>Les maillages du {@code .j3o} portent DEJA la clarte d'origine dans leur couleur par
+     * sommet : {@code SceneExport} appelle le meme constructeur que le rendu direct, et
+     * {@code MeshBuilder.bakedColours} l'y ecrit. Il ne manquait que de dire aux materiaux de
+     * la lire.
+     */
+    private void poserEclairage(com.jme3.scene.Spatial racine) {
+        if (racine == null) {
+            return;
+        }
+        racine.depthFirstTraversal(sp -> {
+            if (!(sp instanceof Geometry g) || g.getMaterial() == null) {
+                return;
+            }
+            Material m = g.getMaterial();
+            if (m.getMaterialDef().getMaterialParam("UseVertexColor") != null) {
+                m.setBoolean("UseVertexColor", bakedLight());
+            }
+        });
+    }
+
     /** Vrai quand la clarte d'origine est le terme propre des surfaces ({@code -Pbakedlight}). */
     public static boolean bakedLight() {
         return System.getProperty("rebirth.bakedlight") != null;

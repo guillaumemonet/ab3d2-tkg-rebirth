@@ -72,7 +72,7 @@ public final class Lights3D {
      * plage, comme chez le portage — sans toucher au RAPPORT entre clair et sombre, qui est
      * celui du jeu.
      */
-    private static final float BAKED_EXPOSURE = 3.4f;
+    private static final float BAKED_EXPOSURE = 0.8f;
     /** Le niveau d'ambiante de la pose courante : il depend du modele d'eclairage choisi. */
     private float ambientBase = AMBIENT_LEVEL;
     /** ZoneT_Roof_l : la valeur sentinelle « cette zone n'a pas de plafond ». */
@@ -156,8 +156,8 @@ public final class Lights3D {
         // l'ambiante n'est plus un fond de secours mais la lumiere qui la REVELE. On la pose
         // donc a plein, et c'est le light map qui fait l'ombre et la lumiere — comme chez le
         // jeu d'origine, dont l'ombrage est plat par surface.
-        float niveau = sourcesStatiques() ? AMBIENT_LEVEL : 2.5f;
-        ambient = new AmbientLight(new ColorRGBA(niveau, niveau, niveau * 1.06f, 1f));
+        ambientBase = sourcesStatiques() ? AMBIENT_LEVEL : BAKED_EXPOSURE;
+        ambient = new AmbientLight(ColorRGBA.White.clone());
         root.addLight(ambient);
         setBrightness(brightness);
 
