@@ -122,7 +122,7 @@ tasks.named('run') {
     systemProperty 'rebirth.assets', assetsDir.absolutePath
     origines(it)
     flags(it, [
-        'level', 'shot', 'freecam', 'at', 'noAction', 'health', 'sfxLog', 'nosound',
+        'level', 'shot', 'shotn', 'forcedoor', 'forcepos', 'freecam', 'at', 'noAction', 'health', 'sfxLog', 'nosound',
         'stats', 'weaponLog', 'shimmer', 'deformLog', 'dynLog', 'shotLog', 'fire',
         'gun', 'demo', 'spawn', 'autoplay', 'weaponInScene', 'story', 'startmenu',
         'map', 'mapAll', 'angle', 'pitch', 'lightLog', 'lightBatch', 'noshadow',

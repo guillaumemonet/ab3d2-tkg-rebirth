@@ -520,6 +520,24 @@ public final class LevelBuilder {
         return root;
     }
 
+    /**
+     * Refait la table de clarte d'un maillage qu'on vient de reconstruire.
+     *
+     * <p>Elle est indexee par SOMMET : des que le maillage change, elle ne decrit plus
+     * rien. On la remplace en place, en gardant le drapeau << c'est un mur >>.
+     */
+    private void resyncLit(Geometry g, int[][] sources) {
+        if (sources == null) {
+            return;
+        }
+        for (int i = 0; i < litMeshes.size(); i++) {
+            if (litMeshes.get(i).geometry() == g) {
+                litMeshes.set(i, new LitMesh(g, sources, litMeshes.get(i).wall()));
+                return;
+            }
+        }
+    }
+
     /** Un groupe de murs qu'une porte ou un ascenseur deforme (meme sous-tuile). */
     private record Deformed(Geometry geometry, List<LevelData.Wall> walls, String key) { }
 
@@ -573,6 +591,14 @@ public final class LevelBuilder {
             MeshBuilder mb = wallMesh(d.walls(), level.points, d.key(), true);
             if (mb != null && !mb.isEmpty()) {
                 d.geometry().setMesh(mb.build());
+                // ET D'OU VIENT LA CLARTE DE CHAQUE SOMMET DU NOUVEAU MAILLAGE.
+                //
+                // Le maillage change de forme ET DE TAILLE : un battant grand ouvert a des
+                // pans de hauteur nulle que la construction normale saute, et qu'on garde
+                // ici. La table que l'eclairage tient a jour decrivait l'ANCIEN maillage ;
+                // laissee telle quelle, elle donnait a chaque sommet la clarte de son
+                // voisin -- et le battant changeait de teinte des qu'une lampe bougeait.
+                resyncLit(d.geometry(), mb.litSources());
             }
         }
     }
@@ -861,10 +887,18 @@ public final class LevelBuilder {
                 src[i] = new int[] {(int) buf.get(i * 3), (int) buf.get(i * 3 + 1),
                     (int) buf.get(i * 3 + 2)};
             }
-            // Un mur se reconnait a son nom : c'est sous celui-la que le constructeur l'a
-            // range, et la luminosite d'un mur ne se calcule pas comme celle d'un sol.
-            litMeshes.add(new LitMesh(g, src, g.getName() != null
-                    && g.getName().startsWith("wall")));
+            // UN MUR SE RECONNAIT A SON NOM, et un battant de porte EN EST UN.
+            //
+            // La luminosite d'un mur ne se calcule pas comme celle d'un sol :
+            // {@code 2 * octet_signe(clarte + decalage - 300)} contre {@code clarte - 300}.
+            // Les murs que deforment les portes et les ascenseurs sont ranges sous
+            // << deform_ >>, et ce nom-la manquait : a chaque fois qu'une lampe bougeait,
+            // leur clarte etait refaite avec la formule des SOLS, puis remise d'aplomb des
+            // que le battant bougeait et refaisait son maillage. D'ou un battant qui
+            // CLIGNOTE, et lui seul, pendant qu'il monte ou descend.
+            String nom = g.getName() == null ? "" : g.getName();
+            litMeshes.add(new LitMesh(g, src,
+                    nom.startsWith("wall") || nom.startsWith("deform")));
         });
     }
 

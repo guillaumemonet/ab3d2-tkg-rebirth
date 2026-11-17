@@ -48,6 +48,8 @@ public class Main extends SimpleApplication {
 
     private final String levelLetter;
     private final int shotAt;
+    /** -Pshotn : combien d'images de suite la rafale prend. */
+    private final int shotCount = Math.max(1, Integer.getInteger("rebirth.shotn", 1));
     private final String camAt;
     private final boolean freeCam;
 
@@ -55,6 +57,8 @@ public class Main extends SimpleApplication {
     private LevelSim levelSim;
     private PlayerSim player;
     private Anims anims;
+    /** -Pforcedoor : la porte que l'on fait bouger de force, ou -1. */
+    private int doorSweep = -1;
     private ab3d2.full.sim.ObjectRuntime objects;
     private Shots shots;
     private Aliens monsters;
@@ -346,7 +350,7 @@ public class Main extends SimpleApplication {
         }
         if (shotAt > 0) {
             screenshot = new ScreenshotAppState(System.getProperty("user.dir") + "/", "rebirth_shot");
-            screenshot.setIsNumbered(false);
+            screenshot.setIsNumbered(shotCount > 1);
             stateManager.attach(screenshot);
         }
     }
@@ -444,6 +448,10 @@ public class Main extends SimpleApplication {
             levelSim = sim.lvl;
             player = sim.player;
             anims = sim.anims;
+            // -Pforcedoor=N : la porte N fait des allers-retours toute seule, le joueur
+            // immobile. C'est le seul moyen de voir un CLIGNOTEMENT de battant sans jouer :
+            // tout le reste de l'image est fige, et l'on compare image par image.
+            doorSweep = Integer.getInteger("rebirth.forcedoor", -1);
             objects = sim.objects;
             shots = sim.shots;
             monsters = sim.aliens;
@@ -523,7 +531,7 @@ public class Main extends SimpleApplication {
 
         if (shotAt > 0) {
             screenshot = new ScreenshotAppState(System.getProperty("user.dir") + "/", "rebirth_shot");
-            screenshot.setIsNumbered(false);
+            screenshot.setIsNumbered(shotCount > 1);
             stateManager.attach(screenshot);
         }
         System.out.printf("[Main] niveau %s charge. ZQSD/WASD = bouger, souris = regarder, "
@@ -1206,15 +1214,21 @@ public class Main extends SimpleApplication {
         captureShot();
     }
 
-    /** -Pshot=N : capture a la frame N puis quitte (validation visuelle). */
+    /**
+     * -Pshot=N : capture a la frame N puis quitte (validation visuelle).
+     *
+     * <p>-Pshotn=K en prend K DE SUITE, a partir de la. C'est ce qu'il faut pour voir un
+     * CLIGNOTEMENT : une image seule ne dit rien d'un decor qui bat d'une frame a l'autre,
+     * et deux executions ne tombent pas sur le meme instant.
+     */
     private void captureShot() {
         if (shotAt <= 0 || screenshot == null) {
             return;
         }
         frame++;
-        if (frame == shotAt) {
+        if (frame >= shotAt && frame < shotAt + shotCount) {
             screenshot.takeScreenshot();
-        } else if (frame > shotAt + 1) {
+        } else if (frame > shotAt + shotCount) {
             stop();
         }
     }
@@ -1298,6 +1312,15 @@ public class Main extends SimpleApplication {
         // verrouillaient avec les cles des ascenseurs, et aucun ascenseur ne l'etait.
         int santeAvant = objects.inventory.health();
         sim.gun = gun;
+        if (doorSweep >= 0 && anims != null && level != null && level.doors != null
+                && doorSweep < level.doors.size()) {
+            LevelData.Liftable d = level.doors.get(doorSweep);
+            int course = d.bottom - d.top;
+            int pas = (simFrames * 8) % Math.max(1, course * 2);
+            anims.forceDoor = doorSweep;
+            anims.forceDoorPos = Integer.getInteger("rebirth.forcepos",
+                    d.top + (pas < course ? pas : course * 2 - pas));
+        }
         sim.frame(vouloir);
 
         for (ab3d2.full.sim.ObjectRuntime.Thing got : objects.collected()) {
