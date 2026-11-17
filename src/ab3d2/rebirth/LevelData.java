@@ -199,6 +199,15 @@ public final class LevelData {
          * hauteur de dessin de l'objet ET celle que teste le ramassage.
          */
         public int animDelta;
+
+        /**
+         * SON RANG dans la table des entites du niveau.
+         *
+         * <p>Il ne vient pas du json : c'est la position de l'objet dans la liste, posee a la
+         * lecture. C'est par lui que le decor retrouve, dans la simulation, la chose qu'il
+         * dessine — les deux listes se suivent, et {@code SimParity} le verifie.
+         */
+        public transient int rank;
         /** EntT_WhichAnim_b : l'objet joue son animation ACTIVE (interrupteur enclenché). */
         public boolean activated;
         /** EntT_Timer2_w : durée d'activation écoulée. */

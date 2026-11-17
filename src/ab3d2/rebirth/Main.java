@@ -316,6 +316,13 @@ public class Main extends SimpleApplication {
     private boolean loadLevel(String letter, ab3d2.full.sim.Inventory carry) {
         levelLetterCur = letter.toUpperCase();
         level = Assets.json("levels/" + levelLetterCur + ".json", LevelData.class);
+        if (level != null && level.objects != null) {
+            // LE RANG, pose a la lecture : c'est par lui que le decor retrouvera dans la
+            // simulation la chose qu'il dessine.
+            for (int i = 0; i < level.objects.size(); i++) {
+                level.objects.get(i).rank = i;
+            }
+        }
         if (level == null) {
             System.err.println("[Main] niveau introuvable : levels/" + levelLetterCur + ".json");
             return false;
@@ -1253,7 +1260,7 @@ public class Main extends SimpleApplication {
         if (builder.lights() != null) {
             builder.lights().tick();                   // brightanim (une frame sur six)
         }
-        builder.stepObjectAnims();                     // DEFANIMOBJ : animation des objets
+        builder.stepObjectAnims(objects, sim.glf);     // DEFANIMOBJ : la simulation a anime
         stepWeaponAnim();
         if (builder.lights() != null) {
             if (!builder.modern()) {

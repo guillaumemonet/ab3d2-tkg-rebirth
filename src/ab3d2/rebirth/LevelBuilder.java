@@ -123,13 +123,14 @@ public final class LevelBuilder {
     private static final class AnimObject {
         final Geometry geometry;
         final LevelData.Obj obj;
-        final ObjectAnim anim;
+        /** Le dernier pas d'animation pose, pour ne rien refaire quand rien ne change. */
+        int poseStep = -1;
+        boolean poseActive;
         final boolean vector;
 
-        AnimObject(Geometry geometry, LevelData.Obj obj, ObjectAnim anim, boolean vector) {
+        AnimObject(Geometry geometry, LevelData.Obj obj, boolean vector) {
             this.geometry = geometry;
             this.obj = obj;
-            this.anim = anim;
             this.vector = vector;
         }
     }
@@ -1239,9 +1240,8 @@ public final class LevelBuilder {
         if (lit != null && !modern) {                  // l'anneau LUT n'existe qu'en rendu d'origine
             litSprites.add(new LitSprite(g, lit, o, ringsFor(o)));
         }
-        ObjectAnim anim = objectAnim(o);
-        if (anim != null) {
-            animObjects.add(new AnimObject(g, o, anim, false));
+        if (objectAnim(o) != null) {               // la chose a un script : elle vivra
+            animObjects.add(new AnimObject(g, o, false));
         }
         g.setLocalTranslation(wx, fy, wz);             // fy = hauteur de dessin du jeu (centre)
         // Un panneau billboarde est un QUAD a fond transparent : s'il projette, c'est le quad
@@ -1406,9 +1406,8 @@ public final class LevelBuilder {
         if (mat != null && !modern) {                  // l'anneau LUT n'existe qu'en rendu d'origine
             litModels.add(new LitModel(g, o, m));
         }
-        ObjectAnim anim = objectAnim(o);
-        if (anim != null) {
-            animObjects.add(new AnimObject(g, o, anim, true));
+        if (objectAnim(o) != null) {               // la chose a un script : elle vivra
+            animObjects.add(new AnimObject(g, o, true));
         }
         g.setLocalScale(MODEL_SCALE);
         float yaw = modelYaw(o.angle);
@@ -1514,48 +1513,72 @@ public final class LevelBuilder {
     }
 
     /**
-     * Bascule l'animation d'un objet entre son script par DEFAUT et son script ACTIF
-     * (DEFANIMOBJ / ACTANIMOBJ) : c'est ce que fait le jeu quand un interrupteur est enclenche.
-     */
-    private void syncObjectAnimScript(AnimObject ao) {
-        GlfData.ObjDef def = glf == null ? null : glf.object(ao.obj.def);
-        if (def == null) {
-            return;
-        }
-        List<ObjectAnim.Step> wanted = ao.obj.activated ? def.actAnim : def.defAnim;
-        ao.anim.retarget(wanted);
-    }
-
-    /**
      * Avance d'une frame les animations d'objets (DEFANIMOBJ) et applique le nouveau graphique :
      * nouvelle frame de modele vectoriel, ou nouvelle texture de sprite.
      */
-    public void stepObjectAnims() {
+    public void stepObjectAnims(ab3d2.full.sim.ObjectRuntime objects,
+            ab3d2.full.defs.Database db) {
+        if (objects == null || db == null) {
+            return;
+        }
+        // LA SIMULATION A DEJA ANIME. Elle garde, pour chaque chose, le pas qu'on VOIT — qui
+        // n'est pas celui ou l'animation en est : la routine d'origine ecrit les champs de
+        // dessin depuis le pas courant, PUIS range le suivant. Le decor ne fait donc plus
+        // avancer quoi que ce soit ; il lit, et pose ce qu'on lui dit.
+        java.util.Map<Integer, ab3d2.full.sim.ObjectRuntime.Thing> parRang = new HashMap<>();
+        for (ab3d2.full.sim.ObjectRuntime.Thing t : objects.things()) {
+            parRang.put(t.rank, t);
+        }
         for (AnimObject ao : animObjects) {
-            syncObjectAnimScript(ao);
-            if (!ao.anim.advance()) {
+            ab3d2.full.sim.ObjectRuntime.Thing t = parRang.get(ao.obj.rank);
+            if (t == null) {
+                continue;
+            }
+            // Ramasse, casse, emporte : la chose quitte son secteur et sort de la vue. C'est
+            // ainsi qu'un tonneau detruit disparait — le remake n'avait pas de destructibles.
+            if (t.zone < 0) {
+                ao.geometry.setCullHint(com.jme3.scene.Spatial.CullHint.Always);
+                continue;
+            }
+            ao.geometry.setCullHint(com.jme3.scene.Spatial.CullHint.Inherit);
+            if (!t.drawn) {
+                continue;
+            }
+            ab3d2.full.defs.Database.ObjectDef def = db.object(ao.obj.def);
+            if (def == null) {
+                continue;
+            }
+            java.util.List<ab3d2.full.defs.Database.AnimStep> scenario =
+                    t.shownActive ? def.activeAnim() : def.idleAnim();
+            if (scenario.isEmpty()) {
+                continue;
+            }
+            if (t.shownStep == ao.poseStep && t.shownActive == ao.poseActive) {
                 continue;                              // meme graphique : rien a refaire
             }
-            ObjectAnim.Step st = ao.anim.step();
-            ao.obj.animDelta = st.delta;
+            ao.poseStep = t.shownStep;
+            ao.poseActive = t.shownActive;
+            ab3d2.full.defs.Database.AnimStep st =
+                    scenario.get(Math.floorMod(t.shownStep, scenario.size()));
+            ao.obj.animDelta = t.animDelta;
             if (ao.vector) {
-                ao.obj.model = st.gfx;
-                ao.obj.frame = st.frame;
-                if (st.word2 != 0) {                   // add.w word2,EntT_CurrentAngle_w : ca TOURNE
-                    ao.obj.angle = (short) (ao.obj.angle + st.word2);
+                ao.obj.model = st.gfx();
+                ao.obj.frame = st.frame();
+                if (st.word2() != 0) {                 // add.w word2,EntT_CurrentAngle_w : ca TOURNE
+                    ao.obj.angle = (short) t.angle;    // la simulation CUMULE l'angle des pas
                     ao.geometry.setLocalRotation(
                             new Quaternion().fromAngles(0f, modelYaw(ao.obj.angle), 0f));
                 }
-                String name = glf.vectorModel(st.gfx);
+                String name = glf.vectorModel(st.gfx());
                 ObjModels.Model m = name == null ? null
-                        : ObjModels.load(String.format("models/%s/frame_%03d.obj", name, st.frame));
+                        : ObjModels.load(String.format("models/%s/frame_%03d.obj", name, st.frame()));
                 if (m != null) {
                     ao.geometry.setMesh(buildModelMesh(m, ao.obj));
                 }
             } else {
-                ao.obj.sheet = st.gfx;
-                ao.obj.frame = st.frame;
-                String sheet = glf.spriteSheet(st.gfx);
+                ao.obj.sheet = st.gfx();
+                ao.obj.frame = st.frame();
+                String sheet = glf.spriteSheet(st.gfx());
                 if (sheet == null) {
                     continue;
                 }
@@ -1565,7 +1588,7 @@ public final class LevelBuilder {
                 boolean shaded = mat.getMaterialDef().getAssetName().contains("SpriteShade");
                 if (shaded) {
                     Texture2D idx = Assets.texture(String.format(
-                            "textures/objects/%s/frame_%02d.idx.png", sheet, st.frame));
+                            "textures/objects/%s/frame_%02d.idx.png", sheet, st.frame()));
                     if (idx != null) {
                         mat.setTexture("IndexMap", idx);
                     }
