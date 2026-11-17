@@ -884,9 +884,22 @@ public final class LevelBuilder {
         });
     }
 
-    /** Vrai quand la clarte d'origine est le terme propre des surfaces ({@code -Pbakedlight}). */
+    /**
+     * LA CLARTE D'ORIGINE EST-ELLE LE TERME PROPRE DES SURFACES ?
+     *
+     * <p>Oui, desormais, et c'est le modele d'eclairage du remake : chaque surface porte la
+     * clarte que les auteurs lui ont donnee, et les vraies lumieres ne servent plus qu'a ce
+     * qui BOUGE — les tirs, les explosions, les torches.
+     *
+     * <p>C'est ce qui rend l'etendue du jeu d'origine. Une source ponctuelle fait un point
+     * chaud et une chute ; l'ombrage d'origine est plat par surface, et un sol eclaire l'est
+     * tout entier. A pose egale, les noirs tombent sur ceux du portage et rien ne sature.
+     *
+     * <p>{@code -Pzonelights} revient a l'autre modele — une source par region de meme clarte
+     * — pour comparer.
+     */
     public static boolean bakedLight() {
-        return System.getProperty("rebirth.bakedlight") != null;
+        return System.getProperty("rebirth.zonelights") == null;
     }
 
     private Material litMaterial(Texture2D tex) {

@@ -129,8 +129,8 @@ public final class Lights3D {
     /**
      * Les sources STATIQUES sont-elles posees ?
      *
-     * <p>OUI par defaut. {@code -Pbakedlight} les retire, dans l'idee que la clarte d'origine
-     * porte l'eclairage a leur place.
+     * <p>NON par defaut : la clarte d'origine porte l'eclairage a leur place, et les
+     * reprendre en lampes la compterait DEUX FOIS. {@code -Pzonelights} les remet.
      *
      * <p>ET CELA NE MARCHE PAS ENCORE, pour une raison trouvee et non reparee : en rendu
      * MOTEUR, la geometrie n'est pas enregistree dans {@code litMeshes}. Rien ne garde donc la
@@ -144,7 +144,7 @@ public final class Lights3D {
      * reglage.
      */
     private static boolean sourcesStatiques() {
-        return System.getProperty("rebirth.bakedlight") == null;
+        return System.getProperty("rebirth.zonelights") != null;
     }
 
     public void build(LevelData lvl, GlfData glf, LightAnim lightMap) {
