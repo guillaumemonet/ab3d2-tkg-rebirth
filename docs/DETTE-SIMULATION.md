@@ -160,3 +160,39 @@ d'ici. Les deux visées sont compatibles.
 Les divergences **voulues** du remake : la visée par pente, la souris, la caméra libre, le pas de
 simulation à accumulateur. Elles passent par une fine couche d'adaptation — pas par une fourche
 du `sim`.
+
+---
+
+## Ce qui a été fait — 17 novembre 2026
+
+La dette est **fermée**. `src/ab3d2/rebirth/sim/` n'existe plus : dix-neuf fichiers, 6 628
+lignes, supprimés. Le remake compile et fait tourner `full/sim`.
+
+| phase | état | ce qui a été constaté |
+| --- | --- | --- |
+| **0** | fait | Les trois harnais passent des deux côtés et disent presque la même chose. Une seule divergence au niveau A : la mine de proximité, 4 440 images de vol contre 4 416. Les trois tests sont **trop larges** pour voir le reste de la dette — c'est pourquoi on a soudé plutôt que rattrapé à la main. |
+| **1** | fait | Le joint ne passe pas par `LevelSim.of()` comme prévu : le remake lit maintenant le niveau **avec le lecteur de `full`** et garde son JSON pour la seule géométrie. `simParity` met les deux lectures face à face — **148 743 valeurs, 0 écart** sur les seize niveaux. |
+| **2** | fait | Le décor **lit** le pas d'animation de la simulation au lieu d'avancer le sien. Une chose qui quitte son secteur quitte la vue : c'est ainsi qu'un objet cassé disparaît. Et une décoration ne s'anime qu'une fois **aperçue** — le remake animait tout, tout le temps. |
+| **3** | fait | L'arme en main est l'**entité** que le jeu lui donne, reposée entièrement à chaque image. Il ne reste dans le remake que ce qui lui appartient : le réglage SHOW WEAPON et la descente sous l'œil qui suit la caméra libre. |
+| **4** | fait | `World` porte sa propre file de bruitages, avec ses priorités (`IDNUM`, `notIfPlaying`, volume) que celle du remake n'avait pas. `Sfx.java` continue de jouer avec OpenAL. |
+| **5** | fait | `full` a reçu le menu, le texte narratif, l'enchaînement des niveaux et les sauvegardes — il les a écrits lui-même plutôt que de les reprendre d'ici. |
+| **6** | fait | `gradle -p rebirth simParity`. |
+
+### Deux soudures qui méritent d'être dites
+
+**Le rang d'entité fait le pont.** La simulation compte les entités du fichier d'origine, le
+décor celles du JSON. On retire du décor l'objet ramassé par son rang, et `simParity` vérifie
+que les deux listes se suivent. Un décalage d'un seul rang ferait disparaître une chose pour une
+autre.
+
+**Le son n'a pas de hauteur** dans le jeu d'origine : sa stéréo n'est qu'un panoramique, aucune
+routine ne transmet de Y. Le remake place ses sources en trois dimensions ; on les pose donc à
+hauteur d'**oreille**, ce qui garde la distance et le côté exacts sans inventer une hauteur qui
+ferait venir le son du sol.
+
+### Le bug jouable que la soudure a emporté
+
+Le remake donnait aux portes le **long entier** des verrous. `Anim_DoorAndLiftLocks_l` est un
+seul long dont `DoorRoutine` lit le mot **fort** et `LiftRoutine` le mot **faible** : les portes
+se verrouillaient donc avec les clés des ascenseurs, et aucun ascenseur ne l'était. Corrigé par
+construction.

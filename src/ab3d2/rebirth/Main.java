@@ -59,9 +59,6 @@ public class Main extends SimpleApplication {
     private Shots shots;
     private Aliens monsters;
     private Nav nav;
-    /** Animation de l'arme en main (script ACTANIMOBJ de l'objet-arme). */
-    private ObjectAnim weaponAnim;
-    private int weaponGun = -1;
     private LevelBuilder builder;
     private GlfData glf;
     /** PlrT_GunSelected_b : arme en main (index dans GLFT_ShootDefs). */
@@ -335,8 +332,6 @@ public class Main extends SimpleApplication {
             sky = null;
         }
         state = State.PLAYING;
-        weaponAnim = null;
-        weaponGun = -1;
         // Les lampes du niveau precedent n'existent plus : la vue de l'arme doit les lacher.
         if (weaponNode != null) {
             weaponNode.getLocalLightList().clear();
@@ -1261,7 +1256,6 @@ public class Main extends SimpleApplication {
             builder.lights().tick();                   // brightanim (une frame sur six)
         }
         builder.stepObjectAnims(objects, sim.glf);     // DEFANIMOBJ : la simulation a anime
-        stepWeaponAnim();
         if (builder.lights() != null) {
             if (!builder.modern()) {
                 builder.lights().endFrame();           // -Pretro seulement
@@ -1345,62 +1339,32 @@ public class Main extends SimpleApplication {
     }
 
     /**
-     * Animation de l'arme en main : le jeu la traite comme une entite ordinaire — son script
-     * ACTANIMOBJ avance d'un pas par frame (GUNHELD, Newaliencontrol.java:189) — et le tir y
-     * ecrit le pas 1 ({@code move.w #1,ENT_NEXT_2+EntT_Timer1_w}, Newplayershoot.java:217).
+     * POSE L'ARME EN MAIN, telle que la simulation vient de la placer.
+     *
+     * <p>Le jeu ne traite pas l'arme tenue a part : il lui donne l'ENTITE situee deux rangs
+     * apres le joueur, et la repose ENTIEREMENT a chaque image — sa position, sa hauteur, son
+     * angle, son pas d'animation. C'est de la que vient le recul, et c'est pourquoi elle prend
+     * le meme eclairage que le reste du decor.
+     *
+     * <p>Le remake refaisait ce calcul a la main. Il ne reste ici que ce qui lui appartient :
+     * le reglage SHOW WEAPON, et la descente sous l'oeil qui fait suivre la camera libre.
      */
-    private void stepWeaponAnim() {
-        GlfData.Gun g = glf == null ? null : glf.gun(gun);
-        GlfData.ObjDef def = g == null ? null : glf.object(g.gunObject);
-        if (def == null) {
-            weaponAnim = null;
-            return;
-        }
-        if (weaponAnim == null || weaponGun != gun) {
-            weaponAnim = ObjectAnim.always(def.actAnim);
-            weaponGun = gun;
-        }
-        if (weaponAnim == null) {
-            return;
-        }
-        if (shots.fired) {
-            weaponAnim.setStep(1);                     // le recul repart au debut de la sequence
-        } else {
-            weaponAnim.advance();
-        }
-    }
-
-    /** Pose l'arme en main : position du joueur, face a lui, a hauteur de hanche, avec le bobble. */
     private void applyWeapon() {
-        GlfData.Gun g = glf == null ? null : glf.gun(gun);
-        GlfData.ObjDef def = g == null ? null : glf.object(g.gunObject);
-        // SHOW WEAPON (Prefs_ShowWeapon_b) : l'arme tenue peut etre masquee.
-        if (!options.on(ab3d2.rebirth.menu.Options.SHOW_WEAPON)
-                || def == null || weaponAnim == null || def.gfxType != 1) {
+        ab3d2.full.sim.Weapon arme = sim == null ? null : sim.weapon;
+        // SHOW WEAPON (Prefs_ShowWeapon_b) : l'arme tenue peut etre masquee. Et seules les
+        // armes VECTORIELLES se tiennent.
+        if (arme == null || arme.shown == null || arme.gfxType != 1
+                || !options.on(ab3d2.rebirth.menu.Options.SHOW_WEAPON)) {
             builder.updateWeapon(weaponParent(), -1, 0, 0, 0, 0, 0, 0, cam, 0f, 0f);
-            return;                                    // seules les armes VECTORIELLES sont tenues
+            return;
         }
-        ObjectAnim.Step st = weaponAnim.step();
-        // Hauteur : yeux - un quart de la taille + 10*128, puis 1,5 fois le balancement.
-        int h = (player.snapYOff + (player.height >> 2) + 10 * 128) >> 7;
-        int bob = player.bobbleY >> 8;
-        h += bob + (bob >> 1);
-        // ANIMOBJ ajoute ensuite le DECALAGE VERTICAL du pas courant, double :
-        // move.b 4(a3,d0.w),d1 ; ext.w d1 ; add.w d1,d1 ; add.w d1,4(a0)
-        // (Newaliencontrol.java:714). Le blaster est la seule arme tenue dont le script en porte
-        // un (5 sur ses quatre premiers pas) : sans lui il flottait trop haut dans la main.
-        h += st.delta * 2;
-        // ANIMOBJ, branche .vector : le pas d'animation AJOUTE son word2 a l'angle de
-        // l'entite (newaliencontrol.s:842). Sans lui, seul le fusil pointait droit devant —
-        // c'est le seul modele d'arme tenue dont les pas portent 2048, tous les autres portent 0,
-        // et le quart de tour manquant envoyait les neuf autres armes hors du cadre.
-        int angle = (player.angPos + 4096 + st.word2) & 8190;   // + SINE_SIZE + word2
         // Hauteur de l'arme SOUS L'OEIL : la difference entre la hauteur que le jeu lui donne
         // et celle de la camera. Elle garde donc le quart de taille, le decalage fixe et le
         // balancement une fois et demie de l'original, mais suit maintenant la vue.
-        float drop = player.worldY() - (-h / 64f);
-        builder.updateWeapon(weaponParent(), st.gfx, st.frame, (short) (player.xOff >> 16),
-                (short) (player.zOff >> 16), h, angle, player.zone,
+        float drop = player.worldY() - (-arme.height / 64f);
+        builder.updateWeapon(weaponParent(), arme.shown.gfx(), arme.shown.frame(),
+                (short) (arme.x >> 16), (short) (arme.z >> 16), arme.height,
+                arme.angle & 8190, arme.zone,
                 cam, player.yawRadians(), drop);
         if (System.getProperty("rebirth.weaponLog") != null && simFrames % 30 == 1) {
             builder.logWeapon(cam);
