@@ -54,7 +54,14 @@ dependencies {
 sourceSets {
     main {
         java {
-            srcDirs = ['src', '../java/src']
+            // Trois sources, et chacune a son role :
+            //   src        le remake lui-meme ;
+            //   ../java    le portage litteral, LECTEUR des formats d'origine et ORACLE ;
+            //   ../full    la simulation VERIFIEE, celle que le remake doit faire tourner.
+            // `full` a ete eprouve contre le portage par cinquante-deux taches ; le `sim` que
+            // `rebirth` s'etait fait n'a jamais ete mesure. Toute divergence entre les deux
+            // est donc une erreur du remake, pas un choix.
+            srcDirs = ['src', '../java/src', '../full/src']
         }
         resources {
             // Les shaders du remake vivent desormais dans assets/Shaders : ils sont ainsi
@@ -113,6 +120,17 @@ tasks.named('run') {
         'map', 'mapAll', 'angle', 'pitch', 'lightLog', 'lightBatch', 'noshadow',
         'ssao', 'retro', 'fullbright', 'vsign', 'nolevelscene', 'noPvsLights', 'fpsLog', 'novsync',
     ])
+}
+
+tasks.register('simParity', JavaExec) {
+    group = 'verification'
+    description = "Les deux lectures d'un meme niveau, mises face a face"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.rebirth.SimParity'
+    systemProperty 'rebirth.assets', assetsDir.absolutePath
+    systemProperty 'ab3d2.media', new File(assetRoot, 'medias/original').absolutePath
+    systemProperty 'ab3d2.data', new File(projectDir, '../full/data').absolutePath
+    flags(it, ['level'])
 }
 
 tasks.register('extract', JavaExec) {
