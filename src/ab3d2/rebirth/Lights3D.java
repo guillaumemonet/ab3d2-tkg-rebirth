@@ -129,12 +129,19 @@ public final class Lights3D {
     /**
      * Les sources STATIQUES sont-elles posees ?
      *
-     * <p>OUI par defaut. {@code -Pbakedlight} prend l'autre modele : la clarte d'origine
-     * devient le terme propre de chaque surface (couleur par sommet) et les sources ne servent
-     * plus qu'a ce qui bouge. Ce modele rend l'image STRUCTURELLEMENT juste — murs sombres,
-     * surfaces eclairees qui gardent leur dessin, et les lampes qui clignotent reviennent —
-     * mais il reste globalement trop sombre, et le niveau d'ambiante n'y change RIEN : le
-     * chemin d'eclairage de jME n'est donc pas celui qu'on croit. A reprendre.
+     * <p>OUI par defaut. {@code -Pbakedlight} les retire, dans l'idee que la clarte d'origine
+     * porte l'eclairage a leur place.
+     *
+     * <p>ET CELA NE MARCHE PAS ENCORE, pour une raison trouvee et non reparee : en rendu
+     * MOTEUR, la geometrie n'est pas enregistree dans {@code litMeshes}. Rien ne garde donc la
+     * luminosite par sommet, la couleur par sommet n'atteint jamais le shader (verifie : en la
+     * forcant au ROUGE VIF, l'image ne rougit pas d'un pouce) et {@code refreshLighting} n'a
+     * rien a rafraichir. Le drapeau se contente aujourd'hui d'eteindre les sources statiques,
+     * ce qui donne une image structurellement plus juste mais trop sombre.
+     *
+     * <p>Pour que le modele tienne, il faudrait que le chemin MOTEUR enregistre ses maillages
+     * comme le fait le chemin {@code -Pretro}. C'est un travail sur LevelBuilder, pas un
+     * reglage.
      */
     private static boolean sourcesStatiques() {
         return System.getProperty("rebirth.bakedlight") == null;

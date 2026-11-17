@@ -769,6 +769,14 @@ public final class LevelBuilder {
         try {
             Material m = assetManager.loadMaterial("materials/" + key + ".j3m");
             pixelate(m);                               // le .j3m ne sait pas dire « plus proche voisin »
+            // ET LE CHOIX D'ECLAIRAGE, qui ne vit pas dans le fichier. Quatre-vingt-quatorze
+            // materiaux sont poses sur le disque, et ils l'emportent sur celui que le code
+            // calcule : tout reglage fait dans litMaterial ne les atteignait PAS. C'est ce qui
+            // rendait l'image insensible au niveau d'ambiante — on reglait un materiau que
+            // personne n'utilisait.
+            if (m.getMaterialDef().getMaterialParam("UseVertexColor") != null) {
+                m.setBoolean("UseVertexColor", bakedLight());
+            }
             j3mLoaded++;
             return m;
         } catch (RuntimeException absent) {
@@ -813,6 +821,11 @@ public final class LevelBuilder {
      * module le terme diffus, si bien que l'ambiance de chaque piece reste celle voulue par les
      * auteurs, et les vraies lumieres de jME (lampes, tirs, explosions) s'ajoutent par-dessus.
      */
+    /** Vrai quand la clarte d'origine est le terme propre des surfaces ({@code -Pbakedlight}). */
+    public static boolean bakedLight() {
+        return System.getProperty("rebirth.bakedlight") != null;
+    }
+
     private Material litMaterial(Texture2D tex) {
         return litMaterial(tex, false);
     }
@@ -840,7 +853,7 @@ public final class LevelBuilder {
         // Les lumieres de jME ne servent donc plus qu'a ce qui BOUGE : les tirs, les
         // explosions, les torches. Elles s'ajoutent par-dessus, la ou le light map ne sait
         // rien.
-        mat.setBoolean("UseVertexColor", System.getProperty("rebirth.bakedlight") != null);
+        mat.setBoolean("UseVertexColor", bakedLight());
         mat.setColor("Diffuse", ColorRGBA.White);
         mat.setColor("Ambient", ColorRGBA.White);
         mat.setColor("Specular", ColorRGBA.Black);
