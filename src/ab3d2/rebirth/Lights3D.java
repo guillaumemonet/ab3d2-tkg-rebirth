@@ -83,7 +83,7 @@ public final class Lights3D {
      * <p>On la baisse donc, et la part qu'elle perd revient aux LAMPES REELLES, posees la
      * ou les auteurs ont mis les leurs.
      */
-    private static final float HYBRID_AMBIENT = 0.70f;
+    private static final float HYBRID_AMBIENT = 0.58f;
     /** Ce qu'une lampe de decor ajoute par-dessus la clarte cuite. */
     private static final float LAMP_GAIN = 1.5f;
     /**
@@ -93,7 +93,7 @@ public final class Lights3D {
      * une vraie chute. Les additionner a plein brule les pieces eclairees ; on garde donc
      * la clarte cuite pour la CONDUITE et les sources pour le RELIEF.
      */
-    private static final float REGION_GAIN = 0.35f;
+    private static final float REGION_GAIN = 0.70f;
     /** Le niveau d'ambiante de la pose courante : il depend du modele d'eclairage choisi. */
     private float ambientBase = AMBIENT_LEVEL;
     /** ZoneT_Roof_l : la valeur sentinelle « cette zone n'a pas de plafond ». */

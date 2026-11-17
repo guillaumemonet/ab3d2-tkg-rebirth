@@ -655,6 +655,9 @@ public final class LevelBuilder {
             litMeshes.add(new LitMesh(g, mb.litSources(), true));
         }
         decorRecoit(g);                                // le decor recoit, il ne projette pas
+        if (modern && !fullbright) {
+            tangentes(g.getMesh());
+        }
         return g;
     }
 
@@ -816,6 +819,7 @@ public final class LevelBuilder {
             if (m.getMaterialDef().getMaterialParam("UseVertexColor") != null) {
                 m.setBoolean("UseVertexColor", bakedLight());
             }
+            poserRelief(m);
             j3mLoaded++;
             return m;
         } catch (RuntimeException absent) {
@@ -923,6 +927,9 @@ public final class LevelBuilder {
                 m.setBoolean("UseVertexColor", bakedLight());
             }
             decorRecoit(g);
+            if (modern && !fullbright) {
+                tangentes(g.getMesh());            // le relief a besoin du repere de la texture
+            }
         });
     }
 
@@ -995,7 +1002,64 @@ public final class LevelBuilder {
         mat.setColor("Specular", ColorRGBA.Black);
         mat.setFloat("Shininess", 1f);
         mat.getAdditionalRenderState().setFaceCullMode(RenderState.FaceCullMode.Off);
+        poserRelief(mat);
         return mat;
+    }
+
+    /**
+     * POSE LE RELIEF D'UNE TEXTURE SUR SON MATERIAU.
+     *
+     * <p>La carte de normales est tiree de la texture elle-meme (cf. {@link Relief}) : ces
+     * images ont le relief PEINT dedans, clair en saillie et sombre en creux, et il suffit
+     * de le relire. Le mur repond alors aux vraies lumieres au lieu de porter a jamais
+     * celle que le peintre avait en tete.
+     *
+     * <p>Une carte par texture, gardee : les murs d'un niveau se comptent par dizaines et
+     * se repetent partout.
+     */
+    private void poserRelief(Material m) {
+        if (!modern || fullbright || m == null || System.getProperty("rebirth.norelief") != null
+                || m.getMaterialDef().getMaterialParam("NormalMap") == null) {
+            return;
+        }
+        com.jme3.material.MatParam d = m.getParam("DiffuseMap");
+        if (!(d instanceof com.jme3.material.MatParamTexture t)
+                || t.getTextureValue() == null || t.getTextureValue().getKey() == null) {
+            return;                                // texture batie en memoire : pas de chemin
+        }
+        String chemin = t.getTextureValue().getKey().getName();
+        Texture2D n = reliefs.computeIfAbsent(chemin,
+                k -> Relief.normalMap(Assets.image(k)));
+        if (n != null) {
+            m.setTexture("NormalMap", n);
+        }
+    }
+
+    /** Les cartes de normales deja calculees, par chemin de texture. */
+    private final Map<String, Texture2D> reliefs = new HashMap<>();
+
+    /**
+     * LES TANGENTES D'UN MAILLAGE DE DECOR.
+     *
+     * <p>Une carte de normales est lue dans le repere de la TEXTURE : pour savoir ou pointe
+     * une normale dans le monde, le shader a besoin de la tangente, c'est-a-dire de la
+     * direction que suit U sur la surface. Sans elle, le relief part n'importe ou.
+     *
+     * <p>On verifie que le generateur n'a pas AJOUTE de sommets : la table d'eclairage est
+     * indexee par sommet, et un maillage qui grossit derriere son dos la desynchronise.
+     */
+    private static void tangentes(com.jme3.scene.Mesh mesh) {
+        if (mesh == null || mesh.getBuffer(com.jme3.scene.VertexBuffer.Type.Tangent) != null
+                || mesh.getBuffer(com.jme3.scene.VertexBuffer.Type.TexCoord) == null) {
+            return;
+        }
+        int avant = mesh.getVertexCount();
+        com.jme3.util.TangentBinormalGenerator.generate(mesh);
+        if (mesh.getVertexCount() != avant) {
+            System.err.printf("[relief] AVERTISSEMENT : le maillage est passe de %d a %d"
+                    + " sommets, l'eclairage par sommet ne suit plus%n",
+                    avant, mesh.getVertexCount());
+        }
     }
 
     /**
@@ -1213,6 +1277,9 @@ public final class LevelBuilder {
                 litMeshes.add(new LitMesh(g, e.getValue().litSources(), false));
             }
             decorRecoit(g);                            // le decor recoit, il ne projette pas
+            if (modern && !fullbright) {
+                tangentes(g.getMesh());
+            }
             node.attachChild(g);
         }
         System.out.printf("[Level] materiaux : %d .j3m charges, %d bâtis en code%n",
