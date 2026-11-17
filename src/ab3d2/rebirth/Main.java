@@ -269,6 +269,16 @@ public class Main extends SimpleApplication {
                     shadows = new com.jme3.shadow.PointLightShadowFilter(assetManager, SHADOW_MAP);
                     shadows.setShadowIntensity(0.6f);
                     shadows.setEdgeFilteringMode(com.jme3.shadow.EdgeFilteringMode.PCF4);
+                    // LES ZEBRURES SUR LES TEXTURES : une surface eclairee se projette sur
+                    // ELLE-MEME. La carte d'ombres mesure la distance a la lumiere par
+                    // echantillons ; sur un mur vu de biais, deux pixels voisins tombent dans
+                    // le meme echantillon, et l'un se croit derriere l'autre. D'ou des bandes
+                    // claires et sombres alternees, qui suivent l'inclinaison de la surface.
+                    //
+                    // On ne rend donc dans la carte d'ombres que les faces ARRIERE : le mur
+                    // qu'on voit n'y figure plus, il ne peut plus s'ombrer lui-meme, et ce qui
+                    // porte l'ombre reste le volume qui s'interpose.
+                    shadows.setRenderBackFacesShadows(true);
                     shadows.setEnabled(false);
                     fpp.addFilter(shadows);
                 }
@@ -1452,7 +1462,7 @@ public class Main extends SimpleApplication {
     }
 
     /** Taille de la carte d'ombres (x6 faces pour une lumiere ponctuelle). */
-    private static final int SHADOW_MAP = 512;
+    private static final int SHADOW_MAP = 1024;
     /**
      * FILTRE et non « renderer » : un {@code PointLightShadowRenderer} assombrit la scene MEME
      * quand sa lumiere est eteinte — il ne se pilote pas par la couleur. Le filtre, lui,
