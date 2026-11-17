@@ -1387,7 +1387,11 @@ public final class LevelBuilder {
         }
         float w = img.getWidth() / SPRITE_PPU;
         float h = img.getHeight() / SPRITE_PPU;
-        Geometry g = new Geometry("spr_" + o.name, spriteQuad(w, h));
+        // EN VOLUME QUAND C'EST UNE CHOSE A RAMASSER (cf. enVolume).
+        Mesh relief = enVolume(o) ? SpriteExtrude.build(img, SPRITE_PPU,
+                Math.max(3f, img.getWidth() * EPAISSEUR) / SPRITE_PPU) : null;
+        Geometry g = new Geometry("spr_" + o.name,
+                relief != null ? relief : spriteQuad(w, h));
         Material lit = null;
         if (modern && !fullbright && !o.additive) {
             // Rendu MOTEUR : la texture couleur de la frame, eclairee par les lumieres de la
@@ -1409,10 +1413,70 @@ public final class LevelBuilder {
         // ecarte les texels transparents (AlphaDiscardThreshold) et la passe d'ombre de jME
         // respecte ce seuil, si bien que c'est la silhouette qui se projette.
         g.setShadowMode(com.jme3.renderer.queue.RenderQueue.ShadowMode.CastAndReceive);
-        BillboardControl bb = new BillboardControl();
-        bb.setAlignment(BillboardControl.Alignment.AxialY);   // sprites d'origine : rotation Y seule
-        g.addControl(bb);
+        if (relief != null) {
+            g.addControl(new Tournoie());          // un volume n'a pas a faire face : il tourne
+        } else {
+            BillboardControl bb = new BillboardControl();
+            bb.setAlignment(BillboardControl.Alignment.AxialY);   // sprite : rotation Y seule
+            g.addControl(bb);
+        }
         return g;
+    }
+
+    /** Epaisseur d'un ramassable mis en volume, en part de sa largeur. */
+    private static final float EPAISSEUR = 0.32f;
+
+    /**
+     * CETTE CHOSE MERITE-T-ELLE UN VOLUME ?
+     *
+     * <p>Oui pour ce qui se RAMASSE -- munitions, soins, clefs : de petits objets poses au
+     * sol, qu'on regarde de pres et sous tous les angles, et dont le panneau plat se
+     * trahit des qu'on tourne autour.
+     *
+     * <p>Non pour le reste. Les armes, machines et interrupteurs ont DEJA un modele
+     * vectoriel dans le jeu et ne passent pas par ici. Les halos (<< glares >>) sont des
+     * taches lumineuses additives : un volume n'aurait pas de sens. Et ce qui porte un
+     * script d'animation change d'image en cours de route -- il faudrait refaire le
+     * maillage a chaque pas, pour des ventilateurs qui tournent dans un mur.
+     */
+    private boolean enVolume(LevelData.Obj o) {
+        if (!modern || fullbright || o.additive || objectAnim(o) != null) {
+            return false;
+        }
+        GlfData.ObjDef def = glf == null ? null : glf.object(o.def);
+        // gfxType 0 = un sprite (1 = modele vectoriel, 2 = halo) ; type 0 = a ramasser.
+        return def != null && def.gfxType == 0 && def.type == 0;
+    }
+
+    /**
+     * CE QUI TOURNE SUR PLACE.
+     *
+     * <p>Un panneau pivotait pour rester face au joueur ; un volume n'a pas a le faire, et
+     * s'il restait fixe on ne verrait plus qu'il en est un. Il tourne donc lentement sur
+     * lui-meme -- ce qui le montre sous tous ses angles, et le signale de loin comme une
+     * chose a prendre.
+     *
+     * <p>Purement visuel : la simulation ne connait que la POSITION d'un ramassable, et
+     * elle n'a pas bouge.
+     */
+    private static final class Tournoie extends com.jme3.scene.control.AbstractControl {
+        /** Tours par seconde : assez lent pour ne pas accrocher l'oeil. */
+        private static final float VITESSE = 0.8f;
+        private float angle;
+
+        @Override
+        protected void controlUpdate(float tpf) {
+            angle += tpf * VITESSE;
+            if (spatial != null) {
+                spatial.setLocalRotation(new com.jme3.math.Quaternion().fromAngles(
+                        0f, angle, 0f));
+            }
+        }
+
+        @Override
+        protected void controlRender(com.jme3.renderer.RenderManager rm,
+                com.jme3.renderer.ViewPort vp) {
+        }
     }
 
     /**

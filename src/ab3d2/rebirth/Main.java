@@ -301,13 +301,17 @@ public class Main extends SimpleApplication {
                     fpp.addFilter(shadows);
                 }
                 // OCCLUSION AMBIANTE (-Pssao) : assombrit les recoins et les jonctions mur/sol.
-                // DESACTIVEE PAR DEFAUT : mesuree a +23 % (niveau J, 900 frames : 22,7 s contre
-                // 18,5 s) pour un effet discret — ce decor est fait de grandes surfaces planes,
-                // le SSAO paie surtout sur le detail fin. Le cout est celui de sa passe
-                // profondeur/normales, il ne baisse pas en reduisant le rayon.
+                //
+                // DESACTIVEE PAR DEFAUT, et le chiffre est sans appel : 4,17 ms par image
+                // sans, 9,20 ms avec (niveau a, 1280x720, sans synchro verticale) -- elle
+                // COUTE PLUS QUE TOUT LE RESTE DU RENDU REUNI. En face, elle assombrit
+                // l'image entiere (moyenne 34,5 -> 29,3) plus qu'elle ne creuse les recoins :
+                // ce decor est fait de grandes surfaces planes, et le SSAO paie sur le detail
+                // fin. Le rayon resserre ci-dessous limite la bavure, mais le cout, lui, est
+                // celui de sa passe profondeur/normales et ne baisse pas avec.
                 // L'occlusion ambiante est toujours MONTEE mais desactivee tant que SCREEN
                 // OPTIONS ne l'allume pas : l'ajouter apres coup demanderait de refaire le FPP.
-                ssao = new com.jme3.post.ssao.SSAOFilter(2.2f, 2.4f, 0.35f, 0.1f);
+                ssao = new com.jme3.post.ssao.SSAOFilter(0.9f, 1.6f, 0.28f, 0.28f);
                 fpp.addFilter(ssao);
             }
             // Dematerialisation : post-traitement, inactif tant que le compteur est a zero.
