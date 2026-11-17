@@ -30,3 +30,4 @@
 /tools/intro68k/*.bin
 /tools/intro68k/*.png
 /tools/intro68k/__pycache__/
+docs/prototypes/*.png
