@@ -1117,9 +1117,9 @@ public class Main extends SimpleApplication {
                 shadows.setEnabled(options.shadows && lights3d.hasShadowSource());
             }
             presentShimmer();                          // dematerialisation (sortie / teleport)
-            if (!builder.modern()) {
-                builder.refreshLighting();             // -Pretro : re-eclaire les tampons LUT
-            }
+            // Les lampes qui clignotent : en rendu MOTEUR aussi, puisque c'est la couleur
+            // par sommet qui porte desormais la clarte.
+            builder.refreshLighting();
             builder.updateSpriteLights(player.angPos, cam);   // monstres : eclairage directionnel
             if (hud != null) {
                 GlfData.Gun g = glf == null ? null : glf.gun(gun);
@@ -1200,9 +1200,7 @@ public class Main extends SimpleApplication {
         }
         if (builder.lights() != null) {
             // doneallz : CurrentPointBrights repart des valeurs statiques AVANT objmoveanim.
-            if (!builder.modern()) {
-                builder.lights().beginFrame();         // -Pretro seulement (recopie 8000 mots)
-            }
+            builder.lights().beginFrame();
         }
         // CE QUE LE JOUEUR DEMANDE pendant cette image. La simulation le prend d'un bloc :
         // c'est la seule chose que le remake lui donne, et c'est par la que passent ses
@@ -1288,9 +1286,7 @@ public class Main extends SimpleApplication {
         }
         builder.stepObjectAnims(objects, sim.glf);     // DEFANIMOBJ : la simulation a anime
         if (builder.lights() != null) {
-            if (!builder.modern()) {
-                builder.lights().endFrame();           // -Pretro seulement
-            }
+            builder.lights().endFrame();
         }
         if (System.getProperty("rebirth.dynLog") != null && builder.dynLights() != null) {
             ab3d2.rebirth.DynLights dl = builder.dynLights();

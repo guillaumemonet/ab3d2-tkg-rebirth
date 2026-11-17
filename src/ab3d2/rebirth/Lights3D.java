@@ -63,6 +63,18 @@ public final class Lights3D {
     private static final float AMBIENT_LEVEL = 0.22f;
     /** Reglage BRIGHTNESS du menu : multiplie l'ambiante (1,0 = valeur d'origine). */
     private float brightness = 1f;
+    /**
+     * L'EXPOSITION du rendu par light map.
+     *
+     * <p>La couleur par sommet vaut un pour la surface la plus claire du jeu, mais la texture
+     * qu'elle module n'est pas blanche : le produit des deux reste loin du blanc. Ce facteur
+     * remonte l'ensemble jusqu'a ce que les surfaces les plus claires occupent le haut de la
+     * plage, comme chez le portage — sans toucher au RAPPORT entre clair et sombre, qui est
+     * celui du jeu.
+     */
+    private static final float BAKED_EXPOSURE = 3.4f;
+    /** Le niveau d'ambiante de la pose courante : il depend du modele d'eclairage choisi. */
+    private float ambientBase = AMBIENT_LEVEL;
     /** ZoneT_Roof_l : la valeur sentinelle « cette zone n'a pas de plafond ». */
     private static final int NO_ROOF = -32768;
 
@@ -114,13 +126,31 @@ public final class Lights3D {
     }
 
     /** Pose les lumieres STATIQUES du niveau. A appeler apres avoir construit la geometrie. */
+    /**
+     * Les sources STATIQUES sont-elles posees ?
+     *
+     * <p>OUI par defaut. {@code -Pbakedlight} prend l'autre modele : la clarte d'origine
+     * devient le terme propre de chaque surface (couleur par sommet) et les sources ne servent
+     * plus qu'a ce qui bouge. Ce modele rend l'image STRUCTURELLEMENT juste — murs sombres,
+     * surfaces eclairees qui gardent leur dessin, et les lampes qui clignotent reviennent —
+     * mais il reste globalement trop sombre, et le niveau d'ambiante n'y change RIEN : le
+     * chemin d'eclairage de jME n'est donc pas celui qu'on croit. A reprendre.
+     */
+    private static boolean sourcesStatiques() {
+        return System.getProperty("rebirth.bakedlight") == null;
+    }
+
     public void build(LevelData lvl, GlfData glf, LightAnim lightMap) {
         clear();
         // AMBIANTE : assez haute pour qu'une surface hors de portee garde sa TEXTURE. Le rendu
         // d'origine etait plat par zone ; une ambiante franche en est plus proche, et les
         // lumieres ci-dessous ajoutent le relief par-dessus.
-        ambient = new AmbientLight(new ColorRGBA(AMBIENT_LEVEL, AMBIENT_LEVEL,
-                AMBIENT_LEVEL * 1.12f, 1f));
+        // L'AMBIANTE PORTE L'IMAGE. La couleur par sommet tient la clarte de chaque surface ;
+        // l'ambiante n'est plus un fond de secours mais la lumiere qui la REVELE. On la pose
+        // donc a plein, et c'est le light map qui fait l'ombre et la lumiere — comme chez le
+        // jeu d'origine, dont l'ombrage est plat par surface.
+        float niveau = sourcesStatiques() ? AMBIENT_LEVEL : 2.5f;
+        ambient = new AmbientLight(new ColorRGBA(niveau, niveau, niveau * 1.06f, 1f));
         root.addLight(ambient);
         setBrightness(brightness);
 
@@ -191,10 +221,14 @@ public final class Lights3D {
             v.clarte = f;
             vues.put(z.id, v);
         }
-        poserRegions(zones, vues);
+        if (sourcesStatiques()) {
+            poserRegions(zones, vues);
+        }
 
         for (LevelData.Obj o : lvl.objects == null ? List.<LevelData.Obj>of() : lvl.objects) {
-            if (o.typeId != 1 || o.zone < 0) {
+            // Les lampes d'objet sont DEJA dans le light map : le jeu y cuit leur halo. En
+            // poser une vraie par-dessus la compterait deux fois.
+            if (!sourcesStatiques() || o.typeId != 1 || o.zone < 0) {
                 continue;
             }
             GlfData.ObjDef def = glf == null ? null : glf.object(o.def);
@@ -570,8 +604,8 @@ public final class Lights3D {
     public void setBrightness(float factor) {
         brightness = Math.max(0.25f, Math.min(2f, factor));
         if (ambient != null) {
-            ambient.setColor(new ColorRGBA(AMBIENT_LEVEL * brightness,
-                    AMBIENT_LEVEL * brightness, AMBIENT_LEVEL * 1.12f * brightness, 1f));
+            ambient.setColor(new ColorRGBA(ambientBase * brightness,
+                    ambientBase * brightness, ambientBase * 1.06f * brightness, 1f));
         }
     }
 }

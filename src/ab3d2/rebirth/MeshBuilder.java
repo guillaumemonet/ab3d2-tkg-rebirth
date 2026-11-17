@@ -125,14 +125,26 @@ public final class MeshBuilder {
      * est le plus CLAIR et 31 le plus sombre. Le facteur lumineux vaut donc
      * {@code 1 - bloc/31}.
      */
+    /**
+     * LA CLARTE D'UN SOMMET, de zero (noir) a un (plein).
+     *
+     * <p>Le rasterizer d'origine en tire un bloc de palette {@code ceil(clamp(b,0,64)/2)} sur
+     * trente-deux, ou zero est le plus CLAIR. Le facteur vaut donc {@code 1 - bloc/31}.
+     *
+     * <p>Publique parce que le rendu MOTEUR la refait a chaque fois qu'une lampe clignote :
+     * c'est la couleur par sommet qui y porte l'eclairage.
+     */
+    public static float lightFactor(float brut) {
+        float b = ((brut + 128f) % 256f + 256f) % 256f - 128f;  // octet BAS signe, comme le shader
+        float block = Math.min((float) Math.ceil(Math.max(0f, Math.min(64f, b)) * 0.5f), 31f);
+        return 1f - block / 31f;
+    }
+
     private float[] bakedColours() {
         int n = pos.size() / 3;
         float[] c = new float[n * 4];
         for (int i = 0; i < n; i++) {
-            float b = bright.get(i * 2);
-            b = ((b + 128f) % 256f + 256f) % 256f - 128f;   // octet BAS signe, comme le shader
-            float block = Math.min((float) Math.ceil(Math.max(0f, Math.min(64f, b)) * 0.5f), 31f);
-            float f = 1f - block / 31f;
+            float f = lightFactor(bright.get(i * 2));
             c[i * 4] = f;
             c[i * 4 + 1] = f;
             c[i * 4 + 2] = f;

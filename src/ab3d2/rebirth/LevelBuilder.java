@@ -828,9 +828,19 @@ public final class LevelBuilder {
         }
         mat.setTexture("DiffuseMap", tex);
         mat.setBoolean("UseMaterialColors", true);
-        // Pas de UseVertexColor : en rendu MOTEUR ce sont les vraies lumieres qui eclairent, le
-        // light map d'origine ne sert plus qu'a les POSER (cf. Lights3D.brightnessFactor).
-        // L'y remettre double-assombrirait les murs et brulerait les zones deja claires.
+        // LA CLARTE D'ORIGINE EST LE TERME PROPRE DE LA SURFACE. La couleur par sommet porte
+        // le light map du jeu (cf. MeshBuilder.bakedColours) ; en l'activant, elle module
+        // l'albedo, donc aussi bien l'ambiante que les vraies lumieres.
+        //
+        // C'est ce qui rend au remake l'ETENDUE du jeu d'origine. Une source ponctuelle fait
+        // un point chaud et une chute ; l'ombrage d'origine est PLAT PAR SURFACE — un sol
+        // eclaire l'est tout entier. Mesure a pose egale : le portage atteint 148 au neuvieme
+        // decile, le remake plafonnait a 66 en eclairant tout a la lampe.
+        //
+        // Les lumieres de jME ne servent donc plus qu'a ce qui BOUGE : les tirs, les
+        // explosions, les torches. Elles s'ajoutent par-dessus, la ou le light map ne sait
+        // rien.
+        mat.setBoolean("UseVertexColor", System.getProperty("rebirth.bakedlight") != null);
         mat.setColor("Diffuse", ColorRGBA.White);
         mat.setColor("Ambient", ColorRGBA.White);
         mat.setColor("Specular", ColorRGBA.Black);
@@ -2331,14 +2341,31 @@ public final class LevelBuilder {
                 continue;
             }
             java.nio.FloatBuffer buf = (java.nio.FloatBuffer) vb.getData();
+            // En rendu MOTEUR, c'est la COULEUR par sommet qui porte la clarte : il faut la
+            // refaire avec, sinon les lampes qui clignotent ne clignotent pas. C'est tout
+            // l'interet d'avoir repris le light map comme terme propre -- les variations de
+            // lumiere des couloirs reviennent avec.
+            com.jme3.scene.VertexBuffer cb = modern
+                    ? lm.geometry().getMesh().getBuffer(com.jme3.scene.VertexBuffer.Type.Color)
+                    : null;
+            java.nio.FloatBuffer col = cb == null ? null : (java.nio.FloatBuffer) cb.getData();
             int n = Math.min(lm.source().length, buf.capacity() / 2);
             for (int i = 0; i < n; i++) {
                 int[] src = lm.source()[i];
                 float b = src[0] < 0 ? buf.get(i * 2)
                         : (lm.wall() ? wallBright(src) : flatBright(src));
                 buf.put(i * 2, b);
+                if (col != null && (i + 1) * 4 <= col.capacity()) {
+                    float f = MeshBuilder.lightFactor(b);
+                    col.put(i * 4, f);
+                    col.put(i * 4 + 1, f);
+                    col.put(i * 4 + 2, f);
+                }
             }
             vb.updateData(buf);
+            if (cb != null) {
+                cb.updateData(col);
+            }
         }
         if (System.getProperty("rebirth.lightLog") != null && refreshCount++ % 25 == 0) {
             float min = Float.MAX_VALUE;
