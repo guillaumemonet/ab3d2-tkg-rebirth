@@ -628,6 +628,7 @@ public final class LevelBuilder {
         if (mb.litSources() != null) {
             litMeshes.add(new LitMesh(g, mb.litSources(), true));
         }
+        decorRecoit(g);                                // le decor recoit, il ne projette pas
         return g;
     }
 
@@ -678,6 +679,12 @@ public final class LevelBuilder {
             float bTopL = wallBright(srcTopL);
             float bTopR = wallBright(srcTopR);
 
+            if (System.getProperty("rebirth.wallBrightLog") != null) {
+                System.out.printf("[murB] zone=%d (%d,%d)-(%d,%d) tex=%d pbr=%d off=%d autre=%d"
+                        + " bl=%.0f br=%.0f tl=%.0f tr=%.0f%n", w.zone, p0.x, p0.z, p1.x, p1.z,
+                        w.texIndex, w.whichPBR, w.brightOffset, w.otherZone,
+                        bBotL, bBotR, bTopL, bTopR);
+            }
             // Ordre des sommets identique a quad() : TL, TR, BR puis TL, BR, BL.
             mb.vertexLit(x0, yTop, z0, 0f, vTop, bTopL, srcTopL[0], srcTopL[1], srcTopL[2]);
             mb.vertexLit(x1, yTop, z1, u1, vTop, bTopR, srcTopR[0], srcTopR[1], srcTopR[2]);
@@ -881,7 +888,26 @@ public final class LevelBuilder {
             if (m.getMaterialDef().getMaterialParam("UseVertexColor") != null) {
                 m.setBoolean("UseVertexColor", bakedLight());
             }
+            decorRecoit(g);
         });
+    }
+
+    /**
+     * LE DECOR RECOIT LES OMBRES, IL N'EN PROJETTE PAS.
+     *
+     * <p>Ce monde est fait de SECTEURS, chacun avec son sol et son plafond a lui. Une lampe
+     * posee dans l'un est forcement DEHORS pour celui d'a cote : le plafond du voisin s'
+     * interpose, et toute sa piece tombe dans l'ombre d'un seul tenant. C'est de la que
+     * venaient les ZEBRURES — non pas un grain sur la texture, mais des pans entiers eteints,
+     * aux bords nets, la ou un secteur voisin passait devant la lampe. Mesure au secteur 48 du
+     * niveau l : cent cinquante-huit mille pixels d'un mur, noircis d'un bloc.
+     *
+     * <p>Les ombres ne viennent donc QUE de ce qui bouge — monstres, objets, choses ramassables.
+     * C'est d'ailleurs tout ce qu'on remarque : le decor, lui, porte deja dans son light map
+     * l'occlusion que les auteurs y ont peinte.
+     */
+    private static void decorRecoit(Geometry g) {
+        g.setShadowMode(com.jme3.renderer.queue.RenderQueue.ShadowMode.Receive);
     }
 
     /**
@@ -1152,6 +1178,7 @@ public final class LevelBuilder {
             if (e.getValue().litSources() != null) {
                 litMeshes.add(new LitMesh(g, e.getValue().litSources(), false));
             }
+            decorRecoit(g);                            // le decor recoit, il ne projette pas
             node.attachChild(g);
         }
         System.out.printf("[Level] materiaux : %d .j3m charges, %d bâtis en code%n",
@@ -1343,9 +1370,11 @@ public final class LevelBuilder {
             animObjects.add(new AnimObject(g, o, false));
         }
         g.setLocalTranslation(wx, fy, wz);             // fy = hauteur de dessin du jeu (centre)
-        // Un panneau billboarde est un QUAD a fond transparent : s'il projette, c'est le quad
-        // entier qui fait de l'ombre, en grands rectangles noirs. Il recoit, il ne projette pas.
-        g.setShadowMode(com.jme3.renderer.queue.RenderQueue.ShadowMode.Receive);
+        // UN PANNEAU BILLBOARDE PROJETTE AUSSI, comme les monstres. C'est un quad a fond
+        // transparent : tel quel, c'est le RECTANGLE ENTIER qui ferait de l'ombre. Son materiau
+        // ecarte les texels transparents (AlphaDiscardThreshold) et la passe d'ombre de jME
+        // respecte ce seuil, si bien que c'est la silhouette qui se projette.
+        g.setShadowMode(com.jme3.renderer.queue.RenderQueue.ShadowMode.CastAndReceive);
         BillboardControl bb = new BillboardControl();
         bb.setAlignment(BillboardControl.Alignment.AxialY);   // sprites d'origine : rotation Y seule
         g.addControl(bb);

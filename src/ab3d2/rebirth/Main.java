@@ -280,16 +280,19 @@ public class Main extends SimpleApplication {
                     shadows = new com.jme3.shadow.PointLightShadowFilter(assetManager, SHADOW_MAP);
                     shadows.setShadowIntensity(0.6f);
                     shadows.setEdgeFilteringMode(com.jme3.shadow.EdgeFilteringMode.PCF4);
-                    // LES ZEBRURES SUR LES TEXTURES : une surface eclairee se projette sur
-                    // ELLE-MEME. La carte d'ombres mesure la distance a la lumiere par
-                    // echantillons ; sur un mur vu de biais, deux pixels voisins tombent dans
-                    // le meme echantillon, et l'un se croit derriere l'autre. D'ou des bandes
-                    // claires et sombres alternees, qui suivent l'inclinaison de la surface.
+                    // LES FACES ARRIERE NE CONVIENNENT PAS A CE DECOR. C'est le remede
+                    // habituel aux zebrures — une surface qui se projette sur elle-meme —, mais
+                    // il suppose des volumes FERMES. Ici un mur est un simple quadrilatere a une
+                    // face : vu de la lampe, il n'a pas d'arriere, et ne rend donc RIEN dans la
+                    // carte d'ombres. Mesure : le filtre ne changeait plus que trois pixels sur
+                    // neuf cent mille — les ombres n'existaient pas.
                     //
-                    // On ne rend donc dans la carte d'ombres que les faces ARRIERE : le mur
-                    // qu'on voit n'y figure plus, il ne peut plus s'ombrer lui-meme, et ce qui
-                    // porte l'ombre reste le volume qui s'interpose.
-                    shadows.setRenderBackFacesShadows(true);
+                    // Les zebrures viennent de la lampe POSEE SUR L'OEIL : elle rasait le sol,
+                    // et deux pixels voisins d'une surface vue de biais tombent alors dans le
+                    // meme echantillon de la carte. Elle pend desormais au-dessus de la tete
+                    // (Lights3D.hangShadowLamp), ou elle regarde le sol d'assez haut pour que
+                    // chaque pixel ait son echantillon.
+                    shadows.setRenderBackFacesShadows(false);
                     shadows.setEnabled(false);
                     fpp.addFilter(shadows);
                 }
@@ -1456,6 +1459,12 @@ public class Main extends SimpleApplication {
         cam.setLocation(new Vector3f(player.worldX(), player.worldY(), player.worldZ()));
         if (lights3d != null) {                        // la source qui porte les ombres suit
             lights3d.carryTorch(player.worldX(), player.worldY(), player.worldZ());
+            // La lampe qui ombre pend plus haut, et le plafond de la piece lui sert de butee.
+            float plafond = Float.NaN;
+            if (levelSim != null && player.zone >= 0 && player.zone < levelSim.zones.length) {
+                plafond = -levelSim.zones[player.zone].roofH / 8192f;
+            }
+            lights3d.hangShadowLamp(player.worldX(), player.worldY(), player.worldZ(), plafond);
         }
         if (sky != null) {
             sky.setLocalTranslation(cam.getLocation());   // le ciel reste a l'infini

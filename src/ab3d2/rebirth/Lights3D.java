@@ -136,6 +136,26 @@ public final class Lights3D {
     private static final float TORCH_LEVEL = 0.22f;
     /** Sa portee, en unites jME : la piece autour de soi, pas au-dela. */
     private static final float TORCH_RADIUS = 22f;
+    /**
+     * LA LAMPE QUI PORTE LES OMBRES — et rien d'autre.
+     *
+     * <p>Elle n'est dans AUCUNE scene : le filtre d'ombres ne lui demande qu'une position et
+     * une portee, pour en tirer ses six faces de carte. Elle n'eclaire donc rien, et ne coute
+     * pas une passe de lumiere.
+     *
+     * <p>Elle est separee de la torche parce qu'une source POSEE SUR L'OEIL ne porte aucune
+     * ombre visible : tout ce qu'elle eclaire lui fait face, et le peu qu'elle occulte se cache
+     * pile derriere ce qui l'occulte. Mesure a l'appui — le filtre ne changeait que TROIS
+     * pixels sur neuf cent mille. Celle-ci se tient au-dessus de la tete, comme une lampe de
+     * plafond : les ombres tombent alors sur le sol tout autour, la ou on les voit.
+     */
+    private PointLight shadowLamp;
+    /** De combien elle surplombe l'oeil, en unites jME. */
+    private static final float LAMP_ABOVE = 1.8f;
+    /** Ce qu'elle garde sous le plafond : collee dessus, elle passerait de l'autre cote. */
+    private static final float LAMP_UNDER_ROOF = 0.4f;
+    /** Sa portee : la piece entiere, sinon les ombres s'arretent net a mi-sol. */
+    private static final float LAMP_REACH = 34f;
     private final PointLight[] dyn = new PointLight[DYNAMIC];
     private AmbientLight ambient;
     private int nextDyn;
@@ -535,14 +555,39 @@ public final class Lights3D {
         }
     }
 
-    /** La source qui porte les ombres, ou {@code null}. */
+    /**
+     * OU PEND LA LAMPE QUI OMBRE. A appeler une fois par image, avec le plafond de la piece.
+     *
+     * <p>Au-dessus de la tete, mais sous le plafond : passee de l'autre cote, elle verrait la
+     * piece par le dessus d'une surface qui lui tourne le dos, et TOUT y serait dans l'ombre.
+     *
+     * @param plafond hauteur du plafond en unites jME, ou {@code Float.NaN} si on l'ignore
+     */
+    public void hangShadowLamp(float x, float y, float z, float plafond) {
+        if (shadowLamp == null) {
+            shadowLamp = new PointLight();            // jamais ajoutee a la scene : voir plus haut
+            shadowLamp.setColor(ColorRGBA.Black);
+            shadowLamp.setRadius(LAMP_REACH);
+        }
+        float h = y + LAMP_ABOVE;
+        if (!Float.isNaN(plafond)) {
+            h = Math.min(h, plafond - LAMP_UNDER_ROOF);
+            h = Math.max(h, y);                        // un couloir ecrase : on reste a l'oeil
+        }
+        shadowLamp.setPosition(new Vector3f(x, h, z));
+    }
+
+    /** La source qui porte les ombres. Elle n'eclaire pas : elle ne fait que les poser. */
     public PointLight shadowSource() {
-        return torch != null ? torch : shadowLight;
+        if (shadowLamp == null) {
+            hangShadowLamp(0f, 0f, 0f, Float.NaN);
+        }
+        return shadowLamp;
     }
 
     /** Vrai si une source alimente la lumiere ombree cette frame. */
     public boolean hasShadowSource() {
-        return torch != null || shadowUsed;
+        return true;                                   // la lampe qui ombre existe toujours
     }
 
     public int lampCount() {
