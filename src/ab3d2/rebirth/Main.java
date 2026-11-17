@@ -127,6 +127,8 @@ public class Main extends SimpleApplication {
     /** Zone dont la lampe est actuellement posee sur la vue de l'arme. */
     private int weaponLitZone = Integer.MIN_VALUE;
     private com.jme3.post.filters.BloomFilter bloom;
+    /** Le brouillard de distance, ou {@code null} avec -Pnofog. */
+    private FogFilter fog;
     private com.jme3.post.ssao.SSAOFilter ssao;
     /** Vrai tant qu'un ecran de texte est affiche : la simulation est alors a l'arret. */
     private boolean inStory;
@@ -313,6 +315,23 @@ public class Main extends SimpleApplication {
                 // OPTIONS ne l'allume pas : l'ajouter apres coup demanderait de refaire le FPP.
                 ssao = new com.jme3.post.ssao.SSAOFilter(0.9f, 1.6f, 0.28f, 0.28f);
                 fpp.addFilter(ssao);
+            }
+            // BROUILLARD DE DISTANCE.
+            //
+            // Le jeu d'origine n'en avait pas : ses couloirs s'arretent net sur un mur
+            // peint, et la profondeur ne se lit qu'a la taille des choses. Un fond qui
+            // s'enfonce dans le noir la rend LISIBLE -- on devine qu'il y a plus loin
+            // avant de le voir --, et c'est ce qu'un decor sombre demande.
+            //
+            // Sa teinte n'est pas le noir pur : un brouillard noir DECOUPE les silhouettes
+            // au lieu de les fondre. Un gris tres sombre, legerement froid, les mange
+            // proprement.
+            if (System.getProperty("rebirth.nofog") == null) {
+                fog = new FogFilter();
+                fog.setRange(Float.parseFloat(System.getProperty("rebirth.fogstart", "26")),
+                        Float.parseFloat(System.getProperty("rebirth.fogend", "95")));
+                fog.setFrustum(cam.getFrustumNear(), cam.getFrustumFar());
+                fpp.addFilter(fog);
             }
             // Dematerialisation : post-traitement, inactif tant que le compteur est a zero.
             if (Assets.exists("fx/shimmer.png")) {

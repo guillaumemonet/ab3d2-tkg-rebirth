@@ -1,0 +1,34 @@
+// BROUILLARD DE DISTANCE, le ciel epargne.
+//
+// Celui de jME (Common/MatDefs/Post/Fog.j3md) ne sait pas s'arreter au plan lointain : le ciel
+// y est a la profondeur maximale, donc noye a coup sur, et le decor de fond disparait avec lui.
+// Celui-ci passe la main des que la profondeur touche le fond.
+//
+//   Texture   : l'image deja rendue (fournie par le FilterPostProcessor)
+//   DepthTexture : sa profondeur
+//   FogColor  : la couleur vers laquelle le lointain se fond
+//   FogStart  : la distance, en unites du monde, ou le brouillard commence
+//   FogEnd    : celle ou il est complet
+//   Near/Far  : les plans de la camera, pour remettre la profondeur en unites du monde
+MaterialDef Fog {
+
+    MaterialParameters {
+        Int NumSamples
+        Int NumSamplesDepth
+        Texture2D Texture
+        Texture2D DepthTexture
+        Color FogColor
+        Float FogStart
+        Float FogEnd
+        Float Near
+        Float Far
+    }
+
+    Technique {
+        VertexShader   GLSL100 GLSL150 : Common/MatDefs/Post/Post.vert
+        FragmentShader GLSL100 GLSL150 : Shaders/Fog.frag
+
+        WorldParameters {
+        }
+    }
+}
