@@ -2459,6 +2459,72 @@ public final class LevelBuilder {
         }
     }
 
+    /**
+     * LA TEINTE D'UNE BALLE, PRISE SUR SON PROPRE GRAPHIQUE.
+     *
+     * <p>Le jeu ne dit nulle part de quelle couleur une balle eclaire : il n'avait pas
+     * de lumiere du tout, seulement une luminosite a ajouter au light map. On la lit
+     * donc sur l'image : la moyenne de ses pixels opaques, ramenee a pleine valeur pour
+     * ne garder que la TEINTE -- un tir de blaster eclaire vert, une roquette orange.
+     *
+     * <p>Une teinte par planche de sprites suffit : les images d'une meme balle ne
+     * different que par la forme.
+     */
+    public ColorRGBA shotTint(ab3d2.full.sim.Shots.Shot s) {
+        String sheet = glf == null ? null : glf.spriteSheet(s.sheet);
+        if (sheet == null) {
+            return ColorRGBA.White;
+        }
+        ColorRGBA connue = shotTints.get(sheet);
+        if (connue != null) {
+            return connue;
+        }
+        BufferedImage img = Assets.image(
+                String.format("textures/objects/%s/frame_00.png", sheet));
+        ColorRGBA c = moyenneOpaque(img);
+        shotTints.put(sheet, c);
+        return c;
+    }
+
+    private final Map<String, ColorRGBA> shotTints = new HashMap<>();
+
+    /** Moyenne des pixels opaques, ramenee a pleine valeur : la teinte, pas l'intensite. */
+    private static ColorRGBA moyenneOpaque(BufferedImage img) {
+        if (img == null) {
+            return ColorRGBA.White;
+        }
+        long r = 0;
+        long v = 0;
+        long bl = 0;
+        int n = 0;
+        for (int y = 0; y < img.getHeight(); y++) {
+            for (int x = 0; x < img.getWidth(); x++) {
+                int p = img.getRGB(x, y);
+                if ((p >>> 24) < 128) {
+                    continue;
+                }
+                r += (p >> 16) & 0xFF;
+                v += (p >> 8) & 0xFF;
+                bl += p & 0xFF;
+                n++;
+            }
+        }
+        if (n == 0) {
+            return ColorRGBA.White;
+        }
+        float fr = r / (float) n;
+        float fv = v / (float) n;
+        float fb = bl / (float) n;
+        float max = Math.max(1f, Math.max(fr, Math.max(fv, fb)));
+        // On relache la teinte vers le blanc : une lumiere pur vert mange la texture
+        // qu'elle eclaire, alors qu'une lumiere teintee la colore.
+        float melange = 0.35f;
+        return new ColorRGBA(
+                fr / max * (1f - melange) + melange,
+                fv / max * (1f - melange) + melange,
+                fb / max * (1f - melange) + melange, 1f);
+    }
+
     /** Retire de la scene un objet ramasse (ObjT_ZoneID_w = -1 cote simulation). */
     public void removeObject(LevelData.Obj o) {
         Geometry g = objectGeometries.get(o);

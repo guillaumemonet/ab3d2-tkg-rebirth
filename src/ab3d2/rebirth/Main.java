@@ -932,7 +932,9 @@ public class Main extends SimpleApplication {
             bloom.setEnabled(options.bloom);
         }
         if (ssao != null) {
-            ssao.setEnabled(options.ambientOcclusion);
+            // -Pssao force l'occlusion ambiante, pour la mesurer sans passer par le menu.
+            ssao.setEnabled(options.ambientOcclusion
+                    || System.getProperty("rebirth.ssao") != null);
         }
         if (audio != null) {
             audio.setVolumes(options.musicGain(), options.soundGain());
@@ -1149,6 +1151,7 @@ public class Main extends SimpleApplication {
             builder.setVisibleFrom(freeCam ? -1 : player.zone); // tri de visibilite de la frame
             applyAnimatedGeometry();
             builder.updateShots(shots.shots());
+            eclairerTirs();
             builder.updateAliens();
             builder.updateWater(simFrames);
             if (hud != null) {
@@ -1213,6 +1216,59 @@ public class Main extends SimpleApplication {
         }
         captureShot();
     }
+
+    /**
+     * CHAQUE PROJECTILE EN VOL EST UNE LUMIERE.
+     *
+     * <p>Le jeu d'origine n'en allumait que quelques-uns -- ceux dont le pas
+     * d'animation porte une luminosite --, et il ne s'agissait meme pas d'une lumiere :
+     * il ajoutait une valeur au light map des points alentour. Les balles ordinaires,
+     * elles, ne faisaient rien du tout.
+     *
+     * <p>Ici toutes eclairent, de leur propre couleur, et la simulation n'en sait rien :
+     * elle n'a pas bouge d'une ligne. Celles dont le jeu donne deja la luminosite la
+     * gardent -- c'est elle qui passe par DynLights3D pendant la simulation --, les
+     * autres recoivent ce qu'il faut pour se voir sur un mur.
+     *
+     * <p>DOUZE SOURCES EN TOUT : le ring de Lights3D garde les dernieres. Les
+     * projectiles sont rarement plus nombreux, et les plus recents sont ceux qu'on
+     * regarde.
+     */
+    private void eclairerTirs() {
+        if (lights3d == null || shots == null || player == null) {
+            return;
+        }
+        int vivants = 0;
+        for (ab3d2.full.sim.Shots.Shot s : shots.shots()) {
+            if (!s.active) {
+                continue;
+            }
+            vivants++;
+            if (s.brightness != 0) {
+                continue;                          // le jeu l'allume deja, a sa valeur
+            }
+            lights3d.flash((s.x >> 16) / 64f, -s.heightWord / 64f, -(s.z >> 16) / 64f,
+                    BALLE_LUMIERE, builder.shotTint(s));
+        }
+        // LA BOUCHE DU CANON. Un tir qui part eclaire la piece le temps d'une image :
+        // c'est ce qu'on voit d'une arme, bien plus que la balle elle-meme. On le
+        // reconnait a l'apparition d'un projectile de plus que l'image d'avant.
+        if (vivants > tirsVivants) {
+            lights3d.flash(player.worldX(), player.worldY(), player.worldZ(),
+                    BOUCHE_LUMIERE, BOUCHE_TEINTE);
+        }
+        tirsVivants = vivants;
+    }
+
+    /** Ce qu'une balle ordinaire eclaire (echelle de Lights3D.flash : 0 a 40). */
+    private static final int BALLE_LUMIERE = 16;
+    /** Ce que le depart du coup eclaire, le temps d'une image. */
+    private static final int BOUCHE_LUMIERE = 30;
+    /** Sa teinte : la flamme, pas la balle. */
+    private static final com.jme3.math.ColorRGBA BOUCHE_TEINTE =
+            new com.jme3.math.ColorRGBA(1f, 0.86f, 0.62f, 1f);
+    /** Combien de projectiles volaient a l'image d'avant (depart de coup). */
+    private int tirsVivants;
 
     /**
      * -Pshot=N : capture a la frame N puis quitte (validation visuelle).
