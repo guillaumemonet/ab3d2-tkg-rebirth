@@ -2,7 +2,7 @@ package ab3d2.rebirth;
 
 import com.jme3.math.ColorRGBA;
 
-import ab3d2.rebirth.sim.DynLight;
+import ab3d2.full.sim.DynLight;
 
 /**
  * Les lumieres dynamiques du jeu, rendues par le MOTEUR : un projectile lumineux, une explosion

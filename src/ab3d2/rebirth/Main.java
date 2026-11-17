@@ -15,14 +15,14 @@ import com.jme3.math.Vector3f;
 import com.jme3.scene.Node;
 import com.jme3.system.AppSettings;
 
-import ab3d2.rebirth.sim.Aliens;
-import ab3d2.rebirth.sim.Anims;
-import ab3d2.rebirth.sim.LevelSim;
-import ab3d2.rebirth.sim.Los;
-import ab3d2.rebirth.sim.Nav;
-import ab3d2.rebirth.sim.PlayerSim;
-import ab3d2.rebirth.sim.Shots;
-import ab3d2.rebirth.sim.SinCos;
+import ab3d2.full.sim.Aliens;
+import ab3d2.full.sim.Anims;
+import ab3d2.full.sim.LevelSim;
+import ab3d2.full.sim.Los;
+import ab3d2.full.sim.Nav;
+import ab3d2.full.sim.PlayerSim;
+import ab3d2.full.sim.Shots;
+import ab3d2.full.SinCos;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -55,7 +55,7 @@ public class Main extends SimpleApplication {
     private LevelSim levelSim;
     private PlayerSim player;
     private Anims anims;
-    private ab3d2.rebirth.sim.ObjectRuntime objects;
+    private ab3d2.full.sim.ObjectRuntime objects;
     private Shots shots;
     private Aliens monsters;
     private Nav nav;
@@ -70,9 +70,19 @@ public class Main extends SimpleApplication {
     private Hud hud;
     private Sfx audio;
     /** File des bruitages demandes par la simulation pendant la frame. */
-    private final ab3d2.rebirth.sim.SfxQueue sfxQueue = new ab3d2.rebirth.sim.SfxQueue();
+    /**
+     * LA SIMULATION, montee d'un seul tenant.
+     *
+     * <p>Elle vient de {@code full}, ou elle a ete eprouvee contre le portage litteral. Le
+     * remake ne la refait pas : il la regarde tourner et la dessine. Ses divergences a lui —
+     * la visee par pente, la souris, la camera libre — passent par ce qu'il MET dedans, pas
+     * par une fourche de son code.
+     */
+    private ab3d2.full.sim.World sim;
+
+    private ab3d2.full.sim.SfxQueue sfxQueue = new ab3d2.full.sim.SfxQueue();
     /** File des messages de narration poussee par la simulation. */
-    private final ab3d2.rebirth.sim.Messages msgQueue = new ab3d2.rebirth.sim.Messages();
+    private ab3d2.full.sim.Messages msgQueue = new ab3d2.full.sim.Messages();
     private Node levelNode;
     /** Etat de la partie : en jeu, dematerialisation de sortie, ou mort. */
     private enum State { PLAYING, EXITING, DEAD }
@@ -148,7 +158,6 @@ public class Main extends SimpleApplication {
     private final Map<String, Boolean> keys = new HashMap<>();
     private float lookX;                  // accumulateur souris horizontal (unites d'angle)
     private float pitch = Float.parseFloat(System.getProperty("rebirth.pitch", "0"));
-    private boolean prevAction;
     /** Mode demo (validation auto) : avance tout droit, action maintenue. */
     private final boolean demo = System.getProperty("rebirth.demo") != null;
     /** Validation visuelle : garde la gachette enfoncee (-Pfire). */
@@ -304,7 +313,7 @@ public class Main extends SimpleApplication {
      * Charge (ou recharge) un niveau : geometrie, simulation et entites. {@code carry} est
      * l'inventaire a conserver d'un niveau a l'autre (null = nouvelle partie, DEFAULTGAME).
      */
-    private boolean loadLevel(String letter, ab3d2.rebirth.sim.Inventory carry) {
+    private boolean loadLevel(String letter, ab3d2.full.sim.Inventory carry) {
         levelLetterCur = letter.toUpperCase();
         level = Assets.json("levels/" + levelLetterCur + ".json", LevelData.class);
         if (level == null) {
@@ -374,65 +383,44 @@ public class Main extends SimpleApplication {
         if (freeCam) {
             initFreeCam();
         } else {
-            levelSim = LevelSim.of(level);
-            player = new PlayerSim(levelSim, level, SinCos.load());
-            anims = new Anims(levelSim, level);
-            objects = new ab3d2.rebirth.sim.ObjectRuntime(levelSim, level, glf);
+            // LA SIMULATION VERIFIEE, montee d'un coup. Tout ce que le remake assemblait a
+            // la main — la collision, les portes, les objets, les balles, les monstres, et
+            // les files de son et de texte qui les relient — tient dans World, dans l'ORDRE
+            // que la boucle d'origine leur donne. Cet ordre n'est pas un detail : un monstre
+            // riposterait une image plus tard, une porte se refermerait avant d'etre franchie.
+            //
+            // Le remake garde son JSON pour la GEOMETRIE 3D ; la simulation lit les fichiers
+            // d'origine. simParity prouve que les deux decrivent le meme niveau.
+            sim = new ab3d2.full.sim.World(
+                    ab3d2.full.Data.level(Character.toLowerCase(levelLetterCur.charAt(0))),
+                    ab3d2.full.Data.database());
+            levelSim = sim.lvl;
+            player = sim.player;
+            anims = sim.anims;
+            objects = sim.objects;
+            shots = sim.shots;
+            monsters = sim.aliens;
+            nav = sim.nav;
+            sfxQueue = sim.sfx;
+            msgQueue = sim.messages;
             if (carry != null) {
                 objects.inventory.copyFrom(carry); // on emporte armes, munitions et sante
-            } else {
-                objects.inventory.defaultGame(glf); // DEFAULTGAME : 200 de sante, fusil + 20 cartouches
-            }
+            }                                      // sinon World a deja donne DEFAULTGAME
             if (System.getProperty("rebirth.health") != null) {
                 objects.inventory.consumables[0] = Integer.getInteger("rebirth.health", 200);
             }
             if (System.getProperty("rebirth.gun") != null && glf != null) {
                 // Debug (-Pgun=N) : on donne l'arme demandee et de quoi tirer, comme le harnais
                 // de test du portage (LevelTest remplit Plr1_AmmoCounts_vw).
-                objects.inventory.items[ab3d2.rebirth.sim.Inventory.WEAPON_START + gun] = 0xFF;
+                objects.inventory.items[ab3d2.full.sim.Inventory.WEAPON_START + gun] = 0xFF;
                 GlfData.Gun g = glf.gun(gun);
                 if (g != null) {
                     objects.inventory.setAmmo(g.bulletType, 1000);
                 }
             }
-            shots = new Shots(levelSim, glf, SinCos.load());
-            geometry.attachChild(builder.buildShots(Shots.POOL));
-            nav = new Nav(level);
-            Los los = new Los(levelSim, level);
-            monsters = new Aliens(levelSim, level, glf, SinCos.load(), nav, los);
-            shots.los = los;                      // le souffle ne traverse pas les murs
-            shots.nav = nav;
-            monsters.shots = shots;               // gerbe de morceaux a la mort
-            player.inventory = objects.inventory;  // le jetpack et son carburant y vivent
-            player.collide = new ab3d2.rebirth.sim.Collide(levelSim, level, glf);
-            player.collide.aliens = monsters;      // on bute sur les monstres et le decor solide
+            geometry.attachChild(builder.buildShots(ab3d2.full.sim.Shots.POOL));
             geometry.attachChild(builder.buildAliens(monsters.aliens(), level));
-            shots.setTargets(monsters);           // les balles du joueur touchent les monstres
-            shots.setPlayer(player);              // ... et celles des monstres touchent le joueur
-            monsters.setFire(shots::fireAtPlayer);
-            // Bruitages : la simulation empile les evenements, le rendu les joue.
-            objects.sfx = sfxQueue;
-            objects.messages = msgQueue;
             monsters.messages = msgQueue;
-            player.sfx = sfxQueue;
-            if (glf != null && glf.floorData != null) {   // GLFT_FloorData : pas + sols toxiques
-                for (GlfData.Floor f : glf.floorData) {
-                    if (f.index >= 0 && f.index < 16) {
-                        player.floorDamage[f.index] = f.damage;
-                        player.floorSfx[f.index] = f.sfx;
-                    }
-                }
-            }
-            shots.sfx = sfxQueue;
-            monsters.sfx = sfxQueue;
-            anims.sfx = sfxQueue;
-            anims.nav = nav;
-            if (glf != null && glf.ambientSfx != null) {  // GLFT_AmbientSFX_l : bruits d'ambiance
-                anims.ambientSfx = new int[glf.ambientSfx.size()];
-                for (int i = 0; i < anims.ambientSfx.length; i++) {
-                    anims.ambientSfx[i] = glf.ambientSfx.get(i);
-                }
-            }
             if (audio != null) {
                 // Lvl_MusicPtr_l : la meme musique pour tous les niveaux ; PLAY MUSIC la coupe.
                 if (options.on(ab3d2.rebirth.menu.Options.PLAY_MUSIC)) {
@@ -451,11 +439,10 @@ public class Main extends SimpleApplication {
             // Lumieres dynamiques (plasma/roquette en vol, explosions, torches) : de vraies
             // PointLight en rendu MOTEUR, l'ecriture dans le light map — et la reconstruction
             // des tampons de sommets derriere — uniquement en -Pretro.
-            ab3d2.rebirth.sim.DynLight dl = builder.modern() && lights3d != null
+            ab3d2.full.sim.DynLight dl = builder.modern() && lights3d != null
                     ? new DynLights3D(lights3d) : builder.dynLights();
             shots.dynLight = dl;
             monsters.dynLight = dl;
-            anims.run();                          // pose les toits/sols initiaux des portes et lifts
             player.look(Integer.getInteger("rebirth.angle", 0));
             String spawn = firstLoad ? System.getProperty("rebirth.spawn") : null;
             firstLoad = false;
@@ -466,7 +453,7 @@ public class Main extends SimpleApplication {
                 player.zone = Integer.parseInt(sp[2].trim());
                 int floorH = levelSim.zones[player.zone].floorH;
                 player.yOff = player.snapYOff = player.snapTYOff =
-                        floorH - ab3d2.rebirth.sim.PlayerSim.PLR_STAND_HEIGHT;
+                        floorH - ab3d2.full.sim.PlayerSim.PLR_STAND_HEIGHT;
             }
             // La carte appartient au NIVEAU : elle se vide en changeant de niveau, comme le
             // jeu qui remet Lvl_CompactMap_vl a zero au chargement (hires.s).
@@ -1054,7 +1041,7 @@ public class Main extends SimpleApplication {
                 case QUIT -> stop();
                 case PLAY -> {
                     String letter = String.valueOf((char) ('A' + menu.level()));
-                    ab3d2.rebirth.sim.Inventory carry = menu.pendingInventory();
+                    ab3d2.full.sim.Inventory carry = menu.pendingInventory();
                     menu.clearOutcome();
                     if (!letter.equals(levelLetterCur) || carry != null) {
                         loadLevel(letter, carry);
@@ -1135,12 +1122,18 @@ public class Main extends SimpleApplication {
                 }
             }
             if (audio != null) {
-                for (ab3d2.rebirth.sim.SfxQueue.Event e : sfxQueue.drain()) {
-                    if (e.positional) {
-                        audio.playAtWorld(e.num, e.x, e.z, e.height);
-                    } else {
+                for (ab3d2.full.sim.SfxQueue.Event e : sfxQueue.drain()) {
+                    if (e.place == ab3d2.full.sim.SfxQueue.Place.VIEW) {
                         audio.play(e.num);
+                        continue;
                     }
+                    // Le jeu d'origine ne situe un bruit que par son ABSCISSE et sa
+                    // PROFONDEUR : sa stereo n'est qu'un panoramique, et aucune routine ne
+                    // transmet de hauteur. Le remake, lui, place ses sources en trois
+                    // dimensions ; on les pose donc a hauteur d'OREILLE. Le son garde ainsi
+                    // sa distance et son cote exacts, sans qu'une hauteur inventee le fasse
+                    // venir du sol ou du plafond.
+                    audio.playAtWorld(e.num, e.x, e.z, player == null ? 0 : player.yOff >> 8);
                 }
                 audio.update();
             }
@@ -1178,7 +1171,10 @@ public class Main extends SimpleApplication {
                 builder.lights().beginFrame();         // -Pretro seulement (recopie 8000 mots)
             }
         }
-        player.beginFrame(1);                          // plr1_OldX_l : sert a XDiff/ZDiff
+        // CE QUE LE JOUEUR DEMANDE pendant cette image. La simulation le prend d'un bloc :
+        // c'est la seule chose que le remake lui donne, et c'est par la que passent ses
+        // divergences a lui — la souris, la visee par pente, la camera libre.
+        ab3d2.full.sim.World.Input vouloir = new ab3d2.full.sim.World.Input();
         // plr_MouseControl : la souris pilote l'angle (unites entieres, pair via AMOD_A)
         // TURN LEFT / TURN RIGHT : la meme entree que la souris, au clavier.
         if (key("turnLeft")) {
@@ -1190,11 +1186,11 @@ public class Main extends SimpleApplication {
         int delta = (int) lookX;
         if (delta != 0) {
             lookX -= delta;
-            player.look(delta & ~1);
+            vouloir.turn += delta & ~1;                // AMOD_A : les angles sont PAIRS
         }
         if (lookBehindTap) {                           // LOOK BEHIND : demi-tour
             lookBehindTap = false;
-            player.look(4096);
+            vouloir.turn += 4096;
         }
         if (key("lookUp")) {
             pitch = FastMath.clamp(pitch + LOOK_SPEED, -1.4f, 1.4f);
@@ -1205,76 +1201,55 @@ public class Main extends SimpleApplication {
         if (key("centreView")) {
             pitch = 0f;
         }
-        player.forward = key("forward") || demo;
-        player.backward = key("backward");
+        vouloir.forward = key("forward") || demo;
+        vouloir.backward = key("backward");
         // FORCE S/S : la touche de pas chasse transforme la rotation clavier en deplacement
         // lateral, comme le « force sidestep » du jeu.
         boolean strafe = key("strafeMode");
-        player.stepLeft = key("left") || (strafe && key("turnLeft"));
-        player.stepRight = key("right") || (strafe && key("turnRight"));
-        player.run = key("run") || options.on(ab3d2.rebirth.menu.Options.ALWAYS_RUN);
-        player.jump = key("jump");
+        vouloir.stepLeft = key("left") || (strafe && key("turnLeft"));
+        vouloir.stepRight = key("right") || (strafe && key("turnRight"));
+        vouloir.run = key("run") || options.on(ab3d2.rebirth.menu.Options.ALWAYS_RUN);
+        vouloir.jump = key("jump");
         boolean duck = key("duck");
-        player.duckTap = duck && !prevDuck;            // clr.b (a5,d7.w) : un seul front
+        vouloir.duck = duck && !prevDuck;              // clr.b (a5,d7.w) : un seul front
         prevDuck = duck;
 
-        boolean action = key("action") || demo;
+        vouloir.action = key("action") || demo;
         if (System.getProperty("rebirth.noAction") != null) {
-            action = false;                            // test : rester a portee SANS actionner
+            vouloir.action = false;                    // test : rester a portee SANS actionner
         }
-        boolean tap = action && !prevAction;          // Plr1_TmpSpcTap_b : front montant
-        prevAction = action;
+        vouloir.fire = key("fire") || autoFire;
+        // La visee se transmet par la PENTE du rayon, pas par les lignes d'ecran du jeu :
+        // c'est elle qui fait suivre le rayon aux tirs, quelle que soit l'ouverture de la vue.
+        vouloir.aim = Math.round(FastMath.tan(pitch) * 100f);
 
-        player.keyboardControl();                      // intention (Snap*)
-        player.fall();                                 // Y : gravite / sol / plafond
-        player.control();                              // collision + zone -> position commise
+        // UNE IMAGE DE JEU, dans l'ordre de la boucle d'origine. Le remake l'ecrivait a la
+        // main et s'y etait trompe : il donnait aux portes le LONG ENTIER des verrous, dont
+        // DoorRoutine ne lit que le mot fort et LiftRoutine le mot faible — les portes se
+        // verrouillaient avec les cles des ascenseurs, et aucun ascenseur ne l'etait.
+        int santeAvant = objects.inventory.health();
+        sim.gun = gun;
+        sim.frame(vouloir);
 
-        // Ramassage : les objets encore au sol verrouillent les portes dont ils tiennent la cle.
-        int locks = objects.run(player, tap) | monsters.doorLocks();
-        if (locks != anims.doorLocks) {
-            System.out.printf("[verrous] portes verrouillees : 0x%04X -> 0x%04X%n",
-                    anims.doorLocks, locks);
-        }
-        anims.doorLocks = locks;
-        for (LevelData.Obj got : objects.collected()) {
-            builder.removeObject(got);
-            System.out.printf("[ramassage] %s -> sante %d, verrous 0x%04X%n",
-                    got.name, objects.inventory.health(), anims.doorLocks);
-        }
-        // objmoveanim : Plr1_Shot (cadence + tir) puis ObjectHandler (vol des balles).
-        shots.tempFrames = 1;
-        // La visee se transmet par la PENTE du rayon, pas par les lignes d'ecran du jeu : c'est
-        // elle qui fait suivre le rayon aux tirs, quelle que soit l'ouverture de la vue.
-        if (shots.fire(player, objects.inventory, gun, key("fire") || autoFire,
-                FastMath.tan(pitch))
-                && System.getProperty("rebirth.shotLog") != null) {
-            GlfData.Gun g = glf == null ? null : glf.gun(gun);
-            System.out.printf("[tir] %s : %d munitions restantes%n", g == null ? "?" : g.name,
-                    g == null ? 0 : objects.inventory.ammo(g.bulletType));
-        }
-        shots.update();
-
-        // objmoveanim -> ObjectHandler : les aliens (IA + animation) apres les balles.
-        monsters.tempFrames = 1;
-        monsters.run(player);
-
-        player.floorDamage();                          // sols toxiques (une frame sur cent)
-
-        // Plr1_Use : le joueur encaisse ce qu'il a pris pendant la frame.
-        int hurt = player.applyDamage(objects.inventory, nav);
-        if (hurt != 0) {
-            sfxQueue.play(19);                         // move.w #19,Aud_SampleNum_w (cri de douleur)
-            if (hud != null) {
-                hud.hurt(hurt);
+        for (ab3d2.full.sim.ObjectRuntime.Thing got : objects.collected()) {
+            // Le RANG fait le pont entre les deux lectures du niveau : la simulation compte
+            // les entites du fichier d'origine, le decor celles du json, et simParity prouve
+            // que les deux listes se suivent.
+            LevelData.Obj vu = got.rank < level.objects.size()
+                    ? level.objects.get(got.rank) : null;
+            if (vu != null) {
+                builder.removeObject(vu);
+                System.out.printf("[ramassage] %s -> sante %d, verrous 0x%04X%n",
+                        vu.name, objects.inventory.health(), anims.doorLocks);
             }
-            System.out.printf("[douleur] -%d -> sante %d%n", hurt, objects.inventory.health());
         }
-
-        anims.playerZone = player.zone;
-        anims.playerSpaceTap = tap;
-        anims.tempFrames = 1;
-        anims.run();                                   // objmoveanim : lifts puis portes
-        player.floorSpd = anims.playerFloorSpd;        // sol mobile sous le joueur
+        int perdu = santeAvant - objects.inventory.health();
+        if (perdu > 0) {
+            if (hud != null) {
+                hud.hurt(perdu);                       // l'ecran rougit : c'est au remake
+            }
+            System.out.printf("[douleur] -%d -> sante %d%n", perdu, objects.inventory.health());
+        }
         if (builder.lights() != null) {
             builder.lights().tick();                   // brightanim (une frame sur six)
         }
@@ -1433,7 +1408,7 @@ public class Main extends SimpleApplication {
         if (player.zone < 0 || player.zone >= levelSim.zones.length) {
             return 0;
         }
-        ab3d2.rebirth.sim.LevelSim.Zone z = levelSim.zones[player.zone];
+        ab3d2.full.sim.LevelSim.Zone z = levelSim.zones[player.zone];
         if (z.water >= z.floorH || player.stoodInTop) {
             return 0;                                  // zone non inondee
         }

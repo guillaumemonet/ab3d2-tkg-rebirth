@@ -101,6 +101,13 @@ def assetRoot = findAssetRoot()
 def assetsDir = new File(projectDir, 'assets')
 
 // Les options -P<nom> deviennent -Drebirth.<nom>. Un drapeau nu vaut '1'.
+// La simulation vient de `full` : elle lit les fichiers d'ORIGINE et ses tables. Toute
+// tache qui la fait tourner doit donc savoir ou ils sont.
+def origines = { JavaExec t ->
+    t.systemProperty 'ab3d2.media', new File(assetRoot, 'medias/original').absolutePath
+    t.systemProperty 'ab3d2.data', new File(projectDir, '../full/data').absolutePath
+}
+
 def flags = { JavaExec t, List<String> names ->
     names.each { n ->
         if (project.hasProperty(n)) {
@@ -113,6 +120,7 @@ def flags = { JavaExec t, List<String> names ->
 tasks.named('run') {
     workingDir = projectDir
     systemProperty 'rebirth.assets', assetsDir.absolutePath
+    origines(it)
     flags(it, [
         'level', 'shot', 'freecam', 'at', 'noAction', 'health', 'sfxLog', 'nosound',
         'stats', 'weaponLog', 'shimmer', 'deformLog', 'dynLog', 'shotLog', 'fire',
@@ -128,8 +136,7 @@ tasks.register('simParity', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'ab3d2.rebirth.SimParity'
     systemProperty 'rebirth.assets', assetsDir.absolutePath
-    systemProperty 'ab3d2.media', new File(assetRoot, 'medias/original').absolutePath
-    systemProperty 'ab3d2.data', new File(projectDir, '../full/data').absolutePath
+    origines(it)
     flags(it, ['level'])
 }
 
@@ -147,9 +154,12 @@ tasks.register('extract', JavaExec) {
 }
 
 // --- validations headless de la simulation (doivent afficher PASS) ---
-['moveTest': 'ab3d2.rebirth.sim.MoveTest',
- 'shotTest': 'ab3d2.rebirth.sim.ShotTest',
- 'alienTest': 'ab3d2.rebirth.sim.AlienTest'].each { name, cls ->
+// Les trois harnais de simulation sont ceux de `full` : c'est sa simulation qui tourne
+// desormais ici. Les garder sous le meme nom permet de comparer les deux projets d'une
+// commande a l'autre.
+['moveTest': 'ab3d2.full.sim.MoveTest',
+ 'shotTest': 'ab3d2.full.sim.ShotTest',
+ 'alienTest': 'ab3d2.full.sim.AlienTest'].each { name, cls ->
     tasks.register(name, JavaExec) {
         group = 'verification'
         description = "Teste la simulation sans fenetre ($name)"
@@ -157,6 +167,7 @@ tasks.register('extract', JavaExec) {
         mainClass = cls
         workingDir = projectDir
         systemProperty 'rebirth.assets', assetsDir.absolutePath
+        origines(it)
         flags(it, ['level', 'spawn', 'aiTrace', 'alienLog'])
     }
 }

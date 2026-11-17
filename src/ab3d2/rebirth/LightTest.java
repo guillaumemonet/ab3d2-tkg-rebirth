@@ -1,6 +1,6 @@
 package ab3d2.rebirth;
 
-import ab3d2.rebirth.sim.SinCos;
+import ab3d2.full.SinCos;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -67,7 +67,7 @@ public final class LightTest {
                 anim.advance();
             }
         }
-        LightRings r = LightRings.compute(zones, lvl.points, lvl.edges, SinCos.load(),
+        LightRings r = LightRings.compute(zones, lvl.points, lvl.edges, ab3d2.full.Data.sinCos(),
                 anim, x, z, zone);
 
         String spr = System.getProperty("rebirth.spr");
@@ -75,7 +75,7 @@ public final class LightTest {
             String[] q = spr.split(",");
             int viewAngle = Integer.parseInt(q[0].trim());
             int brightToAdd = Integer.parseInt(q[1].trim());
-            LightRings zr = LightRings.zoneOnly(zones, lvl.points, lvl.edges, SinCos.load(),
+            LightRings zr = LightRings.zoneOnly(zones, lvl.points, lvl.edges, ab3d2.full.Data.sinCos(),
                     anim, x, z, zone);
             StringBuilder rb = new StringBuilder("[sprite-anneau] bas= ");
             for (int i = 0; i < 16; i++) {

@@ -7,7 +7,7 @@ import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
 import com.jme3.texture.Texture2D;
 
-import ab3d2.rebirth.sim.Inventory;
+import ab3d2.full.sim.Inventory;
 
 /**
  * Le PANNEAU DE STATUT d'origine : le bandeau du bas de {@code newborderpacked}, avec ses dix

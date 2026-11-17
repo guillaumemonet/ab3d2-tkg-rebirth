@@ -107,7 +107,7 @@ public final class LevelBuilder {
 
     private java.util.Set<Integer> liftZones = java.util.Set.of();
     private java.util.Set<Integer> doorZones = java.util.Set.of();
-    private ab3d2.rebirth.sim.SinCos sinCos;        // table d'origine, pour l'angle des anneaux
+    private ab3d2.full.SinCos sinCos;        // table d'origine, pour l'angle des anneaux
     private int modelLevelMin = 99, modelLevelMax = -1;   // plage de niveaux des faces eclairees
     private LightAnim lights;
     private int refreshCount;
@@ -202,7 +202,7 @@ public final class LevelBuilder {
         }
         lights = new LightAnim(zonesById);             // lumieres animees (brightanim)
         if (sinCos == null) {
-            sinCos = ab3d2.rebirth.sim.SinCos.load();
+            sinCos = ab3d2.full.Data.sinCos();
         }
         dynLights = new DynLights(lvl, zonesById, lights, sinCos);   // projectiles, torches
         Node root = new Node("Level_" + lvl.level);
@@ -400,7 +400,7 @@ public final class LevelBuilder {
         }
         lights = new LightAnim(zonesById);
         if (sinCos == null) {
-            sinCos = ab3d2.rebirth.sim.SinCos.load();
+            sinCos = ab3d2.full.Data.sinCos();
         }
         dynLights = new DynLights(lvl, zonesById, lights, sinCos);
 
@@ -1354,7 +1354,7 @@ public final class LevelBuilder {
             return null;
         }
         if (sinCos == null) {
-            sinCos = ab3d2.rebirth.sim.SinCos.load();
+            sinCos = ab3d2.full.Data.sinCos();
         }
         return LightRings.zoneOnly(zonesById, level.points, level.edges, sinCos, lights,
                 o.x, o.z, o.zone);
@@ -1439,7 +1439,7 @@ public final class LevelBuilder {
         LightRings rings = null;
         if (!fullbright && !o.additive && level != null && level.points != null && level.edges != null) {
             if (sinCos == null) {
-                sinCos = ab3d2.rebirth.sim.SinCos.load();
+                sinCos = ab3d2.full.Data.sinCos();
             }
             rings = LightRings.compute(zonesById, level.points, level.edges, sinCos, lights,
                     o.x, o.z, o.zone);
@@ -1855,7 +1855,7 @@ public final class LevelBuilder {
 
     /** Lien entre une entite de la simulation et son panneau, avec son objet proxy eclaire. */
     private static final class AlienView {
-        final ab3d2.rebirth.sim.Aliens.Alien alien;
+        final ab3d2.full.sim.Aliens.Alien alien;
         final LevelData.Obj proxy;
         final Geometry geometry;
         /** Vrai pour une entite dessinee en MODELE et non en panneau (cf. buildAliens). */
@@ -1869,7 +1869,7 @@ public final class LevelBuilder {
         int auxFrame = -1;
         float auxOx = Float.NaN;
 
-        AlienView(ab3d2.rebirth.sim.Aliens.Alien a, LevelData.Obj o, Geometry g, boolean vector) {
+        AlienView(ab3d2.full.sim.Aliens.Alien a, LevelData.Obj o, Geometry g, boolean vector) {
             this.alien = a;
             this.proxy = o;
             this.geometry = g;
@@ -1885,13 +1885,13 @@ public final class LevelBuilder {
      * qui porte sa feuille/frame courante et sa position : c'est lui qu'on donne a la machinerie
      * d'eclairage des sprites deja en place (carte d'indices + palette + anneau directionnel).
      */
-    public Node buildAliens(List<ab3d2.rebirth.sim.Aliens.Alien> aliens, LevelData lvl) {
+    public Node buildAliens(List<ab3d2.full.sim.Aliens.Alien> aliens, LevelData lvl) {
         Node node = new Node("Aliens");
         aliensNode = node;
         // Monstres : panneaux billboardes, ils recoivent l'ombre sans projeter leur quad.
         node.setShadowMode(com.jme3.renderer.queue.RenderQueue.ShadowMode.Receive);
         alienViews.clear();
-        for (ab3d2.rebirth.sim.Aliens.Alien a : aliens) {
+        for (ab3d2.full.sim.Aliens.Alien a : aliens) {
             LevelData.Obj src = null;
             for (LevelData.Obj o : safe(lvl.objects)) {  // l'instance d'origine porte pal/lit/bright
                 if (o.typeId == 0 && o.x == a.x && o.z == a.z && o.zone == a.zone
@@ -2025,7 +2025,7 @@ public final class LevelBuilder {
 
     public void updateAliens() {
         for (AlienView v : alienViews) {
-            ab3d2.rebirth.sim.Aliens.Alien a = v.alien;
+            ab3d2.full.sim.Aliens.Alien a = v.alien;
             if (!a.alive || a.zone < 0 || !visible(a.zone)) {
                 if (v.vector && v.shown != 0) {        // un modele est rare : on suit son sort
                     v.shown = 0;
@@ -2104,7 +2104,7 @@ public final class LevelBuilder {
      * qui est exactement un decalage ecran, et de poser sa hauteur a {@code height + auxY}.
      * Comme dans le jeu, le decalage ne suit PAS le miroir du sprite du monstre.
      */
-    private void updateAux(AlienView v, ab3d2.rebirth.sim.Aliens.Alien a) {
+    private void updateAux(AlienView v, ab3d2.full.sim.Aliens.Alien a) {
         if (a.auxFrame < 0) {
             if (v.aux != null) {
                 v.aux.setCullHint(com.jme3.scene.Spatial.CullHint.Always);
@@ -2233,10 +2233,10 @@ public final class LevelBuilder {
      * pas d'animation courant et mode de melange (les « glares », GraphicType 1, ne sont pas
      * encore rendus : le jeu les dessine par une routine de halo dediee, sans bitmap).
      */
-    public void updateShots(List<ab3d2.rebirth.sim.Shots.Shot> shots) {
+    public void updateShots(List<ab3d2.full.sim.Shots.Shot> shots) {
         for (int i = 0; i < shotGeoms.size() && i < shots.size(); i++) {
             Geometry g = shotGeoms.get(i);
-            ab3d2.rebirth.sim.Shots.Shot s = shots.get(i);
+            ab3d2.full.sim.Shots.Shot s = shots.get(i);
             String sheet = s.active && glf != null ? glf.spriteSheet(s.sheet) : null;
             BufferedImage img = sheet == null ? null
                     : Assets.image(String.format("textures/objects/%s/frame_%02d.png", sheet, s.frame));

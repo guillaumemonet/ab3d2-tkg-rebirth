@@ -12,7 +12,7 @@ import java.util.List;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
-import ab3d2.rebirth.sim.Inventory;
+import ab3d2.full.sim.Inventory;
 
 /**
  * Les POSITIONS sauvegardees. Cinq emplacements, comme le jeu ({@code game_SavePosition} /

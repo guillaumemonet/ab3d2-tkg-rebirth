@@ -10,7 +10,7 @@ import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
 import com.jme3.scene.shape.Quad;
 
-import ab3d2.rebirth.sim.Inventory;
+import ab3d2.full.sim.Inventory;
 
 /**
  * Affichage de tête : santé, arme et munitions, messages, éclair de douleur.

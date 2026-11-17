@@ -3,9 +3,9 @@ package ab3d2.rebirth;
 import java.util.List;
 import java.util.Map;
 
-import ab3d2.rebirth.sim.DynLight;
-import ab3d2.rebirth.sim.M68k;
-import ab3d2.rebirth.sim.SinCos;
+import ab3d2.full.sim.DynLight;
+import ab3d2.full.M68k;
+import ab3d2.full.SinCos;
 
 /**
  * Lumieres DYNAMIQUES : port de {@code anim_BrightenPoints} (newanims.s:101) et de
@@ -249,7 +249,7 @@ public final class DynLights implements DynLight {
         int d7 = M68k.s16(pointZ[pt] - z);
         int d5 = d7 > 0 ? d7 : M68k.s16(-d7);
         int sin = M68k.s16(sinCos.value(angle));
-        int cos = M68k.s16(sinCos.value(angle + SinCos.COSINE_OFS));
+        int cos = M68k.s16(sinCos.value(angle + SinCos.COSINE_OFFSET));
         int dot = M68k.muls(cos, d7) + M68k.muls(sin, d6);
         if (dot <= 0) {
             return Integer.MIN_VALUE;                  // ble behind_point

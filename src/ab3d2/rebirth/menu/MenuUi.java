@@ -7,7 +7,7 @@ import com.jme3.asset.AssetManager;
 import com.jme3.scene.Node;
 
 import ab3d2.rebirth.GlfData;
-import ab3d2.rebirth.sim.Inventory;
+import ab3d2.full.sim.Inventory;
 
 /**
  * Le MENU du jeu : ses pages, son curseur, sa navigation.

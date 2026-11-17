@@ -30,7 +30,7 @@ public final class LevelData {
     /** Maillage de navigation de l'IA (Lvl_ControlPointCoordsPtr_l). */
     public int numControlPoints;
     public List<ControlPoint> controlPoints;
-    /** Tables « prochain saut » a pied / en vol, pas de 100 (cf. {@link ab3d2.rebirth.sim.Nav}). */
+    /** Tables « prochain saut » a pied / en vol, pas de 100 (cf. {@link ab3d2.full.sim.Nav}). */
     public List<Integer> walkLinks;
     public List<Integer> flyLinks;
     /** Points de decoupe des portails, par groupes : gauches, -1, droits, -2 (ligne de vue). */

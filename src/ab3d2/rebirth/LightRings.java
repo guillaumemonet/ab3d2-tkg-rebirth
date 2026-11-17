@@ -1,7 +1,7 @@
 package ab3d2.rebirth;
 
-import ab3d2.rebirth.sim.M68k;
-import ab3d2.rebirth.sim.SinCos;
+import ab3d2.full.M68k;
+import ab3d2.full.SinCos;
 
 import java.util.List;
 import java.util.Map;
