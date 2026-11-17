@@ -168,13 +168,24 @@ public class Main extends SimpleApplication {
     /** Images restantes avant que la souris ne compte. */
     private int mouseSettle = MOUSE_SETTLE;
 
+    /** Images restantes ou un ecart ENORME est encore tenu pour un artefact de saisie. */
+    private int mouseGuard = MOUSE_GUARD;
+
     /**
-     * L'ECART MAXIMAL qu'un mouvement de souris peut avoir en une image.
+     * L'ECART MAXIMAL qu'un mouvement de souris peut avoir JUSTE APRES UNE PRISE DE CURSEUR.
      *
-     * <p>Une main ne saute pas d'un bord de l'ecran a l'autre en un battement. Au-dela, c'est
-     * la saisie du curseur qui parle, ou la fenetre qui vient de reprendre le focus : on jette.
+     * <p>Attention a la portee de cette regle : un coup d'oeil rapide, lui, DEPASSE largement
+     * ce seuil, et c'est un geste parfaitement legitime. La jeter en toute circonstance
+     * revient a brider la visee — on ne peut plus se retourner d'un geste.
+     *
+     * <p>Le saut de saisie, lui, ne dure que le temps que le systeme recentre le curseur :
+     * quelques images. Le seuil ne vaut donc que pendant cette fenetre-la, et la souris est
+     * libre ensuite.
      */
     private static final float MOUSE_JUMP = 0.25f;
+
+    /** Combien d'images de plus le seuil ci-dessus reste actif apres la fin du silence. */
+    private static final int MOUSE_GUARD = 20;
     private float pitch = Float.parseFloat(System.getProperty("rebirth.pitch", "0"));
     /** Mode demo (validation auto) : avance tout droit, action maintenue. */
     private final boolean demo = System.getProperty("rebirth.demo") != null;
@@ -539,6 +550,7 @@ public class Main extends SimpleApplication {
         flyCam.setEnabled(false);
         inputManager.setCursorVisible(false);
         mouseSettle = MOUSE_SETTLE;         // la saisie va sauter : on l'ignore
+        mouseGuard = MOUSE_GUARD;
 
         // Les liaisons viennent de CONTROL OPTIONS ; les fleches restent cablees en plus, car
         // elles servent aussi a naviguer dans le menu (le jeu s'en sert de la meme facon :
@@ -649,7 +661,7 @@ public class Main extends SimpleApplication {
         inputManager.addMapping("lookUp", new MouseAxisTrigger(MouseInput.AXIS_Y, false));
         inputManager.addMapping("lookDown", new MouseAxisTrigger(MouseInput.AXIS_Y, true));
         AnalogListener onMouse = (name, value, tpf) -> {
-            if (mouseSettle > 0 || value > MOUSE_JUMP) {
+            if (mouseSettle > 0 || (mouseGuard > 0 && value > MOUSE_JUMP)) {
                 return;                                // saisie du curseur, pas un geste
             }
             switch (name) {
@@ -748,6 +760,7 @@ public class Main extends SimpleApplication {
         }
         inputManager.setCursorVisible(false);
         mouseSettle = MOUSE_SETTLE;         // la saisie va sauter : on l'ignore
+        mouseGuard = MOUSE_GUARD;
     }
 
     /** L'ecran de texte affiche est celui de FIN : on rend la main au menu en le fermant. */
@@ -955,6 +968,7 @@ public class Main extends SimpleApplication {
         }
         inputManager.setCursorVisible(false);
         mouseSettle = MOUSE_SETTLE;         // la saisie va sauter : on l'ignore
+        mouseGuard = MOUSE_GUARD;
     }
 
     /** 'A'..'P' -> 0..15. */
@@ -1011,6 +1025,15 @@ public class Main extends SimpleApplication {
 
     @Override
     public void simpleUpdate(float tpf) {
+        // LA FENETRE VIENT DE REPRENDRE LA MAIN. On ne peut pas le demander a jME, mais une
+        // image qui a dure un quart de seconde ne peut etre qu'une pause : l'application
+        // etait derriere une autre, ou minimisee. Le curseur a bouge pendant ce temps-la, et
+        // le systeme va livrer tout l'ecart d'un coup. On remet donc la souris au silence,
+        // comme apres n'importe quelle prise.
+        if (tpf > 0.25f) {
+            mouseSettle = MOUSE_SETTLE;
+            mouseGuard = MOUSE_GUARD;
+        }
         if (fpsLog) {                                  // -PfpsLog : cout reel d'une frame
             if (fpsFrames == 0 && fpsAccum == 0f) {
                 renderer.getStatistics().setEnabled(true);   // sinon elles restent a zero
@@ -1198,6 +1221,8 @@ public class Main extends SimpleApplication {
         if (mouseSettle > 0) {
             mouseSettle--;
             lookX = 0;                                 // et ce qui serait deja tombe dedans
+        } else if (mouseGuard > 0) {
+            mouseGuard--;
         }
         if (state != State.PLAYING) {
             checkEndOfLevel();                         // le jeu d'origine QUITTE la boucle : on gele
