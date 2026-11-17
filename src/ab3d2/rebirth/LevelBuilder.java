@@ -1045,21 +1045,94 @@ public final class LevelBuilder {
      * une normale dans le monde, le shader a besoin de la tangente, c'est-a-dire de la
      * direction que suit U sur la surface. Sans elle, le relief part n'importe ou.
      *
-     * <p>On verifie que le generateur n'a pas AJOUTE de sommets : la table d'eclairage est
-     * indexee par sommet, et un maillage qui grossit derriere son dos la desynchronise.
+     * <p>Calculee ICI et non par {@code TangentBinormalGenerator} de jME, pour deux
+     * raisons. Il peut AJOUTER des sommets, et la table d'eclairage etant indexee par
+     * sommet, un maillage qui grossit derriere son dos la desynchronise. Et il rend une
+     * tangente NULLE sur les pans de hauteur nulle qu'on garde pour les portes grandes
+     * ouvertes -- il le dit lui-meme, << Shared tangent is zero for vertex >> --, ce qui
+     * fausse le relief de leurs voisins. Ici un sommet qu'aucun triangle utile ne touche
+     * recoit une tangente quelconque, perpendiculaire a sa normale.
      */
     private static void tangentes(com.jme3.scene.Mesh mesh) {
-        if (mesh == null || mesh.getBuffer(com.jme3.scene.VertexBuffer.Type.Tangent) != null
-                || mesh.getBuffer(com.jme3.scene.VertexBuffer.Type.TexCoord) == null) {
+        if (mesh == null || mesh.getBuffer(com.jme3.scene.VertexBuffer.Type.Tangent) != null) {
             return;
         }
-        int avant = mesh.getVertexCount();
-        com.jme3.util.TangentBinormalGenerator.generate(mesh);
-        if (mesh.getVertexCount() != avant) {
-            System.err.printf("[relief] AVERTISSEMENT : le maillage est passe de %d a %d"
-                    + " sommets, l'eclairage par sommet ne suit plus%n",
-                    avant, mesh.getVertexCount());
+        java.nio.FloatBuffer pos = mesh.getFloatBuffer(com.jme3.scene.VertexBuffer.Type.Position);
+        java.nio.FloatBuffer uv = mesh.getFloatBuffer(com.jme3.scene.VertexBuffer.Type.TexCoord);
+        java.nio.FloatBuffer nor = mesh.getFloatBuffer(com.jme3.scene.VertexBuffer.Type.Normal);
+        com.jme3.scene.mesh.IndexBuffer idx = mesh.getIndexBuffer();
+        if (pos == null || uv == null || nor == null || idx == null) {
+            return;
         }
+        int n = mesh.getVertexCount();
+        float[] tx = new float[n];
+        float[] ty = new float[n];
+        float[] tz = new float[n];
+        for (int t = 0; t + 2 < idx.size(); t += 3) {
+            int a = idx.get(t);
+            int c = idx.get(t + 1);
+            int d = idx.get(t + 2);
+            float u1 = uv.get(c * 2) - uv.get(a * 2);
+            float v1 = uv.get(c * 2 + 1) - uv.get(a * 2 + 1);
+            float u2 = uv.get(d * 2) - uv.get(a * 2);
+            float v2 = uv.get(d * 2 + 1) - uv.get(a * 2 + 1);
+            float det = u1 * v2 - u2 * v1;
+            if (Math.abs(det) < 1e-9f) {
+                continue;                          // triangle plat ou UV alignees : rien a tirer
+            }
+            float r = 1f / det;
+            float x1 = pos.get(c * 3) - pos.get(a * 3);
+            float y1 = pos.get(c * 3 + 1) - pos.get(a * 3 + 1);
+            float z1 = pos.get(c * 3 + 2) - pos.get(a * 3 + 2);
+            float x2 = pos.get(d * 3) - pos.get(a * 3);
+            float y2 = pos.get(d * 3 + 1) - pos.get(a * 3 + 1);
+            float z2 = pos.get(d * 3 + 2) - pos.get(a * 3 + 2);
+            float sx = (v2 * x1 - v1 * x2) * r;
+            float sy = (v2 * y1 - v1 * y2) * r;
+            float sz = (v2 * z1 - v1 * z2) * r;
+            for (int k : new int[] {a, c, d}) {
+                tx[k] += sx;
+                ty[k] += sy;
+                tz[k] += sz;
+            }
+        }
+        float[] out = new float[n * 4];
+        for (int i = 0; i < n; i++) {
+            float nx = nor.get(i * 3);
+            float ny = nor.get(i * 3 + 1);
+            float nz = nor.get(i * 3 + 2);
+            float dot = nx * tx[i] + ny * ty[i] + nz * tz[i];
+            float ax = tx[i] - nx * dot;           // Gram-Schmidt : la part perpendiculaire
+            float ay = ty[i] - ny * dot;
+            float az = tz[i] - nz * dot;
+            float len = (float) Math.sqrt(ax * ax + ay * ay + az * az);
+            if (len < 1e-6f) {
+                // AUCUN TRIANGLE UTILE N'A TOUCHE CE SOMMET. C'est le cas des pans de
+                // hauteur NULLE qu'on garde pour les portes grandes ouvertes : ils ne
+                // dessinent rien, mais une tangente nulle rendrait le relief de leurs
+                // VOISINS faux. On en prend une au hasard, perpendiculaire a la normale.
+                ax = Math.abs(nx) < 0.9f ? 1f : 0f;
+                ay = Math.abs(nx) < 0.9f ? 0f : 1f;
+                az = 0f;
+                dot = nx * ax + ny * ay + nz * az;
+                ax -= nx * dot;
+                ay -= ny * dot;
+                az -= nz * dot;
+                len = (float) Math.sqrt(ax * ax + ay * ay + az * az);
+                if (len < 1e-6f) {
+                    ax = 1f;
+                    ay = 0f;
+                    az = 0f;
+                    len = 1f;
+                }
+            }
+            out[i * 4] = ax / len;
+            out[i * 4 + 1] = ay / len;
+            out[i * 4 + 2] = az / len;
+            out[i * 4 + 3] = 1f;                   // main droite : nos UV ne se retournent pas
+        }
+        mesh.setBuffer(com.jme3.scene.VertexBuffer.Type.Tangent, 4,
+                com.jme3.util.BufferUtils.createFloatBuffer(out));
     }
 
     /**

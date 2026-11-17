@@ -519,7 +519,12 @@ public class Main extends SimpleApplication {
             // des tampons de sommets derriere — uniquement en -Pretro.
             ab3d2.full.sim.DynLight dl = builder.modern() && lights3d != null
                     ? new DynLights3D(lights3d) : builder.dynLights();
-            shots.dynLight = dl;
+            // EN RENDU MOTEUR, LES PROJECTILES SONT ECLAIRES PAR LE RENDU (eclairerTirs) :
+            // toutes les balles, pas seulement celles dont le jeu porte une luminosite, et
+            // les impacts a part. Laisser en plus la simulation en allumer quelques-unes
+            // gaspillerait des sources -- il n'y en a que douze -- a eclairer deux fois la
+            // meme balle.
+            shots.dynLight = builder.modern() ? null : dl;
             monsters.dynLight = dl;
             player.look(Integer.getInteger("rebirth.angle", 0));
             String spawn = firstLoad ? System.getProperty("rebirth.spawn") : null;
@@ -1266,12 +1271,16 @@ public class Main extends SimpleApplication {
             if (!s.active) {
                 continue;
             }
-            vivants++;
-            if (s.brightness != 0) {
-                continue;                          // le jeu l'allume deja, a sa valeur
+            if (!s.popping) {
+                vivants++;                         // un impact n'est plus un tir en vol
             }
+            // UN IMPACT ECLAIRE AUTREMENT QU'UNE BALLE. C'est le moment le plus lumineux
+            // du jeu -- une gerbe qui jette toute la piece en lumiere le temps de quelques
+            // images --, et sa teinte est celle du feu, pas celle du projectile.
+            boolean eclate = s.popping;
             lights3d.flash((s.x >> 16) / 64f, -s.heightWord / 64f, -(s.z >> 16) / 64f,
-                    BALLE_LUMIERE, builder.shotTint(s));
+                    eclate ? ECLAT_LUMIERE : BALLE_LUMIERE,
+                    eclate ? ECLAT_TEINTE : builder.shotTint(s));
         }
         // LA BOUCHE DU CANON. Un tir qui part eclaire la piece le temps d'une image :
         // c'est ce qu'on voit d'une arme, bien plus que la balle elle-meme. On le
@@ -1284,7 +1293,12 @@ public class Main extends SimpleApplication {
     }
 
     /** Ce qu'une balle ordinaire eclaire (echelle de Lights3D.flash : 0 a 40). */
-    private static final int BALLE_LUMIERE = 16;
+    private static final int BALLE_LUMIERE = 24;
+    /** Ce qu'un impact eclaire : presque le maximum, sur un rayon d'une demi-piece. */
+    private static final int ECLAT_LUMIERE = 38;
+    /** Sa teinte : le feu. */
+    private static final com.jme3.math.ColorRGBA ECLAT_TEINTE =
+            new com.jme3.math.ColorRGBA(1f, 0.72f, 0.38f, 1f);
     /** Ce que le depart du coup eclaire, le temps d'une image. */
     private static final int BOUCHE_LUMIERE = 30;
     /** Sa teinte : la flamme, pas la balle. */
