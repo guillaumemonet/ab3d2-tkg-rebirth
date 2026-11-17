@@ -380,6 +380,7 @@ public final class LevelBuilder {
         // lue. C'est tout ce qui manquait.
         poserEclairage(decor);
         litMeshes.clear();
+        reprendreSources(decor);
         litModels.clear();
         litSprites.clear();
         animObjects.clear();
@@ -826,6 +827,40 @@ public final class LevelBuilder {
      * module le terme diffus, si bien que l'ambiance de chaque piece reste celle voulue par les
      * auteurs, et les vraies lumieres de jME (lampes, tirs, explosions) s'ajoutent par-dessus.
      */
+    /**
+     * REPREND, DANS UNE SCENE RELUE, d'ou vient la clarte de chaque sommet.
+     *
+     * <p>Le fichier porte les trois nombres que {@code MeshBuilder} y a ranges — secteur,
+     * point de bord, etage. On reconstitue avec eux la liste des maillages a re-eclairer,
+     * exactement celle que le rendu direct tient a jour. C'est ce qui rend les LAMPES QUI
+     * CLIGNOTENT a la scene relue : sans cela, elle gardait une clarte juste, mais figee.
+     */
+    private void reprendreSources(com.jme3.scene.Spatial racine) {
+        if (racine == null) {
+            return;
+        }
+        racine.depthFirstTraversal(sp -> {
+            if (!(sp instanceof Geometry g)) {
+                return;
+            }
+            com.jme3.scene.VertexBuffer vb =
+                    g.getMesh().getBuffer(com.jme3.scene.VertexBuffer.Type.TexCoord3);
+            if (vb == null || !(vb.getData() instanceof java.nio.FloatBuffer buf)) {
+                return;
+            }
+            int n = buf.capacity() / 3;
+            int[][] src = new int[n][];
+            for (int i = 0; i < n; i++) {
+                src[i] = new int[] {(int) buf.get(i * 3), (int) buf.get(i * 3 + 1),
+                    (int) buf.get(i * 3 + 2)};
+            }
+            // Un mur se reconnait a son nom : c'est sous celui-la que le constructeur l'a
+            // range, et la luminosite d'un mur ne se calcule pas comme celle d'un sol.
+            litMeshes.add(new LitMesh(g, src, g.getName() != null
+                    && g.getName().startsWith("wall")));
+        });
+    }
+
     /**
      * Pose le choix d'eclairage sur tous les materiaux d'une scene relue.
      *

@@ -180,6 +180,23 @@ public final class MeshBuilder {
             }
             mesh.setBuffer(VertexBuffer.Type.TexCoord2, 2, BufferUtils.createFloatBuffer(b));
         }
+        if (hasLitSource) {
+            // D'OU VIENT LA CLARTE DE CHAQUE SOMMET : son secteur, son point de bord, et
+            // l'etage. Trois nombres, ranges dans un canal de coordonnees parce que c'est ce
+            // qu'un maillage sait EMPORTER quand on l'ecrit dans un fichier.
+            //
+            // Sans eux, une scene relue ne sait plus d'ou lui vient sa lumiere : elle garde
+            // la clarte cuite, mais ne peut plus la REFAIRE, et les lampes qui clignotent
+            // restent figees.
+            float[] src = new float[n * 3];
+            for (int i = 0; i < n; i++) {
+                int[] o = litSource.get(i);
+                src[i * 3] = o[0];
+                src[i * 3 + 1] = o[1];
+                src[i * 3 + 2] = o[2];
+            }
+            mesh.setBuffer(VertexBuffer.Type.TexCoord3, 3, BufferUtils.createFloatBuffer(src));
+        }
         mesh.updateBound();
         return mesh;
     }
