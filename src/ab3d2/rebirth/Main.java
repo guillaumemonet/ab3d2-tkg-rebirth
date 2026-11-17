@@ -1419,6 +1419,9 @@ public class Main extends SimpleApplication {
 
     private void applyCamera() {
         cam.setLocation(new Vector3f(player.worldX(), player.worldY(), player.worldZ()));
+        if (lights3d != null) {                        // la source qui porte les ombres suit
+            lights3d.carryTorch(player.worldX(), player.worldY(), player.worldZ());
+        }
         if (sky != null) {
             sky.setLocalTranslation(cam.getLocation());   // le ciel reste a l'infini
         }
@@ -1444,7 +1447,7 @@ public class Main extends SimpleApplication {
         if (shadows == null || lights3d == null || lights3d.shadowLight() == null) {
             return;
         }
-        shadows.setLight(lights3d.shadowLight());
+        shadows.setLight(lights3d.shadowSource());
         rootNode.setShadowMode(com.jme3.renderer.queue.RenderQueue.ShadowMode.CastAndReceive);
     }
 

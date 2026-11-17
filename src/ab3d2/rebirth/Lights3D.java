@@ -117,6 +117,25 @@ public final class Lights3D {
      */
     private PointLight shadowLight;
     private int shadowZone = -1;
+    /**
+     * CE QUE LE JOUEUR PORTE SUR LUI.
+     *
+     * <p>Le light map donne a chaque surface sa clarte, mais il est CUIT : rien n'y bouge, et
+     * donc rien n'y porte d'ombre. Il fallait une source REELLE pour que les murs et les
+     * monstres en projettent une, et elle ne pouvait pas etre une lumiere de piece — celles-la
+     * ne font que reconstituer le light map, qui contient deja sa propre occlusion, et les
+     * ombrer occlut DEUX FOIS (un couloir n'est alors eclaire que d'un cote, avec une coupure
+     * nette).
+     *
+     * <p>Celle-ci n'est dans aucun light map : elle suit le joueur. Elle n'ajoute presque rien
+     * a la clarte — ce n'est pas son role — mais elle donne un point d'ou les ombres partent,
+     * et il se trouve toujours la ou l'on regarde.
+     */
+    private PointLight torch;
+    /** Ce que la torche ajoute : assez pour detacher les volumes, trop peu pour eclairer. */
+    private static final float TORCH_LEVEL = 0.22f;
+    /** Sa portee, en unites jME : la piece autour de soi, pas au-dela. */
+    private static final float TORCH_RADIUS = 22f;
     private final PointLight[] dyn = new PointLight[DYNAMIC];
     private AmbientLight ambient;
     private int nextDyn;
@@ -259,6 +278,13 @@ public final class Lights3D {
         shadowLight.setRadius(0.01f);
         root.addLight(shadowLight);
         shadowZone = -1;
+
+        if (!sourcesStatiques()) {                     // la clarte vient du light map
+            torch = new PointLight();
+            torch.setColor(new ColorRGBA(1f, 0.94f, 0.82f, 1f).mult(TORCH_LEVEL));
+            torch.setRadius(TORCH_RADIUS);
+            root.addLight(torch);
+        }
 
         for (int i = 0; i < DYNAMIC; i++) {
             dyn[i] = new PointLight();
@@ -497,9 +523,26 @@ public final class Lights3D {
 
     private boolean shadowUsed;
 
-    /** Vrai si une source dynamique alimente la lumiere ombree cette frame. */
+    /**
+     * OU SE TIENT CELUI QUI PORTE LA LUMIERE. A appeler une fois par image.
+     *
+     * <p>Un peu au-dessus de l'oeil et un peu en arriere : une source pile sur la camera
+     * n'ombre RIEN, puisque tout ce qu'elle eclaire lui fait face.
+     */
+    public void carryTorch(float x, float y, float z) {
+        if (torch != null) {
+            torch.setPosition(new Vector3f(x, y + 0.6f, z));
+        }
+    }
+
+    /** La source qui porte les ombres, ou {@code null}. */
+    public PointLight shadowSource() {
+        return torch != null ? torch : shadowLight;
+    }
+
+    /** Vrai si une source alimente la lumiere ombree cette frame. */
     public boolean hasShadowSource() {
-        return shadowUsed;
+        return torch != null || shadowUsed;
     }
 
     public int lampCount() {
@@ -545,6 +588,10 @@ public final class Lights3D {
         if (shadowLight != null) {
             root.removeLight(shadowLight);
             shadowLight = null;
+        }
+        if (torch != null) {
+            root.removeLight(torch);
+            torch = null;
         }
         shadowZone = -1;
         if (ambient != null) {

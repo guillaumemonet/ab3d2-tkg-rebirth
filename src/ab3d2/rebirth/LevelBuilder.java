@@ -2010,8 +2010,12 @@ public final class LevelBuilder {
     public Node buildAliens(List<ab3d2.full.sim.Aliens.Alien> aliens, LevelData lvl) {
         Node node = new Node("Aliens");
         aliensNode = node;
-        // Monstres : panneaux billboardes, ils recoivent l'ombre sans projeter leur quad.
-        node.setShadowMode(com.jme3.renderer.queue.RenderQueue.ShadowMode.Receive);
+        // LES MONSTRES PROJETTENT AUSSI. Un panneau billboarde est un quad a fond
+        // transparent : s'il projette tel quel, c'est le QUAD ENTIER qui fait l'ombre, en
+        // grands rectangles noirs. Leur materiau ecarte les texels transparents
+        // (AlphaDiscardThreshold), et la passe d'ombre de jME respecte ce seuil : c'est la
+        // silhouette qui se projette, pas le rectangle.
+        node.setShadowMode(com.jme3.renderer.queue.RenderQueue.ShadowMode.CastAndReceive);
         alienViews.clear();
         for (ab3d2.full.sim.Aliens.Alien a : aliens) {
             LevelData.Obj src = null;
