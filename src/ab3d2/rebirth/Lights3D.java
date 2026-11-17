@@ -27,12 +27,40 @@ public final class Lights3D {
 
     /** Portee d'une lampe de decor, en unites jME (1 unite = 64 unites monde). */
     private static final float LAMP_RADIUS = 14f;
+    /**
+     * DE COMBIEN DEUX SOURCES D'UNE MEME REGION SONT ESPACEES, en unites jME.
+     *
+     * <p>Une piece n'a pas besoin d'une source par secteur : le decoupage en secteurs sert la
+     * collision et la visibilite, pas l'eclairage. Ce qui compte pour l'oeil, c'est qu'une
+     * region de meme clarte soit eclairee REGULIEREMENT — d'ou un pas fixe, et non une lampe
+     * par morceau de geometrie.
+     */
+    private static final float SPACING = 18f;
+    /** La portee d'une source de region : plus large que le pas, pour que les halos se joignent. */
+    private static final float REGION_RADIUS = 40f;
+    /**
+     * De combien deux secteurs voisins peuvent differer de clarte en restant la MEME region.
+     *
+     * <p>Zero donnerait des regions minuscules — les clartes du jeu varient par petits pas.
+     * Trop grand fondrait un couloir sombre dans la salle eclairee d'a cote.
+     */
+    private static final float SAME_LIGHT = 0.1f;
     /** Nombre de lumieres dynamiques recyclees (tirs, explosions, torches). */
     public static final int DYNAMIC = 12;
     /** Rayon donne a une lumiere ecartee : assez petit pour que le filtre de jME la rejette. */
     private static final float OFF_RADIUS = 0.01f;
+    /**
+     * LA CLARTE QU'UNE SURFACE ATTEINT SOUS SA SOURCE, au plus fort.
+     *
+     * <p>Caler ce maximum sur UN revient a poser les surfaces eclairees PILE au seuil de
+     * saturation : la moindre texture claire y passe en blanc pur et perd son dessin. Le jeu
+     * d'origine ne sature jamais — sa rampe d'ombrage s'arrete avant le blanc — et c'est ce
+     * qui lui donne son relief a clarte moyenne EGALE. Mesure : 47,3 de moyenne et 0 % de
+     * pixels satures chez lui, contre 43,7 et 1,3 % ici quand ce maximum valait un.
+     */
+    private static final float PEAK_LEVEL = 0.88f;
     /** Niveau de l'ambiante : ce qui reste visible d'une surface hors de portee de toute source. */
-    private static final float AMBIENT_LEVEL = 0.34f;
+    private static final float AMBIENT_LEVEL = 0.22f;
     /** Reglage BRIGHTNESS du menu : multiplie l'ambiante (1,0 = valeur d'origine). */
     private float brightness = 1f;
     /** ZoneT_Roof_l : la valeur sentinelle « cette zone n'a pas de plafond ». */
@@ -50,6 +78,23 @@ public final class Lights3D {
     private final java.util.Map<Integer, int[]> pvsOf = new java.util.HashMap<>();
     /** Zone de chaque lampe d'objet (les « glares »), pour l'éteindre avec sa pièce. */
     private final java.util.Map<PointLight, Integer> lampZone = new java.util.HashMap<>();
+    /**
+     * LES SECTEURS QUE CHAQUE SOURCE DESSERT.
+     *
+     * <p>Une source de region en couvre plusieurs, une lampe d'objet un seul. C'est par la que
+     * l'allumage se decide : une source reste allumee tant qu'UN de ses secteurs est
+     * potentiellement visible. Les deux familles se traitent donc pareil.
+     */
+    private final java.util.Map<PointLight, int[]> lampServes = new java.util.HashMap<>();
+
+    /** Ce qu'on retient d'un secteur pour l'eclairer : ou il est, et a quelle clarte. */
+    private static final class Zone {
+        int id;
+        float x, y, z;
+        float sol;
+        float clarte;
+        int region;
+    }
     private final java.util.Map<PointLight, ColorRGBA> lampColour = new java.util.HashMap<>();
     /** Dernière zone pour laquelle on a réglé l'allumage (évite de tout refaire par frame). */
     private int litFromZone = Integer.MIN_VALUE;
@@ -79,85 +124,19 @@ public final class Lights3D {
         root.addLight(ambient);
         setBrightness(brightness);
 
-        // UNE LUMIERE PAR ZONE. Le light map du jeu est constant par zone (toutes les bornes
-        // d'une zone partagent la meme valeur) : sa granularite lumineuse EST la zone. On la
-        // rend donc par une vraie source, posee au centre de la zone sous son plafond, dont
-        // l'intensite vient de la luminosite d'origine et la portee de la taille de la piece.
+        // DES REGIONS, PAS DES SECTEURS. Le light map du jeu est constant par secteur, et le
+        // remake en faisait donc une source par secteur : cent trente-quatre au niveau A, cent
+        // quatre-vingt-dix-neuf au C. Mais le decoupage en secteurs sert la COLLISION et la
+        // VISIBILITE ; il ne dit rien de l'eclairage. Un couloir droit de vingt morceaux n'a
+        // pas vingt lampes : il en a une, ou deux s'il est long.
+        //
+        // On reunit donc les secteurs VOISINS DE MEME CLARTE en regions, et chaque region
+        // recoit des sources posees a PAS FIXE. L'eclairage ne depend plus de la facon dont
+        // la geometrie est decoupee — c'est ce qui le rend uniforme.
         List<LevelData.Point> pts = lvl.points == null ? List.<LevelData.Point>of() : lvl.points;
-        for (LevelData.Zone z : lvl.zones == null ? List.<LevelData.Zone>of() : lvl.zones) {
-            List<Integer> bp = z.borderPoints;
-            if (bp == null || bp.isEmpty()) {
-                continue;
-            }
-            float cx = 0;
-            float cz = 0;
-            float minX = Float.MAX_VALUE;
-            float maxX = -Float.MAX_VALUE;
-            float minZ = Float.MAX_VALUE;
-            float maxZ = -Float.MAX_VALUE;
-            int n = 0;
-            for (int i : bp) {
-                if (i < 0 || i >= pts.size()) {
-                    continue;
-                }
-                float x = pts.get(i).x;
-                float zz = pts.get(i).z;
-                cx += x;
-                cz += zz;
-                minX = Math.min(minX, x);
-                maxX = Math.max(maxX, x);
-                minZ = Math.min(minZ, zz);
-                maxZ = Math.max(maxZ, zz);
-                n++;
-            }
-            if (n == 0) {
-                continue;
-            }
-            cx /= n;
-            cz /= n;
-            float f = brightnessFactor(lightMap, z);
-            if (System.getProperty("rebirth.lightLog") != null) {
-                System.out.printf("[zone] %3d f=%.2f%n", z.id, f);
-            }
-            if (f <= 0.02f) {
-                continue;                              // zone noire : pas de source
-            }
-            // HAUTEUR : aux deux tiers entre le sol et le plafond, pas collee au plafond. Une
-            // source au plafond eclaire les sols de face mais RASE les murs (N.L faible), et
-            // c'est ce qui les faisait tomber au noir.
-            //
-            // La sentinelle « pas de plafond » vaut EXACTEMENT -32768 (0x8000). Tester
-            // « < -30000 » etait faux : les hauteurs sont en 8192e d'unite, un plafond de six
-            // metres vaut -49152. Sur le niveau B, 115 zones sur 149 etaient ainsi prises pour
-            // des zones sans plafond et leur lumiere posee au ras du sol.
-            float floor = -z.floorH / 8192f;
-            float roof = z.roofH != NO_ROOF ? -z.roofH / 8192f : floor + 2.5f;
-            if (roof <= floor + 0.8f) {
-                roof = floor + 2.5f;                   // plafond incoherent (sous le sol)
-            }
-            float y = floor + (roof - floor) * 0.66f;
-            // PORTEE : jME attenue lineairement (1 - d/rayon). En la prenant a deux fois la
-            // demi-etendue de la piece plus une marge, l'attenuation reste douce jusqu'aux murs
-            // au lieu de s'annuler dessus.
-            float half = Math.max(maxX - minX, maxZ - minZ) / 128f;
-            float radius = 2f * half + 6f;
-            // INTENSITE : le facteur du light map est une luminosite de SURFACE, pas une
-            // puissance de source. La surface la plus exposee est le sol juste sous la lumiere,
-            // ou l'attenuation vaut (1 - hauteur/portee) et N.L vaut 1 ; on cale donc l'intensite
-            // pour que AMBIANTE + ce maximum fasse tout juste 1, sinon les zones les plus claires
-            // (la passerelle du niveau A) partent en blanc pur.
-            float drop = y - floor;
-            float peakAtt = Math.max(0.15f, 1f - drop / radius);
-            float intensity = f * (1f - AMBIENT_LEVEL) / peakAtt;
-            PointLight p = new PointLight();
-            p.setColor(new ColorRGBA(1f, 0.96f, 0.88f, 1f).mult(intensity));
-            p.setRadius(radius);
-            p.setPosition(new Vector3f(cx / 64f, y, -cz / 64f));
-            root.addLight(p);
-            lamps.add(p);
-            zoneLight.put(z.id, p);
-            zoneColour.put(z.id, p.getColor().clone());
-            zoneRadius.put(z.id, p.getRadius());
+        List<LevelData.Zone> zones = lvl.zones == null ? List.<LevelData.Zone>of() : lvl.zones;
+        java.util.Map<Integer, Zone> vues = new java.util.LinkedHashMap<>();
+        for (LevelData.Zone z : zones) {
             if (z.pvs != null) {
                 int[] vis = new int[z.pvs.size()];
                 for (int i = 0; i < vis.length; i++) {
@@ -165,7 +144,54 @@ public final class Lights3D {
                 }
                 pvsOf.put(z.id, vis);
             }
+            List<Integer> bp = z.borderPoints;
+            if (bp == null || bp.isEmpty()) {
+                continue;
+            }
+            float cx = 0;
+            float cz = 0;
+            int n = 0;
+            for (int i : bp) {
+                if (i < 0 || i >= pts.size()) {
+                    continue;
+                }
+                cx += pts.get(i).x;
+                cz += pts.get(i).z;
+                n++;
+            }
+            if (n == 0) {
+                continue;
+            }
+            float f = brightnessFactor(lightMap, z);
+            if (System.getProperty("rebirth.lightLog") != null) {
+                System.out.printf("[zone] %3d f=%.2f%n", z.id, f);
+            }
+            if (f <= 0.02f) {
+                continue;                              // secteur noir : pas de source
+            }
+            // HAUTEUR : aux deux tiers entre le sol et le plafond, pas collee au plafond. Une
+            // source au plafond eclaire les sols de face mais RASE les murs (N.L faible), et
+            // c'est ce qui les faisait tomber au noir.
+            //
+            // La sentinelle « pas de plafond » vaut EXACTEMENT -32768 (0x8000). Tester
+            // « < -30000 » etait faux : les hauteurs sont en 8192e d'unite, un plafond de six
+            // metres vaut -49152. Sur le niveau B, 115 secteurs sur 149 etaient ainsi pris pour
+            // des secteurs sans plafond et leur lumiere posee au ras du sol.
+            float sol = -z.floorH / 8192f;
+            float toit = z.roofH != NO_ROOF ? -z.roofH / 8192f : sol + 2.5f;
+            if (toit <= sol + 0.8f) {
+                toit = sol + 2.5f;                     // plafond incoherent (sous le sol)
+            }
+            Zone v = new Zone();
+            v.id = z.id;
+            v.x = cx / n / 64f;
+            v.z = -cz / n / 64f;
+            v.y = sol + (toit - sol) * 0.66f;
+            v.sol = sol;
+            v.clarte = f;
+            vues.put(z.id, v);
         }
+        poserRegions(zones, vues);
 
         for (LevelData.Obj o : lvl.objects == null ? List.<LevelData.Obj>of() : lvl.objects) {
             if (o.typeId != 1 || o.zone < 0) {
@@ -182,6 +208,7 @@ public final class Lights3D {
             root.addLight(p);
             lamps.add(p);
             lampZone.put(p, o.zone);
+            lampServes.put(p, new int[] {o.zone});
             lampColour.put(p, p.getColor().clone());
             lampRadius.put(p, p.getRadius());
         }
@@ -228,7 +255,6 @@ public final class Lights3D {
         litFromZone = zone;
         int[] vis = pvsOf.get(zone);
         if (vis == null) {                             // zone inconnue : on ne prend pas de risque
-            zoneLight.forEach((z, p) -> p.setRadius(zoneRadius.get(z)));
             lampRadius.forEach(PointLight::setRadius);
             return;
         }
@@ -241,10 +267,22 @@ public final class Lights3D {
         // contre le volume englobant de la geometrie (DefaultLightFilter). Une lumiere noire
         // mais de grand rayon reste dans le lot et continue de coûter une passe — mesure a
         // l'appui : le nombre d'objets soumis ne bougeait pas d'un pouce.
-        zoneLight.forEach((z, p) ->
-                p.setRadius(on.contains(z) ? zoneRadius.get(z) : OFF_RADIUS));
-        lampRadius.forEach((p, r) ->
-                p.setRadius(on.contains(lampZone.getOrDefault(p, -1)) ? r : OFF_RADIUS));
+        //
+        // Une source de region dessert plusieurs secteurs : il suffit que l'UN d'eux soit
+        // visible pour qu'elle reste allumee.
+        lampRadius.forEach((p, r) -> {
+            int[] sert = lampServes.get(p);
+            boolean allume = false;
+            if (sert != null) {
+                for (int z : sert) {
+                    if (on.contains(z)) {
+                        allume = true;
+                        break;
+                    }
+                }
+            }
+            p.setRadius(allume ? r : OFF_RADIUS);
+        });
     }
 
     /** Zone depuis laquelle l'allumage courant a été calculé. */
@@ -252,15 +290,126 @@ public final class Lights3D {
         return litFromZone;
     }
 
-    /** Nombre de lumières de zone réellement allumées (diagnostic). */
+    /** Nombre de sources reellement allumees (diagnostic). */
     public int litCount() {
         int n = 0;
-        for (PointLight p : zoneLight.values()) {
+        for (PointLight p : lamps) {
             if (p.getRadius() > OFF_RADIUS) {
                 n++;
             }
         }
         return n;
+    }
+
+    /**
+     * POSE LES SOURCES DES REGIONS.
+     *
+     * <p>Trois temps. On reunit d'abord les secteurs voisins de meme clarte — voisins au sens
+     * du jeu, c'est-a-dire relies par une arete qui joint deux secteurs. On decoupe ensuite
+     * chaque region en cases d'un pas fixe, et l'on garde les cases ou la region se trouve
+     * vraiment. Chaque case recoit une source, a la clarte MOYENNE de la region : c'est ce qui
+     * fait qu'une grande salle s'eclaire d'un seul tenant au lieu d'etre un damier.
+     *
+     * <p>Une region eclaire aussi les secteurs NOIRS qui la touchent — un couloir sans lumiere
+     * propre prend celle de la piece dont il part, ce que le rendu d'origine faisait aussi.
+     */
+    private void poserRegions(List<LevelData.Zone> zones, java.util.Map<Integer, Zone> vues) {
+        if (vues.isEmpty()) {
+            return;
+        }
+        // 1. REUNIR. Deux secteurs voisins de clarte proche sont la meme region.
+        java.util.Map<Integer, Integer> chef = new java.util.HashMap<>();
+        for (int id : vues.keySet()) {
+            chef.put(id, id);
+        }
+        for (LevelData.Zone z : zones) {
+            Zone a = vues.get(z.id);
+            if (a == null || z.edges == null) {
+                continue;
+            }
+            for (LevelData.ZoneEdge e : z.edges) {
+                Zone b = vues.get(e.joinZone);
+                if (b != null && Math.abs(a.clarte - b.clarte) <= SAME_LIGHT) {
+                    unir(chef, a.id, b.id);
+                }
+            }
+        }
+        java.util.Map<Integer, List<Zone>> regions = new java.util.LinkedHashMap<>();
+        for (Zone v : vues.values()) {
+            v.region = racine(chef, v.id);
+            regions.computeIfAbsent(v.region, k -> new ArrayList<>()).add(v);
+        }
+
+        // 2. DECOUPER chaque region en cases d'un pas fixe, et garder celles qu'elle occupe.
+        for (List<Zone> region : regions.values()) {
+            float clarte = 0;
+            for (Zone v : region) {
+                clarte += v.clarte;
+            }
+            clarte /= region.size();                   // la MEME clarte pour toute la region
+            java.util.Map<Long, List<Zone>> cases = new java.util.LinkedHashMap<>();
+            for (Zone v : region) {
+                long cx = (long) Math.floor(v.x / SPACING);
+                long cz = (long) Math.floor(v.z / SPACING);
+                cases.computeIfAbsent((cx << 32) ^ (cz & 0xFFFFFFFFL),
+                        k -> new ArrayList<>()).add(v);
+            }
+            // 3. UNE SOURCE PAR CASE, au milieu de ce que la region y occupe.
+            for (List<Zone> dedans : cases.values()) {
+                float x = 0;
+                float y = 0;
+                float z = 0;
+                float sol = 0;
+                for (Zone v : dedans) {
+                    x += v.x;
+                    y += v.y;
+                    z += v.z;
+                    sol += v.sol;
+                }
+                x /= dedans.size();
+                y /= dedans.size();
+                z /= dedans.size();
+                sol /= dedans.size();
+                // INTENSITE : le facteur du light map est une luminosite de SURFACE, pas une
+                // puissance de source. La surface la plus exposee est le sol juste sous la
+                // lumiere, ou l'attenuation vaut (1 - hauteur/portee) et N.L vaut 1 ; on cale
+                // donc l'intensite pour que AMBIANTE + ce maximum fasse tout juste 1, sinon
+                // les regions les plus claires partent en blanc pur.
+                float chute = y - sol;
+                float att = Math.max(0.15f, 1f - chute / REGION_RADIUS);
+                float intensite = clarte * (PEAK_LEVEL - AMBIENT_LEVEL) / att;
+                PointLight p = new PointLight();
+                p.setColor(new ColorRGBA(1f, 0.96f, 0.88f, 1f).mult(intensite));
+                p.setRadius(REGION_RADIUS);
+                p.setPosition(new Vector3f(x, y, z));
+                root.addLight(p);
+                lamps.add(p);
+                lampColour.put(p, p.getColor().clone());
+                lampRadius.put(p, p.getRadius());
+                int[] sert = new int[dedans.size()];
+                for (int i = 0; i < sert.length; i++) {
+                    sert[i] = dedans.get(i).id;
+                    zoneLight.putIfAbsent(dedans.get(i).id, p);
+                }
+                lampServes.put(p, sert);
+            }
+        }
+    }
+
+    private static int racine(java.util.Map<Integer, Integer> chef, int a) {
+        int r = a;
+        while (chef.get(r) != null && chef.get(r) != r) {
+            r = chef.get(r);
+        }
+        return r;
+    }
+
+    private static void unir(java.util.Map<Integer, Integer> chef, int a, int b) {
+        int ra = racine(chef, a);
+        int rb = racine(chef, b);
+        if (ra != rb) {
+            chef.put(ra, rb);
+        }
     }
 
     public void flash(float wx, float wy, float wz, int bright, ColorRGBA colour) {

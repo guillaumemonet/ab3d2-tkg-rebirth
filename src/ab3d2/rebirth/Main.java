@@ -154,6 +154,27 @@ public class Main extends SimpleApplication {
     // entrees
     private final Map<String, Boolean> keys = new HashMap<>();
     private float lookX;                  // accumulateur souris horizontal (unites d'angle)
+
+    /**
+     * COMBIEN D'IMAGES LA SOURIS RESTE MUETTE apres une prise de fenetre.
+     *
+     * <p>Quand la fenetre saisit le curseur, le systeme signale d'un coup tout l'ecart entre
+     * la ou le curseur etait et le centre. Ce n'est pas un mouvement du joueur : c'est un
+     * artefact de la saisie, et il faisait partir la vue de travers au lancement — au point
+     * que deux captures du meme instant ne montraient pas la meme chose.
+     */
+    private static final int MOUSE_SETTLE = 12;
+
+    /** Images restantes avant que la souris ne compte. */
+    private int mouseSettle = MOUSE_SETTLE;
+
+    /**
+     * L'ECART MAXIMAL qu'un mouvement de souris peut avoir en une image.
+     *
+     * <p>Une main ne saute pas d'un bord de l'ecran a l'autre en un battement. Au-dela, c'est
+     * la saisie du curseur qui parle, ou la fenetre qui vient de reprendre le focus : on jette.
+     */
+    private static final float MOUSE_JUMP = 0.25f;
     private float pitch = Float.parseFloat(System.getProperty("rebirth.pitch", "0"));
     /** Mode demo (validation auto) : avance tout droit, action maintenue. */
     private final boolean demo = System.getProperty("rebirth.demo") != null;
@@ -507,6 +528,7 @@ public class Main extends SimpleApplication {
     private void initPlayerInput() {
         flyCam.setEnabled(false);
         inputManager.setCursorVisible(false);
+        mouseSettle = MOUSE_SETTLE;         // la saisie va sauter : on l'ignore
 
         // Les liaisons viennent de CONTROL OPTIONS ; les fleches restent cablees en plus, car
         // elles servent aussi a naviguer dans le menu (le jeu s'en sert de la meme facon :
@@ -617,6 +639,9 @@ public class Main extends SimpleApplication {
         inputManager.addMapping("lookUp", new MouseAxisTrigger(MouseInput.AXIS_Y, false));
         inputManager.addMapping("lookDown", new MouseAxisTrigger(MouseInput.AXIS_Y, true));
         AnalogListener onMouse = (name, value, tpf) -> {
+            if (mouseSettle > 0 || value > MOUSE_JUMP) {
+                return;                                // saisie du curseur, pas un geste
+            }
             switch (name) {
                 case "lookLeft" -> lookX -= value * sensitivity;
                 case "lookRight" -> lookX += value * sensitivity;
@@ -712,6 +737,7 @@ public class Main extends SimpleApplication {
             panel.setVisible(false);
         }
         inputManager.setCursorVisible(false);
+        mouseSettle = MOUSE_SETTLE;         // la saisie va sauter : on l'ignore
     }
 
     /** L'ecran de texte affiche est celui de FIN : on rend la main au menu en le fermant. */
@@ -918,6 +944,7 @@ public class Main extends SimpleApplication {
             panel.setVisible(true);
         }
         inputManager.setCursorVisible(false);
+        mouseSettle = MOUSE_SETTLE;         // la saisie va sauter : on l'ignore
     }
 
     /** 'A'..'P' -> 0..15. */
@@ -1158,6 +1185,10 @@ public class Main extends SimpleApplication {
 
     /** Une frame de la simulation d'origine : entrees -&gt; chute -&gt; collision -&gt; animations. */
     private void stepSim() {
+        if (mouseSettle > 0) {
+            mouseSettle--;
+            lookX = 0;                                 // et ce qui serait deja tombe dedans
+        }
         if (state != State.PLAYING) {
             checkEndOfLevel();                         // le jeu d'origine QUITTE la boucle : on gele
             return;
