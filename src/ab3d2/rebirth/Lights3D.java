@@ -73,6 +73,27 @@ public final class Lights3D {
      * celui du jeu.
      */
     private static final float BAKED_EXPOSURE = 0.8f;
+    /**
+     * CE QUE L'AMBIANTE GARDE QUAND DE VRAIES LAMPES L'ACCOMPAGNENT.
+     *
+     * <p>Le light map cuit porte la clarte VOULUE de chaque surface ; pose seul, il lui
+     * faut une ambiante a plein pour se montrer. Mais une ambiante a plein ecrase tout le
+     * reste : une lampe ajoutee par-dessus ne fait qu'un leger halo blanc.
+     *
+     * <p>On la baisse donc, et la part qu'elle perd revient aux LAMPES REELLES, posees la
+     * ou les auteurs ont mis les leurs.
+     */
+    private static final float HYBRID_AMBIENT = 0.70f;
+    /** Ce qu'une lampe de decor ajoute par-dessus la clarte cuite. */
+    private static final float LAMP_GAIN = 1.5f;
+    /**
+     * CE QUE LES SOURCES DE REGION GARDENT quand la clarte cuite les accompagne.
+     *
+     * <p>Les deux disent la meme chose -- ou il fait clair --, l'une a plat, l'autre avec
+     * une vraie chute. Les additionner a plein brule les pieces eclairees ; on garde donc
+     * la clarte cuite pour la CONDUITE et les sources pour le RELIEF.
+     */
+    private static final float REGION_GAIN = 0.35f;
     /** Le niveau d'ambiante de la pose courante : il depend du modele d'eclairage choisi. */
     private float ambientBase = AMBIENT_LEVEL;
     /** ZoneT_Roof_l : la valeur sentinelle « cette zone n'a pas de plafond ». */
@@ -156,6 +177,8 @@ public final class Lights3D {
     private static final float LAMP_UNDER_ROOF = 0.4f;
     /** Sa portee : la piece entiere, sinon les ombres s'arretent net a mi-sol. */
     private static final float LAMP_REACH = 34f;
+    /** Au-dela de quoi une vraie lampe est trop loin pour porter l'ombre du joueur. */
+    private static final float SHADOW_FROM_LAMP = 26f;
     private final PointLight[] dyn = new PointLight[DYNAMIC];
     private AmbientLight ambient;
     private int nextDyn;
@@ -183,7 +206,18 @@ public final class Lights3D {
      * reglage.
      */
     private static boolean sourcesStatiques() {
-        return System.getProperty("rebirth.zonelights") != null;
+        return System.getProperty("rebirth.nolamps") == null;
+    }
+
+    /**
+     * LE MODELE PAR DEFAUT : la clarte cuite ET de vraies sources.
+     *
+     * <p>{@code -Pzonelights} ne garde que les sources (l'ancien modele tout-lampes),
+     * {@code -Pnolamps} ne garde que la clarte cuite (l'ancien modele tout-cuit).
+     */
+    private static boolean hybride() {
+        return System.getProperty("rebirth.zonelights") == null
+                && System.getProperty("rebirth.nolamps") == null;
     }
 
     public void build(LevelData lvl, GlfData glf, LightAnim lightMap) {
@@ -195,7 +229,10 @@ public final class Lights3D {
         // l'ambiante n'est plus un fond de secours mais la lumiere qui la REVELE. On la pose
         // donc a plein, et c'est le light map qui fait l'ombre et la lumiere — comme chez le
         // jeu d'origine, dont l'ombrage est plat par surface.
-        ambientBase = sourcesStatiques() ? AMBIENT_LEVEL : BAKED_EXPOSURE;
+        float parDefaut = hybride() ? HYBRID_AMBIENT
+                : (sourcesStatiques() ? AMBIENT_LEVEL : BAKED_EXPOSURE);
+        ambientBase = Float.parseFloat(System.getProperty("rebirth.ambient",
+                String.valueOf(parDefaut)));
         ambient = new AmbientLight(ColorRGBA.White.clone());
         root.addLight(ambient);
         setBrightness(brightness);
@@ -271,18 +308,34 @@ public final class Lights3D {
             poserRegions(zones, vues);
         }
 
+        // LES LAMPES DU DECOR SONT DE VRAIES LUMIERES.
+        //
+        // Leur halo est deja cuit dans le light map, et c'est pour cela qu'on les avait
+        // laissees de cote : les compter deux fois. Mais un halo cuit ne porte pas d'ombre,
+        // ne varie pas avec l'angle de vue, et ne s'eteint pas. On les pose donc pour de
+        // bon, et l'ambiante baisse d'autant (HYBRID_AMBIENT) : le light map garde la
+        // conduite de l'ensemble -- quelle piece est claire, laquelle est noire --, les
+        // lampes y ajoutent le point chaud, la chute, et les ombres portees.
+        //
+        // Elles sont peu nombreuses -- une poignee par niveau -- et ne s'allument que pour
+        // les secteurs potentiellement visibles (cf. followPlayer).
+        float gain = Float.parseFloat(System.getProperty("rebirth.lampgain",
+                String.valueOf(LAMP_GAIN)));
         for (LevelData.Obj o : lvl.objects == null ? List.<LevelData.Obj>of() : lvl.objects) {
-            // Les lampes d'objet sont DEJA dans le light map : le jeu y cuit leur halo. En
-            // poser une vraie par-dessus la compterait deux fois.
-            if (!sourcesStatiques() || o.typeId != 1 || o.zone < 0) {
+            if (o.typeId != 1 || o.zone < 0) {
+                continue;
+            }
+            // C'EST L'OBJET QUI DIT QU'IL BRILLE, pas sa definition relue : l'extraction a
+            // deja fait le test (ODefT_GFXType == 2) et l'a note sur lui. Le champ gfxType
+            // du fichier relu ne porte pas la meme chose et ne valait jamais 2 -- aucune
+            // lampe n'etait donc posee, sur aucun niveau.
+            if (!o.additive) {
                 continue;
             }
             GlfData.ObjDef def = glf == null ? null : glf.object(o.def);
-            if (def == null || def.gfxType < 2) {
-                continue;                              // gfxType 2 = « glare » : une lampe
-            }
             PointLight p = new PointLight();
-            p.setColor(lampColour(def.name).mult(2.2f));
+            p.setColor(lampColour(def == null ? "" : def.name)
+                    .mult(hybride() ? gain : 2.2f));
             p.setRadius(LAMP_RADIUS);
             p.setPosition(new Vector3f(o.x / 64f, -o.height / 64f, -o.z / 64f));
             root.addLight(p);
@@ -464,7 +517,20 @@ public final class Lights3D {
                 // les regions les plus claires partent en blanc pur.
                 float chute = y - sol;
                 float att = Math.max(0.15f, 1f - chute / REGION_RADIUS);
-                float intensite = clarte * (PEAK_LEVEL - AMBIENT_LEVEL) / att;
+                // EN HYBRIDE, LA SOURCE NE PORTE QUE LE RELIEF.
+                //
+                // La division par l'attenuation ci-dessus sert au modele TOUT-LAMPES, ou la
+                // source doit a elle seule amener la surface au niveau voulu. Gardee ici,
+                // elle donnait a chaque source de quoi eclairer une piece entiere : les
+                // dessus horizontaux, qu'elle regarde de face et de pres, partaient au BLANC
+                // pendant que les murs, qu'elle rase, restaient sombres.
+                //
+                // La clarte cuite porte l'eclairage ; la source ajoute le point chaud et la
+                // chute, a hauteur d'une fraction seulement.
+                float intensite = hybride()
+                        ? clarte * Float.parseFloat(System.getProperty(
+                                "rebirth.regiongain", String.valueOf(REGION_GAIN)))
+                        : clarte * (PEAK_LEVEL - AMBIENT_LEVEL) / att;
                 PointLight p = new PointLight();
                 p.setColor(new ColorRGBA(1f, 0.96f, 0.88f, 1f).mult(intensite));
                 p.setRadius(REGION_RADIUS);
@@ -568,6 +634,27 @@ public final class Lights3D {
             shadowLamp = new PointLight();            // jamais ajoutee a la scene : voir plus haut
             shadowLamp.setColor(ColorRGBA.Black);
             shadowLamp.setRadius(LAMP_REACH);
+        }
+        // LA PLUS PROCHE DES VRAIES LAMPES, SI ELLE EST ALLUMEE.
+        //
+        // Une ombre dit d'ou vient la lumiere. Prise au-dessus de la tete, elle tombe a
+        // l'aplomb de ce qui la porte et ne raconte rien ; prise a la lampe de la piece,
+        // elle s'allonge DANS LE BON SENS, et le joueur lit la scene avec.
+        PointLight proche = null;
+        float best = SHADOW_FROM_LAMP * SHADOW_FROM_LAMP;
+        for (PointLight l : lamps) {
+            if (l.getRadius() <= OFF_RADIUS) {
+                continue;                              // eteinte : sa piece n'est pas visible
+            }
+            float d = l.getPosition().distanceSquared(new Vector3f(x, y, z));
+            if (d < best) {
+                best = d;
+                proche = l;
+            }
+        }
+        if (proche != null) {
+            shadowLamp.setPosition(proche.getPosition().clone());
+            return;
         }
         float h = y + LAMP_ABOVE;
         if (!Float.isNaN(plafond)) {
