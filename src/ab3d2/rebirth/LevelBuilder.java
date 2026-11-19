@@ -2062,7 +2062,7 @@ public final class LevelBuilder {
             return cached;
         }
         if (modern) {
-            Material m = modernWaterMaterial();
+            Material m = modernWaterMaterial(tile);
             if (m != null) {
                 materials.put(key, m);
                 return m;
@@ -2093,7 +2093,7 @@ public final class LevelBuilder {
      * (cf. rebirth.Water). Le speculaire est ce qui la fait lire comme de l'eau : les lampes de
      * zone y accrochent des reflets, et ils se deplacent avec le joueur.
      */
-    private Material modernWaterMaterial() {
+    private Material modernWaterMaterial(int tile) {
         Texture2D nrm = Assets.texture("textures/water_normal.png");
         if (nrm == null) {
             return null;                               // extraction ancienne : repli sur le shader
@@ -2106,20 +2106,67 @@ public final class LevelBuilder {
         Material mat = new Material(assetManager, "Common/MatDefs/Light/Lighting.j3md");
         mat.setTexture("NormalMap", nrm);
         mat.setBoolean("UseMaterialColors", true);
-        // TEINTE : celle du JEU, pas une couleur inventee. Le rendu d'origine ne peint pas
-        // l'eau en bleu — il repasse le sol qu'on voit au travers par un bloc de palette
-        // (water_shade.lut.png), ce qui donne un gris chaud qui s'assombrit avec la distance.
-        // On prend la rangee mediane de cette LUT comme couleur de la surface.
-        ColorRGBA tint = lutTint("textures/water_shade.lut.png", 10,
-                new ColorRGBA(0.49f, 0.45f, 0.39f, 1f));
-        mat.setColor("Diffuse", new ColorRGBA(tint.r, tint.g, tint.b, 0.74f));
-        mat.setColor("Ambient", tint.mult(0.55f));
-        mat.setColor("Specular", new ColorRGBA(0.8f, 0.8f, 0.78f, 1f));
-        mat.setFloat("Shininess", 20f);
-        mat.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
-        mat.getAdditionalRenderState().setDepthWrite(false);
+        // TEINTE : CELLE DE SA PROPRE TUILE.
+        //
+        // Tous les liquides partageaient une seule couleur, tiree de la table d'ombrage de
+        // l'EAU -- un gris chaud. Or le jeu n'a pas qu'un liquide : celui du niveau f tire
+        // au rouge franc (98, 23, 0 de moyenne), et il coulait gris comme le reste. Le sol
+        // qu'on voit au travers porte deja la bonne couleur ; il suffit de la lire.
+        ColorRGBA tint = teinteDeTuile(tile);
+        // UNE LAVE N'EST PAS DE L'EAU. Rouge franc et claire : elle EMET. On la rend donc
+        // opaque -- on ne voit pas le fond d'un bain de lave --, on lui retire le reflet
+        // speculaire, qui en ferait une flaque vernie, et on la fait briller : le bloom par
+        // objets, deja monte pour les voyants, s'en charge.
+        boolean lave = tint.r > 1.6f * tint.b && tint.r > 0.22f;
+        float opacite = lave ? 1f : 0.74f;
+        mat.setColor("Diffuse", new ColorRGBA(tint.r, tint.g, tint.b, opacite));
+        mat.setColor("Ambient", tint.mult(lave ? 1.1f : 0.55f));
+        mat.setColor("Specular", lave ? ColorRGBA.Black
+                : new ColorRGBA(0.8f, 0.8f, 0.78f, 1f));
+        mat.setFloat("Shininess", lave ? 1f : 20f);
+        if (lave && mat.getMaterialDef().getMaterialParam("GlowColor") != null) {
+            mat.setColor("GlowColor", new ColorRGBA(tint.r, tint.g * 0.8f, tint.b, 1f));
+        }
+        mat.getAdditionalRenderState().setBlendMode(
+                lave ? RenderState.BlendMode.Off : RenderState.BlendMode.Alpha);
+        mat.getAdditionalRenderState().setDepthWrite(lave);
         mat.getAdditionalRenderState().setFaceCullMode(RenderState.FaceCullMode.Off);
         return mat;
+    }
+
+    /**
+     * LA COULEUR MOYENNE D'UNE TUILE DE SOL.
+     *
+     * <p>C'est elle qui donne sa teinte au liquide pose dessus : le rendu d'origine ne peint
+     * pas l'eau, il repasse le sol qu'on voit au travers par un bloc de palette. La couleur
+     * est donc deja dans la tuile.
+     *
+     * <p>Si la tuile manque -- le niveau o en demande une qui n'a pas ete extraite --, on
+     * retombe sur la table d'ombrage de l'eau, le gris chaud d'avant.
+     */
+    private ColorRGBA teinteDeTuile(int tile) {
+        BufferedImage img = Assets.image(
+                String.format("textures/floors/floor_%02d.png", tile));
+        if (img == null) {
+            return lutTint("textures/water_shade.lut.png", 10,
+                    new ColorRGBA(0.49f, 0.45f, 0.39f, 1f));
+        }
+        long r = 0;
+        long v = 0;
+        long b = 0;
+        int n = img.getWidth() * img.getHeight();
+        for (int y = 0; y < img.getHeight(); y++) {
+            for (int x = 0; x < img.getWidth(); x++) {
+                int p = img.getRGB(x, y);
+                r += (p >> 16) & 0xFF;
+                v += (p >> 8) & 0xFF;
+                b += p & 0xFF;
+            }
+        }
+        // Eclaircie : la moyenne d'une texture est toujours sombre, et un liquide se voit.
+        float f = 1.7f / 255f;
+        return new ColorRGBA(Math.min(1f, r / (float) n * f),
+                Math.min(1f, v / (float) n * f), Math.min(1f, b / (float) n * f), 1f);
     }
 
     /** Couleur moyenne d'une rangee d'une LUT extraite, ou {@code fallback} si elle manque. */
