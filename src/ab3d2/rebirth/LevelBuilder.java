@@ -1089,6 +1089,26 @@ public final class LevelBuilder {
 
     /** Les cartes de normales (et de hauteur) deja calculees, par chemin de texture. */
     private final Map<String, Texture2D> reliefs = new HashMap<>();
+    /**
+     * POSE LA LUEUR D'UNE IMAGE SUR UN MATERIAU, quand l'image en a une.
+     *
+     * <p>Les murs la recoivent par {@code poserRelief}, qui retrouve leur fichier par la
+     * cle de la texture. Les SPRITES et les MODELES n'ont pas cette cle -- leurs textures
+     * sont baties en memoire --, et passaient donc a cote : un brasero peint flamme par
+     * flamme ne brillait pas, et les yeux d'un monstre non plus.
+     */
+    private void poserLueur(Material m, String chemin) {
+        if (m == null || chemin == null || !modern || fullbright
+                || System.getProperty("rebirth.norelief") != null
+                || m.getMaterialDef().getMaterialParam("GlowMap") == null) {
+            return;
+        }
+        Texture2D gl = lueurs.computeIfAbsent(chemin, k -> Relief.glowMap(Assets.image(k)));
+        if (gl != null) {
+            m.setTexture("GlowMap", gl);
+        }
+    }
+
     /** Les cartes de ce qui emet, de meme (null quand la texture n'emet rien). */
     private final Map<String, Texture2D> lueurs = new HashMap<>();
 
@@ -1594,6 +1614,7 @@ public final class LevelBuilder {
             // Rendu MOTEUR : la texture couleur de la frame, eclairee par les lumieres de la
             // scene. Le panneau etant billboarde, sa normale regarde toujours la camera.
             lit = litMaterial(Assets.texture(spritePath(o, sheet)), true);
+            poserLueur(lit, spritePath(o, sheet));
         } else if (!fullbright) {
             lit = litSpriteMaterial(o, sheet);
         }
@@ -1844,6 +1865,7 @@ public final class LevelBuilder {
         Material mat = null;
         if (modern && !fullbright && !o.additive) {
             mat = litMaterial(Assets.texture("textures/texturemaps_atlas.png"), true);
+            poserLueur(mat, "textures/texturemaps_atlas.png");
         } else if (!fullbright && !o.additive) {
             mat = shadedModelMaterial();
         }
@@ -2320,6 +2342,7 @@ public final class LevelBuilder {
                 Material mat = null;
                 if (modern && !fullbright) {
                     mat = litMaterial(Assets.texture("textures/texturemaps_atlas.png"), true);
+            poserLueur(mat, "textures/texturemaps_atlas.png");
                 } else if (!fullbright) {
                     mat = shadedModelMaterial();
                 }
