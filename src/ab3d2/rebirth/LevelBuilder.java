@@ -1664,17 +1664,17 @@ public final class LevelBuilder {
      * <p>Purement visuel : la simulation ne connait que la POSITION d'un ramassable, et
      * elle n'a pas bouge.
      */
-    private static final class Tournoie extends com.jme3.scene.control.AbstractControl {
-        /** Tours par seconde : assez lent pour ne pas accrocher l'oeil. */
-        private static final float VITESSE = 0.8f;
-        private float angle;
+    private final class Tournoie extends com.jme3.scene.control.AbstractControl {
+        /** De combien il tourne a chaque pas de simulation (cinquante par seconde). */
+        private static final float PAR_PAS = 0.016f;
 
         @Override
         protected void controlUpdate(float tpf) {
-            angle += tpf * VITESSE;
+            // PAS tpf, mais le temps du JEU : une rotation accrochee a l'horloge rend
+            // toute capture non reproductible (cf. pasDeSimulation).
             if (spatial != null) {
                 spatial.setLocalRotation(new com.jme3.math.Quaternion().fromAngles(
-                        0f, angle, 0f));
+                        0f, pasDeSimulation * PAR_PAS, 0f));
             }
         }
 
@@ -2138,7 +2138,18 @@ public final class LevelBuilder {
      * coordonnees de texture du maillage, ce qui promene la normal map sur la surface. C'est
      * quelques dizaines de sommets par surface d'eau, une poignee par niveau.
      */
+    /**
+     * LE TEMPS DU JEU, en pas de simulation.
+     *
+     * <p>Ce qui tourne sur place s'y accroche plutot qu'a l'horloge. Un ramassable dont
+     * l'angle suit le temps REEL ne se retrouve jamais deux fois au meme endroit, et toute
+     * verification par capture devient aveugle : deux images du meme instant differaient de
+     * vingt-sept mille pixels, rien que par ces objets.
+     */
+    private int pasDeSimulation;
+
     public void updateWater(int frames) {
+        pasDeSimulation = frames;
         if (waterGeoms.isEmpty()) {
             return;
         }

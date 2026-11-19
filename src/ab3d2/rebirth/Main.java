@@ -1074,10 +1074,24 @@ public class Main extends SimpleApplication {
             return;
         }
         if (player != null) {
-            accumulator += Math.min(tpf, 0.25f);
-            while (accumulator >= SIM_STEP) {
-                accumulator -= SIM_STEP;
+            // UN PAS PAR IMAGE QUAND ON CAPTURE (-Pshot).
+            //
+            // En jeu, la simulation suit l'horloge : on accumule le temps ecoule et on
+            // avance autant de pas qu'il en tient. Le nombre de pas atteints a la frame N
+            // depend alors de la VITESSE de la machine -- et deux captures du meme instant
+            // ne montrent pas la meme chose. Mesure : treize mille pixels d'ecart, rien que
+            // par les objets qui tournent et les bestioles qui avancent.
+            //
+            // Sous -Pshot on avance donc d'un pas par image, point. La capture redevient
+            // reproductible, et c'est elle qui sert a prouver qu'une refonte n'a rien change.
+            if (shotAt > 0) {
                 stepSim();
+            } else {
+                accumulator += Math.min(tpf, 0.25f);
+                while (accumulator >= SIM_STEP) {
+                    accumulator -= SIM_STEP;
+                    stepSim();
+                }
             }
             applyCamera();
             // Les deux tris qui suivent partent du PVS de la ZONE DU JOUEUR. En camera libre la
