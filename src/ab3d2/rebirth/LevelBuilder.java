@@ -929,6 +929,11 @@ public final class LevelBuilder {
             decorRecoit(g);
             if (modern && !fullbright) {
                 tangentes(g.getMesh());            // le relief a besoin du repere de la texture
+                // ET LE RELIEF LUI-MEME. Les materiaux d'une scene relue ne passent pas
+                // par j3m() : ils sont deja dans le fichier. C'est le meme oubli qui avait
+                // rendu l'image insensible au niveau d'ambiante -- on reglait un materiau
+                // que personne n'utilisait.
+                poserRelief(g.getMaterial());
             }
         });
     }
@@ -1030,13 +1035,51 @@ public final class LevelBuilder {
         String chemin = t.getTextureValue().getKey().getName();
         Texture2D n = reliefs.computeIfAbsent(chemin,
                 k -> Relief.normalMap(Assets.image(k)));
-        if (n != null) {
-            m.setTexture("NormalMap", n);
+        if (n == null) {
+            return;
+        }
+        m.setTexture("NormalMap", n);
+
+        // LE PARALLAXE : la surface se CREUSE vraiment.
+        //
+        // Une carte de normales ment sur l'eclairage mais pas sur la geometrie : vue de
+        // biais, la pierre reste plate comme une photo. Le parallaxe decale ce que l'oeil
+        // lit, selon la hauteur du texel et l'angle de vue -- un joint passe DERRIERE la
+        // pierre qui le borde quand on longe le mur.
+        //
+        // La hauteur est dans le quatrieme canal de la carte de normales, d'ou
+        // PackedNormalParallax : une texture pour les deux, un echantillon au lieu de deux.
+        float creux = Float.parseFloat(System.getProperty("rebirth.parallax", "0.035"));
+        if (creux > 0f && m.getMaterialDef().getMaterialParam("ParallaxHeight") != null) {
+            m.setBoolean("PackedNormalParallax", true);
+            m.setFloat("ParallaxHeight", creux);
+            // La version << raide >> marche par pas le long du rayon au lieu d'un seul
+            // decalage : sans elle, les surfaces vues de tres biais bavent.
+            m.setBoolean("SteepParallax", true);
+        }
+
+        // LA BRILLANCE : ce qui fait qu'une lampe se PROMENE sur un mur.
+        //
+        // Le diffus ne depend pas de l'oeil : il est le meme d'ou qu'on regarde, et une
+        // piece eclairee garde le meme aspect quand on la traverse. Le speculaire, lui,
+        // suit la tete -- c'est lui qui donne la matiere, metal contre roche.
+        float brillance = Float.parseFloat(System.getProperty("rebirth.specular", "0.85"));
+        if (brillance > 0f && m.getMaterialDef().getMaterialParam("SpecularMap") != null) {
+            Texture2D sp = brillances.computeIfAbsent(chemin,
+                    k -> Relief.specularMap(Assets.image(k)));
+            if (sp != null) {
+                m.setTexture("SpecularMap", sp);
+                m.setColor("Specular", new ColorRGBA(brillance, brillance, brillance, 1f));
+                // Exposant eleve = tache serree. Large, elle laverait la texture.
+                m.setFloat("Shininess", 24f);
+            }
         }
     }
 
-    /** Les cartes de normales deja calculees, par chemin de texture. */
+    /** Les cartes de normales (et de hauteur) deja calculees, par chemin de texture. */
     private final Map<String, Texture2D> reliefs = new HashMap<>();
+    /** Les cartes de brillance, de meme. */
+    private final Map<String, Texture2D> brillances = new HashMap<>();
 
     /**
      * LES TANGENTES D'UN MAILLAGE DE DECOR.

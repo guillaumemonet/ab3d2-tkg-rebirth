@@ -41,6 +41,9 @@ public final class Relief {
      */
     private static final int LISSAGE = 1;
 
+    /** Combien la brillance monte : au-dela, le decor devient du plastique mouille. */
+    private static final float SPECULAIRE = 1.25f;
+
     /** La carte de normales d'une image, ou {@code null} si l'image manque. */
     public static Texture2D normalMap(BufferedImage src) {
         if (src == null) {
@@ -61,7 +64,10 @@ public final class Relief {
         }
         haut = lisser(haut, w, h);
 
-        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+        // RGBA : les trois premiers canaux portent la normale, le QUATRIEME la hauteur.
+        // C'est ce que jME appelle PackedNormalParallax -- une seule texture pour les deux,
+        // donc un seul echantillon de plus dans le shader au lieu de deux.
+        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 // Sobel sur la hauteur. Les textures s'enroulent (un mur les repete), donc les
@@ -81,10 +87,66 @@ public final class Relief {
                 int r = Math.round((nx / n * 0.5f + 0.5f) * 255f);
                 int v = Math.round((ny / n * 0.5f + 0.5f) * 255f);
                 int b = Math.round((nz / n * 0.5f + 0.5f) * 255f);
-                out.setRGB(x, y, (r << 16) | (v << 8) | b);
+                int a = Math.round(Math.max(0f, Math.min(1f, haut[y * w + x])) * 255f);
+                out.setRGB(x, y, (a << 24) | (r << 16) | (v << 8) | b);
             }
         }
-        return Assets.toTexture(out);
+        return lisseeEtRepetee(out);
+    }
+
+    /**
+     * LA CARTE DE BRILLANCE, tiree elle aussi de la texture.
+     *
+     * <p>Ce qui brille, dans ce decor, c'est le metal et la pierre polie : du CLAIR et du
+     * GRIS. Ce qui ne brille pas, c'est la roche sombre, la terre, le bois : du sombre, ou
+     * du colore. On tire donc la brillance de la clarte et de la DESATURATION -- un texel
+     * clair et gris repond a la lumiere, un texel brun l'absorbe.
+     *
+     * <p>C'est elle qui fait qu'une lampe se PROMENE sur un mur quand on marche le long :
+     * la part diffuse, elle, ne depend pas de l'oeil et ne bouge jamais.
+     */
+    public static Texture2D specularMap(BufferedImage src) {
+        if (src == null) {
+            return null;
+        }
+        int w = src.getWidth();
+        int h = src.getHeight();
+        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int p = src.getRGB(x, y);
+                float r = ((p >> 16) & 0xFF) / 255f;
+                float v = ((p >> 8) & 0xFF) / 255f;
+                float bl = (p & 0xFF) / 255f;
+                float max = Math.max(r, Math.max(v, bl));
+                float min = Math.min(r, Math.min(v, bl));
+                float sat = max <= 0.001f ? 0f : (max - min) / max;
+                float clarte = 0.299f * r + 0.587f * v + 0.114f * bl;
+                // Au carre : seuls les texels vraiment clairs brillent, et la brillance
+                // ne s'etale pas sur toute la surface.
+                float s = clarte * clarte * (1f - sat) * SPECULAIRE;
+                int g = Math.round(Math.max(0f, Math.min(1f, s)) * 255f);
+                out.setRGB(x, y, (g << 16) | (g << 8) | g);
+            }
+        }
+        return lisseeEtRepetee(out);
+    }
+
+    /**
+     * Une carte de RELIEF, pas une image : elle s'interpole.
+     *
+     * <p>{@code Assets.toTexture} pose le filtre << plus proche voisin >>, qui garde aux
+     * textures de 1996 leur trait net. Pour une normale ou une hauteur c'est l'inverse
+     * qu'il faut : sans interpolation, chaque texel devient une FACETTE et le mur se
+     * couvre d'ecailles des qu'on s'en approche. La couleur reste nette, la lumiere
+     * devient douce.
+     */
+    private static Texture2D lisseeEtRepetee(BufferedImage img) {
+        Texture2D t = Assets.toTexture(img);
+        t.setMagFilter(com.jme3.texture.Texture.MagFilter.Bilinear);
+        t.setMinFilter(com.jme3.texture.Texture.MinFilter.BilinearNoMipMaps);
+        t.setWrap(com.jme3.texture.Texture.WrapMode.Repeat);
+        return t;
     }
 
     /** La hauteur en (x, y), la texture s'enroulant sur ses bords. */
