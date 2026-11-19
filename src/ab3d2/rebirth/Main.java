@@ -51,19 +51,19 @@ public class Main extends SimpleApplication {
     /** -Pshotn : combien d'images de suite la rafale prend. */
     private final int shotCount = Math.max(1, Integer.getInteger("rebirth.shotn", 1));
     private final String camAt;
-    private final boolean freeCam;
+    final boolean freeCam;
 
     private LevelData level;
     private LevelSim levelSim;
-    private PlayerSim player;
+    PlayerSim player;
     private Anims anims;
     /** -Pforcedoor : la porte que l'on fait bouger de force, ou -1. */
     private int doorSweep = -1;
     ab3d2.full.sim.ObjectRuntime objects;
-    private Shots shots;
+    Shots shots;
     private Aliens monsters;
     private Nav nav;
-    private LevelBuilder builder;
+    LevelBuilder builder;
     private GlfData glf;
     /** PlrT_GunSelected_b : arme en main (index dans GLFT_ShootDefs). */
     private int gun = Integer.getInteger("rebirth.gun", 0);
@@ -97,11 +97,11 @@ public class Main extends SimpleApplication {
      */
     private int exitShimmer;
     private ShimmerFilter shimmer;
-    private Lights3D lights3d;
+    Lights3D lights3d;
     /** -PlightLog : trace l'allumage selectif quand le joueur change de zone. */
-    private final boolean lightLog = System.getProperty("rebirth.lightLog") != null;
+    final boolean lightLog = System.getProperty("rebirth.lightLog") != null;
     /** -PnoPvsLights : garde TOUTES les lumieres allumees (mesure de reference). */
-    private final boolean noPvsLights = System.getProperty("rebirth.noPvsLights") != null;
+    final boolean noPvsLights = System.getProperty("rebirth.noPvsLights") != null;
     /** -PfpsLog : imprime le temps de frame moyen toutes les 120 frames. */
     private final boolean fpsLog = System.getProperty("rebirth.fpsLog") != null;
     private boolean sceneCounted;
@@ -112,7 +112,7 @@ public class Main extends SimpleApplication {
     AutoMap automap;
     /** Le menu du jeu (fond defilant + feu) et les reglages qu'il pilote. */
     ab3d2.rebirth.menu.MenuUi menu;
-    private final ab3d2.rebirth.menu.Options options = ab3d2.rebirth.menu.Options.load();
+    final ab3d2.rebirth.menu.Options options = ab3d2.rebirth.menu.Options.load();
     /** Les ecrans de texte : introduction de niveau (TWEENTEXT) et texte de fin. */
     ab3d2.rebirth.menu.StoryText story;
     /**
@@ -141,6 +141,8 @@ public class Main extends SimpleApplication {
      */
     MenuState etatMenu;
     StoryState etatTexte;
+    /** L'eclairage de la partie : sources du niveau, projectiles, ombres. */
+    LightingState etatLumieres;
 
     /** Vrai tant que le menu est affiche : la simulation est alors a l'arret. */
     private boolean inMenu() {
@@ -373,8 +375,10 @@ public class Main extends SimpleApplication {
         // sont actifs, et c'est leur activite qui repond a << sommes-nous dans le menu ? >>.
         etatMenu = new MenuState(this);
         etatTexte = new StoryState(this);
+        etatLumieres = new LightingState(this);
         stateManager.attach(etatMenu);
         stateManager.attach(etatTexte);
+        stateManager.attach(etatLumieres);
         if (!loadLevel(levelLetter, null)) {
             stop();
             return;
@@ -534,7 +538,7 @@ public class Main extends SimpleApplication {
                 lights3d.build(level, glf, builder.lights());
                 System.out.printf("[Level] lumieres : %d lampes + %d dynamiques%n",
                         lights3d.lampCount(), Lights3D.DYNAMIC);
-                installShadows();
+                etatLumieres.poserOmbres();
             }
             // Lumieres dynamiques (plasma/roquette en vol, explosions, torches) : de vraies
             // PointLight en rendu MOTEUR, l'ecriture dans le light map — et la reconstruction
@@ -1079,30 +1083,18 @@ public class Main extends SimpleApplication {
             // Les deux tris qui suivent partent du PVS de la ZONE DU JOUEUR. En camera libre la
             // vue n'est plus celle du joueur : ils eteignaient la piece regardee et escamotaient
             // les monstres qui s'y trouvent. On les desarme donc avec -Pfreecam.
-            // N'allumer que ce qui peut se voir depuis la zone du joueur (PVS du jeu d'origine).
-            if (lights3d != null && !noPvsLights && !freeCam) {
-                int zoneBefore = lights3d.litFrom();
-                lights3d.lightZonesVisibleFrom(player.zone);
-                if (lightLog && player.zone != zoneBefore) {
-                    System.out.printf("[lumieres] zone %d : %d allumees sur %d%n",
-                            player.zone, lights3d.litCount(), lights3d.lampCount());
-                }
-            }
+            etatLumieres.allumerCeQuiSeVoit(player.zone);
             builder.setVisibleFrom(freeCam ? -1 : player.zone); // tri de visibilite de la frame
             applyAnimatedGeometry();
             builder.updateShots(shots.shots());
-            eclairerTirs();
+            etatLumieres.eclairerTirs();
             builder.updateAliens();
             builder.updateWater(simFrames);
             if (hud != null) {
                 hud.underwater(underwaterMode());
             }
             applyWeapon();
-            if (shadows != null && lights3d != null) {
-                // Les ombres ne coutent que pendant qu'une source dynamique existe — et que
-                // SCREEN OPTIONS les laisse allumees.
-                shadows.setEnabled(options.shadows && lights3d.hasShadowSource());
-            }
+            etatLumieres.reglerOmbres();
             presentShimmer();                          // dematerialisation (sortie / teleport)
             // Les lampes qui clignotent : en rendu MOTEUR aussi, puisque c'est la couleur
             // par sommet qui porte desormais la clarte.
@@ -1156,68 +1148,6 @@ public class Main extends SimpleApplication {
         }
         captureShot();
     }
-
-    /**
-     * CHAQUE PROJECTILE EN VOL EST UNE LUMIERE.
-     *
-     * <p>Le jeu d'origine n'en allumait que quelques-uns -- ceux dont le pas
-     * d'animation porte une luminosite --, et il ne s'agissait meme pas d'une lumiere :
-     * il ajoutait une valeur au light map des points alentour. Les balles ordinaires,
-     * elles, ne faisaient rien du tout.
-     *
-     * <p>Ici toutes eclairent, de leur propre couleur, et la simulation n'en sait rien :
-     * elle n'a pas bouge d'une ligne. Celles dont le jeu donne deja la luminosite la
-     * gardent -- c'est elle qui passe par DynLights3D pendant la simulation --, les
-     * autres recoivent ce qu'il faut pour se voir sur un mur.
-     *
-     * <p>DOUZE SOURCES EN TOUT : le ring de Lights3D garde les dernieres. Les
-     * projectiles sont rarement plus nombreux, et les plus recents sont ceux qu'on
-     * regarde.
-     */
-    private void eclairerTirs() {
-        if (lights3d == null || shots == null || player == null) {
-            return;
-        }
-        int vivants = 0;
-        for (ab3d2.full.sim.Shots.Shot s : shots.shots()) {
-            if (!s.active) {
-                continue;
-            }
-            if (!s.popping) {
-                vivants++;                         // un impact n'est plus un tir en vol
-            }
-            // UN IMPACT ECLAIRE AUTREMENT QU'UNE BALLE. C'est le moment le plus lumineux
-            // du jeu -- une gerbe qui jette toute la piece en lumiere le temps de quelques
-            // images --, et sa teinte est celle du feu, pas celle du projectile.
-            boolean eclate = s.popping;
-            lights3d.flash((s.x >> 16) / 64f, -s.heightWord / 64f, -(s.z >> 16) / 64f,
-                    eclate ? ECLAT_LUMIERE : BALLE_LUMIERE,
-                    eclate ? ECLAT_TEINTE : builder.shotTint(s));
-        }
-        // LA BOUCHE DU CANON. Un tir qui part eclaire la piece le temps d'une image :
-        // c'est ce qu'on voit d'une arme, bien plus que la balle elle-meme. On le
-        // reconnait a l'apparition d'un projectile de plus que l'image d'avant.
-        if (vivants > tirsVivants) {
-            lights3d.flash(player.worldX(), player.worldY(), player.worldZ(),
-                    BOUCHE_LUMIERE, BOUCHE_TEINTE);
-        }
-        tirsVivants = vivants;
-    }
-
-    /** Ce qu'une balle ordinaire eclaire (echelle de Lights3D.flash : 0 a 40). */
-    private static final int BALLE_LUMIERE = 24;
-    /** Ce qu'un impact eclaire : presque le maximum, sur un rayon d'une demi-piece. */
-    private static final int ECLAT_LUMIERE = 38;
-    /** Sa teinte : le feu. */
-    private static final com.jme3.math.ColorRGBA ECLAT_TEINTE =
-            new com.jme3.math.ColorRGBA(1f, 0.72f, 0.38f, 1f);
-    /** Ce que le depart du coup eclaire, le temps d'une image. */
-    private static final int BOUCHE_LUMIERE = 30;
-    /** Sa teinte : la flamme, pas la balle. */
-    private static final com.jme3.math.ColorRGBA BOUCHE_TEINTE =
-            new com.jme3.math.ColorRGBA(1f, 0.86f, 0.62f, 1f);
-    /** Combien de projectiles volaient a l'image d'avant (depart de coup). */
-    private int tirsVivants;
 
     /**
      * -Pshot=N : capture a la frame N puis quitte (validation visuelle).
@@ -1479,15 +1409,13 @@ public class Main extends SimpleApplication {
 
     private void applyCamera() {
         cam.setLocation(new Vector3f(player.worldX(), player.worldY(), player.worldZ()));
-        if (lights3d != null) {                        // la source qui porte les ombres suit
-            lights3d.carryTorch(player.worldX(), player.worldY(), player.worldZ());
-            // La lampe qui ombre pend plus haut, et le plafond de la piece lui sert de butee.
-            float plafond = Float.NaN;
-            if (levelSim != null && player.zone >= 0 && player.zone < levelSim.zones.length) {
-                plafond = -levelSim.zones[player.zone].roofH / 8192f;
-            }
-            lights3d.hangShadowLamp(player.worldX(), player.worldY(), player.worldZ(), plafond);
+        // La lampe qui ombre pend plus haut que la torche, et le plafond lui sert de butee.
+        float plafond = Float.NaN;
+        if (levelSim != null && player.zone >= 0 && player.zone < levelSim.zones.length) {
+            plafond = -levelSim.zones[player.zone].roofH / 8192f;
         }
+        etatLumieres.suivreLeJoueur(player.worldX(), player.worldY(), player.worldZ(),
+                plafond);
         if (sky != null) {
             sky.setLocalTranslation(cam.getLocation());   // le ciel reste a l'infini
         }
@@ -1501,20 +1429,6 @@ public class Main extends SimpleApplication {
         if (audio != null) {
             audio.setListener(cam.getLocation());
         }
-    }
-
-    /**
-     * OMBRES PORTEES. On n'en met qu'UNE : ombrer 134 lumieres de zone est hors de question, et
-     * un `PointLightShadowRenderer` en rend deja six faces. La lumiere ombree suit le joueur et
-     * prend la place de celle de sa zone (cf. Lights3D.followPlayer), donc l'eclairage ne change
-     * pas — les ombres apparaissent simplement la ou le joueur peut les voir.
-     */
-    private void installShadows() {
-        if (shadows == null || lights3d == null || lights3d.shadowLight() == null) {
-            return;
-        }
-        shadows.setLight(lights3d.shadowSource());
-        rootNode.setShadowMode(com.jme3.renderer.queue.RenderQueue.ShadowMode.CastAndReceive);
     }
 
     /**
@@ -1598,7 +1512,7 @@ public class Main extends SimpleApplication {
      * s'active et se desactive, ce qu'il faut ici puisque la source ombree n'existe que pendant
      * qu'un projectile vole.
      */
-    private com.jme3.shadow.PointLightShadowFilter shadows;
+    com.jme3.shadow.PointLightShadowFilter shadows;
 
     /**
      * ScreenC.java:250-258 : la presentation decremente le compteur de dematerialisation et
