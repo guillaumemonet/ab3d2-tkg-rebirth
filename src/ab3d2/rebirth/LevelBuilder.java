@@ -1616,6 +1616,11 @@ public final class LevelBuilder {
      * sol, qu'on regarde de pres et sous tous les angles, et dont le panneau plat se
      * trahit des qu'on tourne autour.
      *
+     * <p>ET LE CRITERE EST QU'IL DONNE QUELQUE CHOSE, pas son type. La definition numero
+     * ZERO, sans nom, porte elle aussi << type 0 >>, et c'est elle que prennent les corps
+     * des aliens et les debris : ils se mettaient donc a tourner sur eux-memes comme des
+     * bonus. Un bonus se reconnait a ce qu'il verse dans l'inventaire.
+     *
      * <p>Non pour le reste. Les armes, machines et interrupteurs ont DEJA un modele
      * vectoriel dans le jeu et ne passent pas par ici. Les halos (<< glares >>) sont des
      * taches lumineuses additives : un volume n'aurait pas de sens. Et ce qui porte un
@@ -1628,7 +1633,24 @@ public final class LevelBuilder {
         }
         GlfData.ObjDef def = glf == null ? null : glf.object(o.def);
         // gfxType 0 = un sprite (1 = modele vectoriel, 2 = halo) ; type 0 = a ramasser.
-        return def != null && def.gfxType == 0 && def.type == 0;
+        return def != null && def.gfxType == 0 && def.type == 0 && verse(def);
+    }
+
+    /** Cette definition verse-t-elle quelque chose dans l'inventaire ? */
+    private static boolean verse(GlfData.ObjDef def) {
+        return nonNul(def.ammoGive) || nonNul(def.gunGive);
+    }
+
+    private static boolean nonNul(List<Integer> l) {
+        if (l == null) {
+            return false;
+        }
+        for (Integer v : l) {
+            if (v != null && v != 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
