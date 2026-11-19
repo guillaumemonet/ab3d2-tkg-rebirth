@@ -334,7 +334,7 @@ public final class Lights3D {
             }
             GlfData.ObjDef def = glf == null ? null : glf.object(o.def);
             PointLight p = new PointLight();
-            p.setColor(lampColour(def == null ? "" : def.name)
+            p.setColor(teinteDeLaLampe(o, glf, def)
                     .mult(hybride() ? gain : 2.2f));
             p.setRadius(LAMP_RADIUS);
             p.setPosition(new Vector3f(o.x / 64f, -o.height / 64f, -o.z / 64f));
@@ -777,13 +777,31 @@ public final class Lights3D {
         return n == 0 ? 0.5f : sum / n;
     }
 
-    /** Teinte d'une lampe : le jeu n'en donne pas, on la tire du nom de sa definition. */
-    private static ColorRGBA lampColour(String name) {
-        String n = name == null ? "" : name.toLowerCase();
-        if (n.contains("roof")) {
-            return new ColorRGBA(1f, 0.95f, 0.85f, 1f);    // plafonnier, blanc chaud
+    /**
+     * DE QUELLE COULEUR UNE LAMPE ECLAIRE : celle de son PROPRE graphique.
+     *
+     * <p>Elle venait de son NOM -- << roof >> donnait un blanc chaud, le reste un blanc
+     * un peu jaune --, ce qui revient a deviner. Un brasero peint en rouge projetait donc
+     * une lumiere blanche, et l'oeil le remarque : la source et son halo ne s'accordent
+     * pas.
+     *
+     * <p>On la lit sur l'image, comme pour les projectiles : la moyenne des pixels opaques,
+     * ramenee a pleine valeur pour n'en garder que la TEINTE, puis relachee d'un tiers vers
+     * le blanc -- une lumiere de couleur pure mange la texture qu'elle eclaire au lieu de
+     * la colorer.
+     */
+    private static ColorRGBA teinteDeLaLampe(LevelData.Obj o, GlfData glf,
+            GlfData.ObjDef def) {
+        String planche = glf == null ? null : glf.spriteSheet(o.sheet);
+        if (planche != null) {
+            java.awt.image.BufferedImage img = Assets.image(String.format(
+                    "textures/objects/%s/frame_%02d.png", planche, Math.max(0, o.frame)));
+            if (img != null) {
+                return LevelBuilder.moyenneOpaque(img);
+            }
         }
-        return new ColorRGBA(1f, 0.9f, 0.7f, 1f);
+        // Pas d'image : on retombe sur le blanc chaud d'un plafonnier.
+        return new ColorRGBA(1f, 0.95f, 0.85f, 1f);
     }
 
     /** BRIGHTNESS (SCREEN OPTIONS) : eclaircit ou assombrit toute la scene. */

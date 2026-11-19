@@ -2783,7 +2783,7 @@ public final class LevelBuilder {
     private final Map<String, ColorRGBA> shotTints = new HashMap<>();
 
     /** Moyenne des pixels opaques, ramenee a pleine valeur : la teinte, pas l'intensite. */
-    private static ColorRGBA moyenneOpaque(BufferedImage img) {
+    static ColorRGBA moyenneOpaque(BufferedImage img) {
         if (img == null) {
             return ColorRGBA.White;
         }
