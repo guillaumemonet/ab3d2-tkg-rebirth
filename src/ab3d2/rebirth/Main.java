@@ -244,6 +244,7 @@ public class Main extends SimpleApplication {
 
     @Override
     public void simpleInitApp() {
+        direQuelleCarte();
         // Le dossier d'assets devient une RACINE jME : c'est ce qui permet de charger les
         // materiaux .j3m, et demain les scenes .j3o, par assetManager plutot qu'en code.
         assetManager.registerLocator(Assets.root().toString(),
@@ -1609,6 +1610,79 @@ public class Main extends SimpleApplication {
         }
         shadows.setLight(lights3d.shadowSource());
         rootNode.setShadowMode(com.jme3.renderer.queue.RenderQueue.ShadowMode.CastAndReceive);
+    }
+
+    /**
+     * SUR QUELLE CARTE GRAPHIQUE TOURNE-T-ON ? Dit a voix haute, et proteste si c'est la
+     * mauvaise.
+     *
+     * <p>Sur un portable a deux cartes, le pilote donne par defaut la carte INTEGREE a un
+     * {@code java.exe} : ce n'est pas un jeu que son profil connait. Le remake tournait
+     * ainsi sur la Radeon d'un Ryzen 5800H alors que la machine a une RTX 3070, sans que
+     * rien ne le signale -- et toute mesure de performance faite dessus est fausse. Le
+     * cout de l'occlusion ambiante, du parallaxe et des ombres, tous mesures a l'aveugle.
+     *
+     * <p>UN PROCESSUS JAVA NE PEUT PAS CHOISIR SA CARTE sous Windows : il faudrait que
+     * l'executable exporte {@code NvOptimusEnablement} ou
+     * {@code AmdPowerXpressRequestHighPerformance}, ce que {@code java.exe} ne fait pas.
+     * Tout ce qu'on peut faire est donc de le DIRE, et de donner le remede exact.
+     */
+    private void direQuelleCarte() {
+        String carte = nomDuRendu();
+        System.out.println("[Main] carte graphique : " + carte);
+        if (!estIntegree(carte)) {
+            return;
+        }
+        System.out.println();
+        System.out.println("  ATTENTION : c'est une carte INTEGREE.");
+        System.out.println("  Si cette machine en a une seconde, plus rapide, Windows ne la");
+        System.out.println("  donne pas a java.exe tout seul -- il ne le prend pas pour un jeu.");
+        System.out.println("  Parametres > Systeme > Affichage > Graphiques : ajoutez java.exe");
+        System.out.println("  ET javaw.exe, puis passez-les en << Hautes performances >>.");
+        System.out.println("  java.home = " + System.getProperty("java.home"));
+        System.out.println();
+    }
+
+    /**
+     * Le nom que le pilote donne au rendu.
+     *
+     * <p>jME ne l'expose pas : il le journalise au demarrage et le jette. On le redemande
+     * donc a OpenGL, ce qui est licite ici -- {@code simpleInitApp} tourne sur le fil de
+     * rendu, contexte courant.
+     */
+    private static String nomDuRendu() {
+        try {
+            String n = org.lwjgl.opengl.GL11.glGetString(org.lwjgl.opengl.GL11.GL_RENDERER);
+            return n == null ? "" : n;
+        } catch (Throwable absent) {
+            return "";                           // pas de contexte OpenGL : tant pis
+        }
+    }
+
+    /**
+     * Ce nom est-il celui d'une carte integree ?
+     *
+     * <p>Les trois familles qu'on rencontre : les Intel HD/UHD/Iris, les Radeon des APU
+     * Ryzen -- que le pilote nomme platement << AMD Radeon(TM) Graphics >>, sans numero,
+     * la ou une carte dediee porte le sien (RX 7800, par exemple) -- et le rendu logiciel
+     * de Windows quand aucun pilote ne repond.
+     */
+    static boolean estIntegree(String nom) {
+        if (nom == null) {
+            return false;
+        }
+        String n = nom.toLowerCase(java.util.Locale.ROOT);
+        if (n.contains("microsoft basic") || n.contains("llvmpipe")
+                || n.contains("software rasterizer")) {
+            return true;
+        }
+        if (n.contains("intel")
+                && (n.contains("hd graphics") || n.contains("uhd") || n.contains("iris"))) {
+            return true;
+        }
+        // Le cas du Ryzen : << amd radeon(tm) graphics >> et rien d'autre.
+        return n.contains("radeon") && n.contains("graphics")
+                && !n.matches(".*(rx|r9|r7 2|vega 5[0-9]|pro w).*");
     }
 
     /** Taille de la carte d'ombres (x6 faces pour une lumiere ponctuelle). */
