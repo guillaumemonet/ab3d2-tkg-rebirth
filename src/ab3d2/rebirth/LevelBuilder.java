@@ -1058,6 +1058,17 @@ public final class LevelBuilder {
             m.setBoolean("SteepParallax", true);
         }
 
+        // CE QUI BRILLE DE LUI-MEME. Les voyants, les bandes lumineuses, les veines de la
+        // paroi alien : la carte dit quels texels EMETTENT, et le bloom par objets -- deja
+        // monte -- s'en sert. Un voyant ne s'eteint donc plus avec sa piece.
+        if (m.getMaterialDef().getMaterialParam("GlowMap") != null) {
+            Texture2D gl = lueurs.computeIfAbsent(chemin,
+                    k -> Relief.glowMap(Assets.image(k)));
+            if (gl != null) {
+                m.setTexture("GlowMap", gl);
+            }
+        }
+
         // LA BRILLANCE : ce qui fait qu'une lampe se PROMENE sur un mur.
         //
         // Le diffus ne depend pas de l'oeil : il est le meme d'ou qu'on regarde, et une
@@ -1078,6 +1089,9 @@ public final class LevelBuilder {
 
     /** Les cartes de normales (et de hauteur) deja calculees, par chemin de texture. */
     private final Map<String, Texture2D> reliefs = new HashMap<>();
+    /** Les cartes de ce qui emet, de meme (null quand la texture n'emet rien). */
+    private final Map<String, Texture2D> lueurs = new HashMap<>();
+
     /** Les cartes de brillance, de meme. */
     private final Map<String, Texture2D> brillances = new HashMap<>();
 

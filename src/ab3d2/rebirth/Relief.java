@@ -143,6 +143,56 @@ public final class Relief {
     }
 
     /**
+     * CE QUI BRILLE DANS UNE TEXTURE, et qui doit continuer de briller dans le noir.
+     *
+     * <p>Ces murs portent des lampes, des voyants, des bandes lumineuses : des choses qui
+     * EMETTENT au lieu de renvoyer. Le jeu d'origine ne savait pas les distinguer -- il n'y
+     * avait qu'une palette --, si bien qu'un voyant s'eteignait avec la piece.
+     *
+     * <p>LA CLARTE SEULE NE SUFFIT PAS a les reconnaitre. La roche du niveau l a cinq pour
+     * cent de texels tres clairs, qui ne sont que des reflets : un seuil sur la luminosite
+     * ferait briller la pierre. Ce qui separe une lampe d'un reflet, c'est la COULEUR --
+     * les voyants sont rouges, verts, jaunes, la pierre est grise. D'ou le double critere,
+     * clair ET colore.
+     *
+     * <p>Mesure sur les soixante-dix-huit sous-tuiles du jeu : seize en portent, de deux
+     * centiemes a deux pour cent de leur surface. Les autres n'ont pas de carte du tout, et
+     * ne coutent donc rien.
+     *
+     * @return la carte, ou {@code null} si rien n'emet
+     */
+    public static Texture2D glowMap(BufferedImage src) {
+        if (src == null) {
+            return null;
+        }
+        int w = src.getWidth();
+        int h = src.getHeight();
+        BufferedImage out = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+        int emis = 0;
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int p = src.getRGB(x, y);
+                int r = (p >> 16) & 0xFF;
+                int v = (p >> 8) & 0xFF;
+                int b = p & 0xFF;
+                float max = Math.max(r, Math.max(v, b));
+                float min = Math.min(r, Math.min(v, b));
+                float sat = max <= 0.5f ? 0f : (max - min) / max;
+                float clarte = (0.299f * r + 0.587f * v + 0.114f * b) / 255f;
+                if (clarte > CLARTE_EMISSIVE && sat > SATURATION_EMISSIVE) {
+                    out.setRGB(x, y, p);
+                    emis++;
+                }
+            }
+        }
+        return emis == 0 ? null : lisseeEtRepetee(out);
+    }
+
+    /** Au-dessous, c'est une surface eclairee, pas une source. */
+    private static final float CLARTE_EMISSIVE = 0.55f;
+    /** Au-dessous, c'est un reflet gris : de la pierre, pas un voyant. */
+    private static final float SATURATION_EMISSIVE = 0.40f;
+    /**
      * Une carte de RELIEF, pas une image : elle s'interpole.
      *
      * <p>{@code Assets.toTexture} pose le filtre << plus proche voisin >>, qui garde aux
