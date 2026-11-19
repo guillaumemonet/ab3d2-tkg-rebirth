@@ -31,3 +31,5 @@
 /tools/intro68k/*.png
 /tools/intro68k/__pycache__/
 docs/prototypes/*.png
+assets/textures/walls/sub4x/
+assets/textures/floors4x/

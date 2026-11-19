@@ -41,6 +41,16 @@ public final class Relief {
      */
     private static final int LISSAGE = 1;
 
+    /**
+     * La largeur pour laquelle {@link #LISSAGE} a ete regle.
+     *
+     * <p>Le lissage se compte en TEXELS, mais le relief se juge en metres de mur. Une
+     * texture agrandie quatre fois a quatre fois plus de texels pour le meme mur : garder
+     * le meme rayon reviendrait a lisser quatre fois moins, et chaque grain deviendrait une
+     * bosse -- essaye, le mur tourne au papier froisse. Le rayon suit donc la resolution.
+     */
+    private static final int REFERENCE = 128;
+
     /** Combien la brillance monte : au-dela, le decor devient du plastique mouille. */
     private static final float SPECULAIRE = 1.25f;
 
@@ -158,7 +168,9 @@ public final class Relief {
 
     /** Moyenne sur un petit carre : le grain d'une texture n'est pas du relief. */
     private static float[] lisser(float[] haut, int w, int h) {
-        if (LISSAGE <= 0) {
+        int rayon = Math.max(LISSAGE, Math.round(LISSAGE * Math.max(w, h)
+                / (float) REFERENCE));
+        if (rayon <= 0) {
             return haut;
         }
         float[] out = new float[haut.length];
@@ -166,8 +178,8 @@ public final class Relief {
             for (int x = 0; x < w; x++) {
                 float s = 0;
                 int n = 0;
-                for (int dy = -LISSAGE; dy <= LISSAGE; dy++) {
-                    for (int dx = -LISSAGE; dx <= LISSAGE; dx++) {
+                for (int dy = -rayon; dy <= rayon; dy++) {
+                    for (int dx = -rayon; dx <= rayon; dx++) {
                         s += pente(haut, w, h, x + dx, y + dy);
                         n++;
                     }

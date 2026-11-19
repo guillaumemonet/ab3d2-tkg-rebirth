@@ -71,13 +71,45 @@ public final class Assets {
         }
     }
 
+    /**
+     * LES TEXTURES AGRANDIES, quand on les demande (-Phires).
+     *
+     * <p>Les textures du jeu font de seize a deux cent cinquante-six pixels de large : vues
+     * de pres, un mur n'est plus qu'une poignee de carres. Un agrandisseur (DAT x4, cote
+     * Stable Diffusion) en tire une version quatre fois plus fine, ecrite dans un dossier
+     * PARALLELE -- << sub >> devient << sub4x >>, << floors >> devient << floors4x >>. Les
+     * originaux ne bougent pas, et ce qui n'a pas de version agrandie se charge comme avant.
+     *
+     * <p>Le relief, la hauteur et la brillance se calculant a partir de l'image chargee,
+     * ils gagnent la meme finesse sans qu'on ait a y toucher.
+     */
+    private static final boolean HIRES = System.getProperty("rebirth.hires") != null;
+
+    /** Le chemin agrandi correspondant, ou {@code null} s'il n'y en a pas. */
+    private static String agrandi(String relative) {
+        int barre = relative.lastIndexOf('/');
+        if (barre <= 0) {
+            return null;
+        }
+        String dossier = relative.substring(0, barre);
+        String quatre = dossier + "4x" + relative.substring(barre);
+        return Files.isRegularFile(path(quatre)) ? quatre : null;
+    }
+
     /** Charge un PNG en BufferedImage (cache). Renvoie null si absent. */
     public static BufferedImage image(String relative) {
         if (IMAGES.containsKey(relative)) {
             return IMAGES.get(relative);
         }
         BufferedImage img = null;
-        Path p = path(relative);
+        String voulu = relative;
+        if (HIRES) {
+            String gros = agrandi(relative);
+            if (gros != null) {
+                voulu = gros;
+            }
+        }
+        Path p = path(voulu);
         if (Files.isRegularFile(p)) {
             try {
                 img = ImageIO.read(p.toFile());
@@ -85,6 +117,8 @@ public final class Assets {
                 System.err.println("[Assets] PNG illisible : " + p + " (" + e.getMessage() + ")");
             }
         }
+        // La cle du cache reste le chemin DEMANDE : tout le reste du jeu continue de nommer
+        // les textures par leur chemin d'origine, qu'elles soient agrandies ou non.
         IMAGES.put(relative, img);
         return img;
     }
