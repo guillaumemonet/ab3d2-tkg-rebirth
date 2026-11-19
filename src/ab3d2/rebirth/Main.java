@@ -59,7 +59,7 @@ public class Main extends SimpleApplication {
     private Anims anims;
     /** -Pforcedoor : la porte que l'on fait bouger de force, ou -1. */
     private int doorSweep = -1;
-    private ab3d2.full.sim.ObjectRuntime objects;
+    ab3d2.full.sim.ObjectRuntime objects;
     private Shots shots;
     private Aliens monsters;
     private Nav nav;
@@ -109,12 +109,12 @@ public class Main extends SimpleApplication {
     private float fpsAccum;
     private StatusPanel panel;
     /** La carte (TAB) ; refaite a chaque niveau. */
-    private AutoMap automap;
+    AutoMap automap;
     /** Le menu du jeu (fond defilant + feu) et les reglages qu'il pilote. */
-    private ab3d2.rebirth.menu.MenuUi menu;
+    ab3d2.rebirth.menu.MenuUi menu;
     private final ab3d2.rebirth.menu.Options options = ab3d2.rebirth.menu.Options.load();
     /** Les ecrans de texte : introduction de niveau (TWEENTEXT) et texte de fin. */
-    private ab3d2.rebirth.menu.StoryText story;
+    ab3d2.rebirth.menu.StoryText story;
     /**
      * L'arme tenue a SA PROPRE vue, rendue apres la scene avec le tampon de profondeur remis a
      * zero : c'est ce qui l'empeche de traverser les murs quand on s'y colle. La camera y est
@@ -130,11 +130,27 @@ public class Main extends SimpleApplication {
     /** Le brouillard de distance, ou {@code null} avec -Pnofog. */
     private FogFilter fog;
     private com.jme3.post.ssao.SSAOFilter ssao;
-    /** Vrai tant qu'un ecran de texte est affiche : la simulation est alors a l'arret. */
-    private boolean inStory;
+    /**
+     * LE MENU ET LES ECRANS DE TEXTE SONT DES ETATS DE jME.
+     *
+     * <p>C'etaient deux drapeaux, {@code inMenu} et {@code inStory}, et une poignee de
+     * {@code if} disperses : un pour router les touches, un pour cacher le HUD, un pour
+     * figer la simulation, un autre pour masquer l'arme. Chaque ajout risquait d'en
+     * oublier un. Un {@code BaseAppState} fait tenir cela en deux methodes, et
+     * {@code isEnabled()} repond a la question que tout le monde se posait.
+     */
+    MenuState etatMenu;
+    StoryState etatTexte;
+
     /** Vrai tant que le menu est affiche : la simulation est alors a l'arret. */
-    private boolean inMenu;
-    private int menuFrames;
+    private boolean inMenu() {
+        return etatMenu != null && etatMenu.isEnabled();
+    }
+
+    /** Vrai tant qu'un ecran de texte est affiche. */
+    private boolean inStory() {
+        return etatTexte != null && etatTexte.isEnabled();
+    }
     /**
      * On demarre par le MENU, sauf si la ligne de commande demande un niveau precis : tous les
      * harnais de validation passent -Plevel et doivent continuer d'aller droit au jeu.
@@ -146,7 +162,7 @@ public class Main extends SimpleApplication {
                 && Integer.getInteger("rebirth.shot", 0) <= 0);
     /** Frames restantes avant de passer au niveau suivant / de recommencer. */
     private int stateTimer;
-    private String levelLetterCur;
+    String levelLetterCur;
     /** Le depart force (-Pspawn) ne vaut que pour le premier niveau charge. */
     private boolean firstLoad = true;
 
@@ -197,7 +213,7 @@ public class Main extends SimpleApplication {
     /** Validation visuelle : garde la gachette enfoncee (-Pfire). */
     private final boolean autoFire = System.getProperty("rebirth.fire") != null;
     /** Validation automatique de PLAY GAME apres N frames de menu (validation). */
-    private final int autoPlay = Integer.getInteger("rebirth.autoplay", 0);
+    final int autoPlay = Integer.getInteger("rebirth.autoplay", 0);
 
     /**
      * Sensibilite souris : unites d'angle (8192 = tour complet) par unite analogique jME.
@@ -353,6 +369,12 @@ public class Main extends SimpleApplication {
             story = ab3d2.rebirth.menu.StoryText.create(assetManager, guiNode,
                     cam.getWidth(), cam.getHeight());
         }
+        // Les deux ecrans deviennent des ETATS : jME les met a jour lui-meme quand ils
+        // sont actifs, et c'est leur activite qui repond a << sommes-nous dans le menu ? >>.
+        etatMenu = new MenuState(this);
+        etatTexte = new StoryState(this);
+        stateManager.attach(etatMenu);
+        stateManager.attach(etatTexte);
         if (!loadLevel(levelLetter, null)) {
             stop();
             return;
@@ -363,13 +385,13 @@ public class Main extends SimpleApplication {
         guiReady = true;
         applyLiveOptions();
         if (menu != null && startInMenu) {
-            enterMenu();
+            etatMenu.setEnabled(true);
         }
         // -Pstory : ouvre directement un ecran de texte (validation visuelle). "end" = texte
         // de fin, sinon l'introduction du niveau charge.
         String showStory = System.getProperty("rebirth.story");
         if (showStory != null && story != null) {
-            enterStory("end".equalsIgnoreCase(showStory));
+            etatTexte.montrer("end".equalsIgnoreCase(showStory));
         }
         if (shotAt > 0) {
             screenshot = new ScreenshotAppState(System.getProperty("user.dir") + "/", "rebirth_shot");
@@ -382,7 +404,7 @@ public class Main extends SimpleApplication {
      * Charge (ou recharge) un niveau : geometrie, simulation et entites. {@code carry} est
      * l'inventaire a conserver d'un niveau a l'autre (null = nouvelle partie, DEFAULTGAME).
      */
-    private boolean loadLevel(String letter, ab3d2.full.sim.Inventory carry) {
+    boolean loadLevel(String letter, ab3d2.full.sim.Inventory carry) {
         levelLetterCur = letter.toUpperCase();
         level = Assets.json("levels/" + levelLetterCur + ".json", LevelData.class);
         if (level != null && level.objects != null) {
@@ -637,11 +659,11 @@ public class Main extends SimpleApplication {
         }
 
         ActionListener onKey = (name, pressed, tpf) -> {
-            if (inStory) {
+            if (inStory()) {
                 keys.put(name, pressed);               // seule la validation est lue
                 return;
             }
-            if (inMenu) {
+            if (inMenu()) {
                 if (pressed && menu != null && !menu.rebinding()) {
                     switch (name) {                    // mnu_waitmenu : avancer / reculer / feu
                         case "forward" -> menu.up();
@@ -658,7 +680,7 @@ public class Main extends SimpleApplication {
             }
             if ("quit".equals(name) && pressed) {      // ECHAP : on quitte le NIVEAU vers le menu
                 if (menu != null) {
-                    enterMenu();
+                    etatMenu.setEnabled(true);
                 } else {
                     stop();
                 }
@@ -747,78 +769,6 @@ public class Main extends SimpleApplication {
         keys.put(name, false);
     }
 
-    /**
-     * Ouvre le MENU : la simulation s'arrete, le HUD s'efface et la souris redevient visible.
-     * C'est ce que fait ECHAP en cours de partie ({@code Game_Begin} rend la main au menu).
-     */
-    private void enterMenu() {
-        if (menu == null || inMenu) {
-            return;
-        }
-        inMenu = true;
-        menuFrames = 0;
-        keys.replaceAll((k, v) -> false);
-        menu.setVisible(true);
-        if (objects != null) {
-            menu.setGameState(levelIndex(levelLetterCur), objects.inventory);
-        }
-        menu.openMain();
-        if (hud != null) {
-            hud.setVisible(false);
-        }
-        if (panel != null) {
-            panel.setVisible(false);
-        }
-        if (automap != null && automap.visible()) {
-            automap.toggle();
-        }
-        inputManager.setCursorVisible(true);
-    }
-
-    /**
-     * Affiche l'ECRAN DE TEXTE et gele la partie derriere. {@code end} choisit le texte de fin
-     * plutot que l'introduction du niveau.
-     */
-    private void enterStory(boolean end) {
-        if (story == null) {
-            return;
-        }
-        boolean shown = end ? story.showEnd() : story.showIntro(levelIndex(levelLetterCur));
-        if (!shown) {
-            return;                                    // ce niveau n'a pas de narration
-        }
-        inStory = true;
-        storyEnd = end;
-        keys.replaceAll((k, v) -> false);
-        if (hud != null) {
-            hud.setVisible(false);
-        }
-        if (panel != null) {
-            panel.setVisible(false);
-        }
-        inputManager.setCursorVisible(false);
-        mouseSettle = MOUSE_SETTLE;         // la saisie va sauter : on l'ignore
-    }
-
-    /** L'ecran de texte affiche est celui de FIN : on rend la main au menu en le fermant. */
-    private boolean storyEnd;
-
-    private void leaveStory() {
-        inStory = false;
-        if (storyEnd) {
-            storyEnd = false;
-            if (menu != null) {
-                enterMenu();
-                return;
-            }
-        }
-        if (hud != null) {
-            hud.setVisible(true);
-        }
-        if (panel != null) {
-            panel.setVisible(true);
-        }
-    }
 
     /** Ou accrocher l'arme : sa vue dediee, ou la scene si elle n'a pas pu etre montee. */
     private Node weaponParent() {
@@ -860,10 +810,10 @@ public class Main extends SimpleApplication {
         }
         if (hud != null) {
             hud.setTextReadout(panel == null);
-            hud.setVisible(!inMenu && !inStory);
+            hud.setVisible(!inMenu() && !inStory());
         }
         if (panel != null) {
-            panel.setVisible(!inMenu && !inStory);
+            panel.setVisible(!inMenu() && !inStory());
         }
         if (automap != null && level != null) {
             automap.detach();
@@ -872,7 +822,7 @@ public class Main extends SimpleApplication {
         if (story != null) {
             story.detach();
             story = ab3d2.rebirth.menu.StoryText.create(assetManager, guiNode, w, h);
-            inStory = false;                           // un ecran de texte ne survit pas au resize
+            etatTexte.fermerSansSuite();               // un texte ne survit pas au resize
         }
         if (menu != null) {
             int keep = menu.level();
@@ -880,10 +830,9 @@ public class Main extends SimpleApplication {
             menu = ab3d2.rebirth.menu.MenuUi.create(assetManager, guiNode, w, h, glf, options);
             if (menu != null) {
                 menu.setLevel(keep);
-                if (inMenu) {
-                    menu.setVisible(true);
-                    menu.openMain();
-                    menuFrames = 0;
+                if (inMenu()) {
+                    etatMenu.setEnabled(false);        // le menu refait est neuf
+                    etatMenu.setEnabled(true);
                 }
             }
         }
@@ -915,7 +864,7 @@ public class Main extends SimpleApplication {
             return;
         }
         // Rien a tenir pendant le menu ou un ecran de texte.
-        weaponNode.setCullHint(inMenu || inStory
+        weaponNode.setCullHint(inMenu() || inStory()
                 ? com.jme3.scene.Spatial.CullHint.Always
                 : com.jme3.scene.Spatial.CullHint.Inherit);
         weaponCam.copyFrom(cam);                       // meme ouverture, meme pose : meme visee
@@ -945,7 +894,7 @@ public class Main extends SimpleApplication {
      * SUITE. La taille de fenetre, le plein ecran et la synchro verticale, eux, demandent de
      * recreer le contexte : c'est {@link #applyDisplayOptions()}.
      */
-    private void applyLiveOptions() {
+    void applyLiveOptions() {
         if (sensitivity < 0f) {                        // -Psens n'a pas force la valeur
             sensitivity = options.sensitivity();
         }
@@ -972,7 +921,7 @@ public class Main extends SimpleApplication {
      * Taille de fenetre, plein ecran, synchro verticale : jME ne les change qu'en recreant le
      * contexte. {@link #reshape} rebatit ensuite tout ce qui est dessine en pixels.
      */
-    private void applyDisplayOptions() {
+    void applyDisplayOptions() {
         // Teste AVANT d'allouer : cette methode est appelee a chaque frame du menu principal.
         if (settings.getWidth() == options.width() && settings.getHeight() == options.height()
                 && settings.isFullscreen() == options.fullscreen
@@ -994,23 +943,30 @@ public class Main extends SimpleApplication {
                 || System.getProperty("rebirth.stats") != null);
     }
 
-    /** Referme le menu et rend la main a la partie. */
-    private void leaveMenu() {
-        inMenu = false;
-        applyLiveOptions();
-        menu.setVisible(false);
+
+    /** Montre ou cache tout ce qui appartient a la PARTIE : bandeau, jauges, arme. */
+    void montrerInterface(boolean visible) {
         if (hud != null) {
-            hud.setVisible(true);
+            hud.setVisible(visible);
         }
         if (panel != null) {
-            panel.setVisible(true);
+            panel.setVisible(visible);
         }
+    }
+
+    /** Reprend le curseur et laisse passer la secousse de saisie. */
+    void reprendreCurseur() {
         inputManager.setCursorVisible(false);
         mouseSettle = MOUSE_SETTLE;         // la saisie va sauter : on l'ignore
     }
 
+    /** Oublie les touches tenues : on change d'ecran, rien ne doit rester enfonce. */
+    void relacherTouches() {
+        keys.replaceAll((k, v) -> false);
+    }
+
     /** 'A'..'P' -> 0..15. */
-    private static int levelIndex(String letter) {
+    static int levelIndex(String letter) {
         return letter == null || letter.isEmpty() ? 0 : (letter.charAt(0) - 'A') & 15;
     }
 
@@ -1024,7 +980,7 @@ public class Main extends SimpleApplication {
     /** Front montant de la touche accroupi (le jeu efface la touche apres l'avoir lue). */
     private boolean prevDuck;
 
-    private boolean key(String name) {
+    boolean key(String name) {
         return Boolean.TRUE.equals(keys.get(name));
     }
 
@@ -1106,47 +1062,11 @@ public class Main extends SimpleApplication {
     }
 
     private void updateFrame(float tpf) {
-        if (inStory) {
-            // introPresentLoop : n'importe quelle validation passe l'ecran.
-            if (!story.frame(key("menuOk") || key("action") || key("fire"))) {
-                leaveStory();
-            }
-            captureShot();
-            return;
-        }
-        if (inMenu) {
-            menuFrames++;
-            menu.setFade(Math.min(1f, menuFrames / 16f));   // mnu_fadein : 16 pas de 16
-            menu.frame();
-            // -Pautoplay=N : valide PLAY GAME a la frame N, pour exercer la transition
-            // menu -> texte d'intro -> jeu sans avoir a appuyer sur une touche.
-            if (autoPlay > 0 && menuFrames == autoPlay) {
-                menu.select();
-            }
-            // Dans les pages de reglages, ce qui peut s'appliquer tout de suite s'applique
-            // tout de suite : on entend le volume et on voit la luminosite en reglant.
-            switch (menu.page()) {
-                case VIDEO, SOUND, CONTROLS2 -> applyLiveOptions();
-                // De retour au menu principal, on prend en compte ce qui demande de recreer
-                // le contexte (taille de fenetre, plein ecran, synchro verticale).
-                case MAIN -> applyDisplayOptions();
-                default -> { }
-            }
-            switch (menu.outcome()) {
-                case QUIT -> stop();
-                case PLAY -> {
-                    String letter = String.valueOf((char) ('A' + menu.level()));
-                    ab3d2.full.sim.Inventory carry = menu.pendingInventory();
-                    menu.clearOutcome();
-                    if (!letter.equals(levelLetterCur) || carry != null) {
-                        loadLevel(letter, carry);
-                    }
-                    leaveMenu();
-                    enterStory(false);                 // PLAYTHEGAME : le texte narratif d'abord
-                }
-                default -> { }
-            }
-            captureShot();                             // -Pshot marche aussi sur le menu
+        // LE MENU ET LES ECRANS DE TEXTE SE METTENT A JOUR SEULS : ce sont des etats de
+        // jME, et leur update ne tourne que lorsqu'ils sont actifs. Il ne reste ici qu'a
+        // ne pas faire tourner la PARTIE derriere eux.
+        if (inStory() || inMenu()) {
+            captureShot();                             // -Pshot marche aussi sur eux
             return;
         }
         if (player != null) {
@@ -1495,14 +1415,14 @@ public class Main extends SimpleApplication {
             state = State.EXITING;
             stateTimer = Integer.MAX_VALUE;
             if (story != null) {
-                enterStory(true);
+                etatTexte.montrer(true);
             } else if (hud != null) {
                 hud.message("PARTIE TERMINEE");
             }
             return;
         }
         loadLevel(String.valueOf((char) (c + 1)), objects.inventory);
-        enterStory(false);                             // chaque niveau ouvre sur sa narration
+        etatTexte.montrer(false);                             // chaque niveau ouvre sur sa narration
     }
 
     /**
