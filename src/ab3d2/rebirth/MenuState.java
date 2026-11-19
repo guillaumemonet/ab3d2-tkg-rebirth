@@ -23,6 +23,31 @@ public final class MenuState extends BaseAppState {
     private final Main jeu;
     /** Images ecoulees depuis l'ouverture : le fondu d'entree s'y accroche. */
     private int frames;
+    /**
+     * SON PROPRE ECOUTEUR, pose a l'ouverture et retire a la fermeture.
+     *
+     * <p>Les touches du menu passaient par celui de la PARTIE, qui commencait donc par
+     * demander << sommes-nous dans le menu ? >> et devait, en plus, effacer chaque touche
+     * pour qu'aucune ne fuie vers la simulation. Ici l'ecouteur du jeu est RETIRE pendant
+     * que le menu est ouvert : la fuite n'est plus une precaution a prendre, c'est une
+     * impossibilite.
+     */
+    private final com.jme3.input.controls.ActionListener ecouteur = this::surTouche;
+
+    private void surTouche(String name, boolean pressed, float tpf) {
+        if (!pressed || jeu.menu == null || jeu.menu.rebinding()) {
+            return;
+        }
+        switch (name) {                                // mnu_waitmenu : avancer / reculer
+            case "forward" -> jeu.menu.up();
+            case "backward" -> jeu.menu.down();
+            case "menuOk" -> jeu.menu.select();
+            case "menuLeft" -> jeu.menu.adjust(-1);
+            case "menuRight" -> jeu.menu.adjust(1);
+            case "quit" -> jeu.menu.cancel();
+            default -> { }
+        }
+    }
 
     public MenuState(Main jeu) {
         this.jeu = jeu;
@@ -59,11 +84,13 @@ public final class MenuState extends BaseAppState {
             jeu.automap.toggle();
         }
         getApplication().getInputManager().setCursorVisible(true);
+        jeu.passerLaMain(ecouteur);
     }
 
     /** Referme le menu et rend la main a la partie. */
     @Override
     protected void onDisable() {
+        jeu.reprendreLaMain(ecouteur);
         jeu.applyLiveOptions();
         if (jeu.menu != null) {
             jeu.menu.setVisible(false);

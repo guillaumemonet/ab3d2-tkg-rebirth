@@ -18,6 +18,21 @@ public final class StoryState extends BaseAppState {
     private final Main jeu;
     /** Le texte affiche est-il celui de la FIN ? Il rend alors la main au menu. */
     private boolean fin;
+    /** Une validation a-t-elle ete pressee depuis la derniere image ? */
+    private boolean valide;
+    /**
+     * SON PROPRE ECOUTEUR : un ecran de texte ne lit qu'une chose, la validation.
+     *
+     * <p>Elle passait par l'ecouteur de la PARTIE, qui devait donc commencer par demander
+     * << sommes-nous dans un ecran de texte ? >>. Celui du jeu est retire pendant ce
+     * temps : rien d'autre ne peut etre lu.
+     */
+    private final com.jme3.input.controls.ActionListener ecouteur = this::surTouche;
+
+    private void surTouche(String name, boolean pressed, float tpf) {
+        valide |= pressed && ("menuOk".equals(name) || "action".equals(name)
+                || "fire".equals(name));
+    }
 
     public StoryState(Main jeu) {
         this.jeu = jeu;
@@ -54,13 +69,16 @@ public final class StoryState extends BaseAppState {
 
     @Override
     protected void onEnable() {
+        valide = false;
         jeu.relacherTouches();
         jeu.montrerInterface(false);
         jeu.reprendreCurseur();
+        jeu.passerLaMain(ecouteur);
     }
 
     @Override
     protected void onDisable() {
+        jeu.reprendreLaMain(ecouteur);
         if (fin) {
             fin = false;
             MenuState menu = getStateManager().getState(MenuState.class);
@@ -75,7 +93,9 @@ public final class StoryState extends BaseAppState {
     @Override
     public void update(float tpf) {
         // introPresentLoop : n'importe quelle validation passe l'ecran.
-        if (!jeu.story.frame(jeu.key("menuOk") || jeu.key("action") || jeu.key("fire"))) {
+        boolean passer = valide;
+        valide = false;
+        if (!jeu.story.frame(passer)) {
             setEnabled(false);
         }
     }

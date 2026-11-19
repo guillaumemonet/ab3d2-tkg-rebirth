@@ -177,6 +177,10 @@ public class Main extends SimpleApplication {
 
     // entrees
     private final Map<String, Boolean> keys = new HashMap<>();
+    /** L'ecouteur de la PARTIE : les ecrans le retirent le temps de s'afficher. */
+    ActionListener ecouteurJeu;
+    /** Les commandes qu'il ecoute, pour pouvoir le reposer a l'identique. */
+    String[] nomsTouches;
     private float lookX;                  // accumulateur souris horizontal (unites d'angle)
 
     /**
@@ -662,26 +666,14 @@ public class Main extends SimpleApplication {
             mapKey("gun" + i, KeyInput.KEY_1 + i);
         }
 
-        ActionListener onKey = (name, pressed, tpf) -> {
-            if (inStory()) {
-                keys.put(name, pressed);               // seule la validation est lue
-                return;
-            }
-            if (inMenu()) {
-                if (pressed && menu != null && !menu.rebinding()) {
-                    switch (name) {                    // mnu_waitmenu : avancer / reculer / feu
-                        case "forward" -> menu.up();
-                        case "backward" -> menu.down();
-                        case "menuOk" -> menu.select();
-                        case "menuLeft" -> menu.adjust(-1);
-                        case "menuRight" -> menu.adjust(1);
-                        case "quit" -> menu.cancel();
-                        default -> { }
-                    }
-                }
-                keys.put(name, false);                 // aucune touche ne fuit vers la simulation
-                return;
-            }
+        // L'ECOUTEUR DE LA PARTIE, ET RIEN D'AUTRE.
+        //
+        // Il commencait par deux branches -- sommes-nous dans un ecran de texte ? dans le
+        // menu ? -- avant d'en venir au jeu. Chaque ecran a maintenant SON ecouteur, pose
+        // quand il s'ouvre et retire quand il se ferme, et celui-ci est retire pendant ce
+        // temps. Aucune touche ne peut donc fuir vers la simulation : ce n'est plus une
+        // precaution a prendre, c'est une impossibilite.
+        ecouteurJeu = (name, pressed, tpf) -> {
             if ("quit".equals(name) && pressed) {      // ECHAP : on quitte le NIVEAU vers le menu
                 if (menu != null) {
                     etatMenu.setEnabled(true);
@@ -718,7 +710,8 @@ public class Main extends SimpleApplication {
                 "mapCentre", "mapFade", "menuOk", "menuLeft", "menuRight",
                 "turnLeft", "turnRight", "strafeMode", "lookUp", "lookDown", "centreView",
                 "lookBehind" };
-        inputManager.addListener(onKey, names);
+        nomsTouches = names;
+        inputManager.addListener(ecouteurJeu, names);
 
         inputManager.addMapping("lookLeft", new MouseAxisTrigger(MouseInput.AXIS_X, true));
         inputManager.addMapping("lookRight", new MouseAxisTrigger(MouseInput.AXIS_X, false));
@@ -967,6 +960,32 @@ public class Main extends SimpleApplication {
     /** Oublie les touches tenues : on change d'ecran, rien ne doit rester enfonce. */
     void relacherTouches() {
         keys.replaceAll((k, v) -> false);
+    }
+
+    /**
+     * UN ECRAN PREND LA MAIN SUR LES TOUCHES.
+     *
+     * <p>L'ecouteur de la partie est RETIRE, celui de l'ecran est pose a sa place. Tant
+     * qu'il est la, la simulation ne peut rien recevoir -- ce n'est plus une precaution a
+     * prendre dans chaque branche, c'est une impossibilite.
+     */
+    void passerLaMain(ActionListener ecran) {
+        if (nomsTouches == null) {
+            return;                                    // les liaisons ne sont pas encore posees
+        }
+        inputManager.removeListener(ecouteurJeu);
+        inputManager.addListener(ecran, nomsTouches);
+        relacherTouches();
+    }
+
+    /** L'ecran se ferme : la partie reprend ses touches. */
+    void reprendreLaMain(ActionListener ecran) {
+        if (nomsTouches == null) {
+            return;
+        }
+        inputManager.removeListener(ecran);
+        inputManager.addListener(ecouteurJeu, nomsTouches);
+        relacherTouches();
     }
 
     /** 'A'..'P' -> 0..15. */
