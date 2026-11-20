@@ -90,6 +90,19 @@ public final class SceneExport {
                     scene.attachChild(sp);
                 }
             }
+            // LES LUMIERES STATIQUES ENTRENT DANS LA SCENE.
+            //
+            // Les memes sources que le jeu, par le meme code : regions de meme clarte et
+            // lampes du decor. Le SDK les montre une par une, et le jeu les REPREND au
+            // chargement au lieu de les refaire -- ce qui rend la scene verifiable : ce
+            // qu'on y voit est ce qui eclaire.
+            //
+            // Rien de ce qui bouge n'y est : ambiante, torche, les douze sources recyclees
+            // des tirs et des explosions, la porteuse d'ombres. Elles vivent le temps d'une
+            // image, et le jeu les refait.
+            int sources = ab3d2.rebirth.Lights3D.poserPourLaScene(
+                    scene, lvl, glf, builder.lights());
+
             File f = outDir.resolve("level_" + c + ".j3o").toFile();
             BinaryExporter.getInstance().save(scene, f);
 
@@ -107,8 +120,14 @@ public final class SceneExport {
                         c, before, after);
                 bad++;
             }
-            System.out.printf("[scenes] level_%c.j3o  %,9d octets  %d noeuds  %d materiaux  relu OK%n",
-                    c, f.length(), after, mats);
+            int lues = reloaded.getLocalLightList().size();
+            if (lues != sources) {
+                System.err.printf("[scenes] ECART sur level_%c : %d lumieres ecrites, %d relues%n",
+                        c, sources, lues);
+                bad++;
+            }
+            System.out.printf("[scenes] level_%c.j3o  %,9d octets  %d noeuds  %d materiaux"
+                    + "  %d lumieres  relu OK%n", c, f.length(), after, mats, lues);
             done++;
         }
         System.out.println("[scenes] " + done + " scene(s) dans " + outDir

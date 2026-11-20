@@ -496,7 +496,9 @@ public class Main extends SimpleApplication {
                 if (lights3d == null) {
                     lights3d = new Lights3D(rootNode);
                 }
-                lights3d.build(level, glf, builder.lights());
+                // LA SCENE D'ABORD : si son .j3o porte des lumieres, ce sont elles qui
+                // eclairent. Sinon Lights3D les refait, comme avant.
+                lights3d.build(level, glf, builder.lights(), levelNode);
                 System.out.printf("[Level] lumieres : %d lampes (dont %d cones) + %d dynamiques%n",
                         lights3d.lampCount(), lights3d.spotCount(), Lights3D.DYNAMIC);
                 etatLumieres.poserOmbres();

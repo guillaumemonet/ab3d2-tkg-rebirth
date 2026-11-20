@@ -59,6 +59,12 @@ public final class Lights3D {
     private static final float GAIN_CONE = 1.35f;
     /** Nombre de lumieres dynamiques recyclees (tirs, explosions, torches). */
     public static final int DYNAMIC = 12;
+    /** Prefixe du nom d'une source de region. */
+    private static final String REGION = "region";
+    /** Prefixe du nom d'une lampe du decor. */
+    private static final String LAMPE = "lampe";
+    /** Prefixe du nom d'une lampe de plafond (un cone). */
+    private static final String SPOT = "spot";
     /** Rayon donne a une lumiere ecartee : assez petit pour que le filtre de jME la rejette. */
     private static final float OFF_RADIUS = 0.01f;
     /**
@@ -247,6 +253,121 @@ public final class Lights3D {
     private AmbientLight ambient;
     private int nextDyn;
 
+    /** Vrai quand on ne pose QUE les statiques, pour les ecrire dans la scene. */
+    private boolean sceneSeule;
+
+    /**
+     * POSE LES LUMIERES STATIQUES SUR UN NOEUD, pour les ecrire dans son {@code .j3o}.
+     *
+     * <p>Les memes sources que le jeu, par le meme code : c'est tout l'interet. L'ambiante,
+     * la torche, les sources recyclees et la porteuse d'ombres n'en sont pas -- elles vivent
+     * le temps d'une image et le jeu les refait.
+     *
+     * @return combien de sources ont ete posees
+     */
+    public static int poserPourLaScene(Node cible, LevelData lvl, GlfData glf,
+            LightAnim lightMap) {
+        Lights3D l = new Lights3D(cible);
+        l.sceneSeule = true;
+        l.build(lvl, glf, lightMap, null);
+        return l.lamps.size();
+    }
+
+    /**
+     * Reprend les lumieres statiques que porte la scene relue, et les remonte sur la racine.
+     *
+     * <p>Leur NOM dit ce qu'elles desservent -- {@code region z=3,4,5}, {@code spot z=12} --
+     * et c'est la seule chose qui traverse le fichier. Les tables que le jeu tient a cote
+     * (quelle source pour quel secteur, sa portee a plein, sa couleur a plein) se
+     * reconstituent a partir de la.
+     *
+     * @return combien de sources ont ete reprises ; zero si la scene n'en porte pas
+     */
+    private int adopter(Node scene) {
+        if (scene == null) {
+            return 0;
+        }
+        // ON DESCEND DANS L'ARBRE, et c'est indispensable.
+        //
+        // Le noeud que le jeu tient pour << le niveau >> est un ENVELOPPE : il porte le decor
+        // relu du .j3o, les objets, les tirs et les monstres comme quatre branches soeurs. Les
+        // lumieres, elles, sont sur le decor. Cherchees sur l'enveloppe seule, on n'en
+        // trouvait aucune -- et le jeu en refabriquait un jeu complet PAR-DESSUS celles que
+        // la scene portait deja. Le decor se retrouvait eclaire deux fois : sols et caisses
+        // partaient au blanc pur.
+        java.util.List<Node> porteurs = new ArrayList<>();
+        java.util.List<Light> prises = new ArrayList<>();
+        ramasserLumieres(scene, porteurs, prises);
+        // -Pnoscenelights : on les RETIRE quand meme, puis on les refait en code. Les
+        // laisser en place reviendrait a eclairer le decor deux fois, et la comparaison ne
+        // voudrait plus rien dire.
+        boolean refaire = System.getProperty("rebirth.noscenelights") != null;
+        spotCount = 0;
+        for (int i = 0; i < prises.size(); i++) {
+            Light l = prises.get(i);
+            porteurs.get(i).removeLight(l);
+            if (refaire) {
+                continue;
+            }
+            root.addLight(l);
+            lamps.add(l);
+            if (l instanceof SpotLight) {
+                spotCount++;                           // le compte se relit aussi dans la scene
+            }
+            lampColour.put(l, l.getColor().clone());
+            lampRadius.put(l, portee(l));
+            int[] sert = secteursDe(l.getName());
+            lampServes.put(l, sert);
+            if (sert.length > 0) {
+                lampZone.put(l, sert[0]);
+                if (l instanceof PointLight p && l.getName().startsWith(REGION)) {
+                    for (int id : sert) {
+                        zoneLight.putIfAbsent(id, p);
+                    }
+                }
+            }
+        }
+        return refaire ? 0 : prises.size();
+    }
+
+    /** Ramasse, dans tout l'arbre, les lumieres que nous avons nommees. */
+    private static void ramasserLumieres(com.jme3.scene.Spatial s, java.util.List<Node> porteurs,
+            java.util.List<Light> prises) {
+        if (!(s instanceof Node n)) {
+            return;
+        }
+        for (Light l : n.getLocalLightList()) {
+            String nom = l.getName();
+            if (nom != null && (nom.startsWith(REGION) || nom.startsWith(LAMPE)
+                    || nom.startsWith(SPOT))) {
+                porteurs.add(n);
+                prises.add(l);
+            }
+        }
+        for (com.jme3.scene.Spatial enfant : n.getChildren()) {
+            ramasserLumieres(enfant, porteurs, prises);
+        }
+    }
+
+    /** Les secteurs qu'un nom de lumiere declare desservir ({@code ... z=3,4,5}). */
+    private static int[] secteursDe(String nom) {
+        int i = nom.indexOf("z=");
+        if (i < 0) {
+            return new int[0];
+        }
+        String[] morceaux = nom.substring(i + 2).trim().split(",");
+        int[] out = new int[morceaux.length];
+        int n = 0;
+        for (String m : morceaux) {
+            try {
+                out[n++] = Integer.parseInt(m.trim());
+            } catch (NumberFormatException ignore) {
+                // un nom retouche a la main dans le SDK : on garde ce qu'on comprend
+            }
+        }
+        return n == out.length ? out : java.util.Arrays.copyOf(out, n);
+    }
+
     public Lights3D(Node root) {
         this.root = root;
     }
@@ -289,6 +410,26 @@ public final class Lights3D {
     }
 
     public void build(LevelData lvl, GlfData glf, LightAnim lightMap) {
+        build(lvl, glf, lightMap, null);
+    }
+
+    /**
+     * LES LUMIERES STATIQUES VIENNENT DE LA SCENE, quand elle en porte.
+     *
+     * <p>Les regions et les lampes du decor sont ecrites dans le {@code .j3o} du niveau par
+     * {@code SceneExport}. Le SDK les montre, on peut les y regarder une par une -- et
+     * surtout, ce que le jeu allume est alors EXACTEMENT ce que la scene contient. Deux
+     * sources de verite qui se ressemblent ne valent rien pour verifier quoi que ce soit.
+     *
+     * <p>Elles sont reprises SUR LA RACINE et non laissees sur le noeud du niveau : une
+     * lumiere jME n'eclaire que la branche a laquelle elle est accrochee, et le decor, les
+     * objets et les monstres sont trois branches soeurs. Laissees en place, les lampes
+     * n'eclaireraient que les murs.
+     *
+     * <p>Ce qui BOUGE -- l'ambiante, la torche, les douze sources recyclees des tirs et des
+     * explosions, la lumiere porteuse d'ombres -- ne s'ecrit pas : c'est le jeu qui la fait.
+     */
+    public void build(LevelData lvl, GlfData glf, LightAnim lightMap, Node scene) {
         clear();
         // AMBIANTE : assez haute pour qu'une surface hors de portee garde sa TEXTURE. Le rendu
         // d'origine etait plat par zone ; une ambiante franche en est plus proche, et les
@@ -301,9 +442,11 @@ public final class Lights3D {
                 : (sourcesStatiques() ? AMBIENT_LEVEL : BAKED_EXPOSURE);
         ambientBase = Float.parseFloat(System.getProperty("rebirth.ambient",
                 String.valueOf(parDefaut)));
-        ambient = new AmbientLight(ColorRGBA.White.clone());
-        root.addLight(ambient);
-        setBrightness(brightness);
+        if (!sceneSeule) {
+            ambient = new AmbientLight(ColorRGBA.White.clone());
+            root.addLight(ambient);
+            setBrightness(brightness);
+        }
 
         // DES REGIONS, PAS DES SECTEURS. Le light map du jeu est constant par secteur, et le
         // remake en faisait donc une source par secteur : cent trente-quatre au niveau A, cent
@@ -372,7 +515,8 @@ public final class Lights3D {
             v.clarte = f;
             vues.put(z.id, v);
         }
-        if (sourcesStatiques()) {
+        int repris = sceneSeule ? 0 : adopter(scene);
+        if (repris == 0 && sourcesStatiques()) {
             poserRegions(zones, vues);
         }
 
@@ -411,8 +555,11 @@ public final class Lights3D {
                 h[1] = -f.y / 128f;
             }
         }
-        spotCount = 0;
-        for (LevelData.Obj o : lvl.objects == null ? List.<LevelData.Obj>of() : lvl.objects) {
+        if (repris == 0) {
+            spotCount = 0;
+        }
+        for (LevelData.Obj o : lvl.objects == null || repris > 0
+                ? List.<LevelData.Obj>of() : lvl.objects) {
             if (o.typeId != 1 || o.zone < 0) {
                 continue;
             }
@@ -462,6 +609,7 @@ public final class Lights3D {
                 pt.setPosition(ou);
                 lampe = pt;
             }
+            lampe.setName((pendue ? SPOT : LAMPE) + " z=" + o.zone);
             root.addLight(lampe);
             lamps.add(lampe);
             lampZone.put(lampe, o.zone);
@@ -473,6 +621,9 @@ public final class Lights3D {
             }
         }
 
+        if (sceneSeule) {
+            return;                                    // le reste vit le temps d'une image
+        }
         shadowLight = new PointLight();
         shadowLight.setColor(ColorRGBA.Black);
         shadowLight.setRadius(0.01f);
@@ -662,14 +813,22 @@ public final class Lights3D {
                 p.setColor(new ColorRGBA(1f, 0.96f, 0.88f, 1f).mult(intensite));
                 p.setRadius(REGION_RADIUS);
                 p.setPosition(new Vector3f(x, y, z));
+                int[] sert = new int[dedans.size()];
+                StringBuilder nom = new StringBuilder(REGION).append(" z=");
+                for (int i = 0; i < sert.length; i++) {
+                    sert[i] = dedans.get(i).id;
+                    nom.append(i == 0 ? "" : ",").append(sert[i]);
+                }
+                // LE NOM DIT CE QU'ELLE DESSERT, et c'est ce qui la fait survivre a un
+                // aller-retour par le .j3o : une lumiere ecrite dans la scene y perd les
+                // tables que le jeu tenait a cote d'elle, mais pas son nom.
+                p.setName(nom.toString());
                 root.addLight(p);
                 lamps.add(p);
                 lampColour.put(p, p.getColor().clone());
                 lampRadius.put(p, p.getRadius());
-                int[] sert = new int[dedans.size()];
-                for (int i = 0; i < sert.length; i++) {
-                    sert[i] = dedans.get(i).id;
-                    zoneLight.putIfAbsent(dedans.get(i).id, p);
+                for (int id : sert) {
+                    zoneLight.putIfAbsent(id, p);
                 }
                 lampServes.put(p, sert);
             }
