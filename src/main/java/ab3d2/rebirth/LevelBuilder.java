@@ -2944,17 +2944,56 @@ public final class LevelBuilder {
             if (g.getMaterial() != mat) {
                 g.setMaterial(mat);
             }
-            g.setLocalScale(img.getWidth() / SPRITE_PPU, img.getHeight() / SPRITE_PPU, 1f);
+            // LA TAILLE DE DESSIN VIENT DU PAS D'ANIMATION, pas du fichier.
+            //
+            // Le jeu dessine une balle a la taille que dit son script -- l'octet fort et
+            // l'octet faible du mot 2 d'un pas, en pixels --, et pas a la taille de son
+            // bitmap. La preuve tient en deux lignes de la base : la MegaPlasma et le Lazer
+            // partagent EXACTEMENT la meme image (BIGBULLET, image 0, 64 par 64), et le
+            // script de l'une dit 64 par 64 quand celui de l'autre dit 20 par 20.
+            //
+            // On prenait la taille du PNG. Le Lazer sortait donc trois fois trop gros : une
+            // boule de deux unites jME, cent vingt-huit unites monde, qui traversait les
+            // caisses et les murs. Un panneau transparent qui entre dans un mur est COUPE
+            // net par lui -- d'ou des balles « tronquees », et seulement les grosses.
+            //
+            // Zero veut dire « rien de dit » : on retombe alors sur le bitmap.
+            float balleW = (tailleDessin(s) >>> 8) & 0xFF;
+            float balleH = tailleDessin(s) & 0xFF;
+            if (balleW <= 0f || balleH <= 0f) {
+                balleW = img.getWidth();
+                balleH = img.getHeight();
+            }
+            g.setLocalScale(balleW / SPRITE_PPU, balleH / SPRITE_PPU, 1f);
             // Position : mots monde (le mot fort du 16.16) et hauteur de dessin 4(a0), comme les
             // objets -> -mot/64.
             g.setLocalTranslation((s.x >> 16) / XZ_SCALE, -s.heightWord / 64f,
                     -(s.z >> 16) / XZ_SCALE);
             g.setCullHint(com.jme3.scene.Spatial.CullHint.Inherit);
             if (System.getProperty("rebirth.shotLog") != null) {
-                System.out.printf("[balle %d] %s f%02d additif=%b pos=%s%n", i, sheet, s.frame,
-                        s.additive, g.getLocalTranslation());
+                System.out.printf("[balle %d] %s f%02d additif=%b taille=%.0fx%.0f pos=%s%n",
+                        i, sheet, s.frame, s.additive, balleW, balleH,
+                        g.getLocalTranslation());
             }
         }
+    }
+
+    /**
+     * La taille de dessin du pas d'animation courant d'un projectile ({@code word2}), ou zero.
+     *
+     * <p>En vol c'est {@code BulT_AnimData}, a l'impact {@code BulT_PopData} : deux scripts,
+     * et c'est {@code popping} qui dit lequel.
+     */
+    private int tailleDessin(ab3d2.full.sim.Shots.Shot s) {
+        GlfData.Bullet def = glf == null ? null : glf.bullet(s.type);
+        if (def == null) {
+            return 0;
+        }
+        java.util.List<ObjectAnim.Step> script = s.popping ? def.popData : def.animData;
+        if (script == null || s.anim < 0 || s.anim >= script.size()) {
+            return 0;
+        }
+        return script.get(s.anim).word2;
     }
 
     /**
