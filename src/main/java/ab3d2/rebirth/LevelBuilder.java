@@ -380,7 +380,9 @@ public final class LevelBuilder {
         // lue. C'est tout ce qui manquait.
         poserEclairage(decor);
         litMeshes.clear();
-        reprendreSources(decor);
+        if (bakedLight()) {
+            reprendreSources(decor);                   // les tables par sommet, modele cuit seul
+        }
         litModels.clear();
         litSprites.clear();
         animObjects.clear();
@@ -957,21 +959,27 @@ public final class LevelBuilder {
     }
 
     /**
-     * LA CLARTE D'ORIGINE EST-ELLE LE TERME PROPRE DES SURFACES ?
+     * LA CLARTE D'ORIGINE EST-ELLE CUITE EN COULEUR PAR SOMMET ?
      *
-     * <p>Oui, desormais, et c'est le modele d'eclairage du remake : chaque surface porte la
-     * clarte que les auteurs lui ont donnee, et les vraies lumieres ne servent plus qu'a ce
-     * qui BOUGE — les tirs, les explosions, les torches.
+     * <p><b>Non, par defaut.</b> Le remake eclaire desormais a la lumiere du MOTEUR : une
+     * source par region de meme clarte, les lampes du decor, et les sources dynamiques.
      *
-     * <p>C'est ce qui rend l'etendue du jeu d'origine. Une source ponctuelle fait un point
-     * chaud et une chute ; l'ombrage d'origine est plat par surface, et un sol eclaire l'est
-     * tout entier. A pose egale, les noirs tombent sur ceux du portage et rien ne sature.
+     * <p>C'est un choix assume, et il se paie. L'ombrage d'origine est PLAT PAR SURFACE -- un
+     * sol eclaire l'est tout entier --, la ou une source ponctuelle fait un point chaud et une
+     * chute. Le light map cuit rendait cette etendue au pixel pres ; de vraies lumieres non.
      *
-     * <p>{@code -Pzonelights} revient a l'autre modele — une source par region de meme clarte
-     * — pour comparer.
+     * <p>Mais une clarte cuite ne porte pas d'ombre, ne varie pas avec l'angle de vue, ne
+     * s'eteint pas, et ne sait rien d'un objet qui passe devant. Surtout, elle oblige a
+     * TOUT recalculer des qu'une lampe clignote : une table par sommet, une seconde table pour
+     * se souvenir d'ou chaque sommet tirait sa clarte, et une relecture complete des maillages
+     * a chaque changement. De vraies lumieres n'ont besoin de rien de tout cela -- on les
+     * deplace, on les eteint, et le moteur suit.
+     *
+     * <p>{@code -Pbakedlight} rend l'ancien modele, pour comparer. C'est le seul endroit ou
+     * les tables par sommet se calculent encore.
      */
     public static boolean bakedLight() {
-        return System.getProperty("rebirth.zonelights") == null;
+        return System.getProperty("rebirth.bakedlight") != null;
     }
 
     private Material litMaterial(Texture2D tex) {
@@ -2000,7 +2008,11 @@ public final class LevelBuilder {
      */
     private Mesh buildModelMesh(ObjModels.Model m, LevelData.Obj o) {
         LightRings rings = null;
-        if (!fullbright && !o.additive && level != null && level.points != null && level.edges != null) {
+        // L'ANNEAU N'EST CALCULE QUE S'IL SERT. En rendu moteur, la clarte par face partirait
+        // dans une couleur par sommet que le materiau n'active plus : c'etait un anneau
+        // directionnel calcule, par objet pose, pour etre jete.
+        if (!fullbright && !o.additive && (!modern || bakedLight())
+                && level != null && level.points != null && level.edges != null) {
             if (sinCos == null) {
                 sinCos = ab3d2.full.Data.sinCos();
             }

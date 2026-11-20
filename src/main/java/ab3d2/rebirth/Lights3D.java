@@ -4,7 +4,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.jme3.light.AmbientLight;
+import com.jme3.light.Light;
 import com.jme3.light.PointLight;
+import com.jme3.light.SpotLight;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Node;
@@ -45,6 +47,16 @@ public final class Lights3D {
      * Trop grand fondrait un couloir sombre dans la salle eclairee d'a cote.
      */
     private static final float SAME_LIGHT = 0.1f;
+    /** De combien une lampe de plafond descend sous lui. */
+    private static final float SOUS_LE_TOIT = 0.3f;
+    /** A quelle hauteur se pose une lampe qui ne pend pas : a hauteur d'homme. */
+    private static final float LAMPE_DEBOUT = 1.6f;
+    /** Le coeur du cone, en radians. */
+    private static final float CONE_INTERIEUR = 22f * com.jme3.math.FastMath.DEG_TO_RAD;
+    /** Son bord : au-dela, plus rien. Doit rester sous PI/2, jME le refuse sinon. */
+    private static final float CONE_EXTERIEUR = 52f * com.jme3.math.FastMath.DEG_TO_RAD;
+    /** Ce qu'on rend a un cone, qui concentre la ou la bulle repandait. */
+    private static final float GAIN_CONE = 1.35f;
     /** Nombre de lumieres dynamiques recyclees (tirs, explosions, torches). */
     public static final int DYNAMIC = 12;
     /** Rayon donne a une lumiere ecartee : assez petit pour que le filtre de jME la rejette. */
@@ -100,17 +112,25 @@ public final class Lights3D {
     private static final int NO_ROOF = -32768;
 
     private final Node root;
-    private final List<PointLight> lamps = new ArrayList<>();
+    /**
+     * LES LAMPES DU DECOR, ponctuelles ou CONIQUES.
+     *
+     * <p>Une lampe accrochee au plafond est un spot tourne vers le bas : elle pose un cone sur
+     * le sol, avec un bord, la ou une source ponctuelle fait une bulle qui remonte sur le
+     * plafond au-dessus d'elle. C'est le seul endroit ou la difference se voit, et elle se
+     * voit beaucoup.
+     */
+    private final List<Light> lamps = new ArrayList<>();
     /** La lumiere de chaque zone, et sa couleur nominale (on l'eteint quand elle est ombree). */
     private final java.util.Map<Integer, PointLight> zoneLight = new java.util.HashMap<>();
     private final java.util.Map<Integer, ColorRGBA> zoneColour = new java.util.HashMap<>();
     /** Rayon d'origine de chaque lumiere de zone : c'est LUI qu'on annule pour l'ecarter. */
     private final java.util.Map<Integer, Float> zoneRadius = new java.util.HashMap<>();
-    private final java.util.Map<PointLight, Float> lampRadius = new java.util.HashMap<>();
+    private final java.util.Map<Light, Float> lampRadius = new java.util.HashMap<>();
     /** Zones potentiellement visibles depuis chaque zone — le PVS du jeu d'origine. */
     private final java.util.Map<Integer, int[]> pvsOf = new java.util.HashMap<>();
     /** Zone de chaque lampe d'objet (les « glares »), pour l'éteindre avec sa pièce. */
-    private final java.util.Map<PointLight, Integer> lampZone = new java.util.HashMap<>();
+    private final java.util.Map<Light, Integer> lampZone = new java.util.HashMap<>();
     /**
      * LES SECTEURS QUE CHAQUE SOURCE DESSERT.
      *
@@ -118,7 +138,7 @@ public final class Lights3D {
      * l'allumage se decide : une source reste allumee tant qu'UN de ses secteurs est
      * potentiellement visible. Les deux familles se traitent donc pareil.
      */
-    private final java.util.Map<PointLight, int[]> lampServes = new java.util.HashMap<>();
+    private final java.util.Map<Light, int[]> lampServes = new java.util.HashMap<>();
 
     /** Ce qu'on retient d'un secteur pour l'eclairer : ou il est, et a quelle clarte. */
     private static final class Zone {
@@ -128,7 +148,51 @@ public final class Lights3D {
         float clarte;
         int region;
     }
-    private final java.util.Map<PointLight, ColorRGBA> lampColour = new java.util.HashMap<>();
+    private final java.util.Map<Light, ColorRGBA> lampColour = new java.util.HashMap<>();
+
+    /**
+     * A QUELLE HAUTEUR POSER UNE LAMPE DU DECOR.
+     *
+     * <p>Le jeu n'en dit rien : {@code ObjT_ZPos_l} est calcule a l'execution a partir du sol
+     * sous l'objet, et l'extraction ne le releve pas -- le champ {@code height} des objets
+     * lumineux vaut ZERO dans les seize niveaux. Les poser tels quels revenait a mettre
+     * chacune d'elles a l'altitude zero du monde, c'est-a-dire au hasard : au ras du sol dans
+     * la plupart des secteurs, sous le sol ailleurs.
+     *
+     * <p>On la deduit donc. Un « RoofGlare » pend du plafond de son secteur ; tout le reste se
+     * tient a hauteur d'homme au-dessus du sol. C'est une invention, et elle est assumee : la
+     * donnee n'existe pas, et l'altitude zero n'etait pas plus vraie.
+     */
+    private static float hauteurDeLaLampe(LevelData.Obj o, float[] h, boolean auPlafond) {
+        if (h == null) {
+            return -o.height / 64f;                    // secteur inconnu : ce qu'on avait
+        }
+        if (auPlafond && !Float.isNaN(h[1]) && h[1] > h[0] + 0.8f) {
+            return h[1] - SOUS_LE_TOIT;
+        }
+        return h[0] + LAMPE_DEBOUT;
+    }
+
+    /** La portee d'une lampe, quelle que soit sa sorte. */
+    private static float portee(Light l) {
+        return l instanceof PointLight p ? p.getRadius()
+                : l instanceof SpotLight sp ? sp.getSpotRange() : 0f;
+    }
+
+    /** Regle la portee d'une lampe, quelle que soit sa sorte. */
+    private static void portee(Light l, float r) {
+        if (l instanceof PointLight p) {
+            p.setRadius(r);
+        } else if (l instanceof SpotLight sp) {
+            sp.setSpotRange(r);
+        }
+    }
+
+    /** La position d'une lampe, quelle que soit sa sorte. */
+    private static Vector3f position(Light l) {
+        return l instanceof PointLight p ? p.getPosition()
+                : l instanceof SpotLight sp ? sp.getPosition() : Vector3f.ZERO;
+    }
     /** Dernière zone pour laquelle on a réglé l'allumage (évite de tout refaire par frame). */
     private int litFromZone = Integer.MIN_VALUE;
     /**
@@ -210,14 +274,18 @@ public final class Lights3D {
     }
 
     /**
-     * LE MODELE PAR DEFAUT : la clarte cuite ET de vraies sources.
+     * LA CLARTE CUITE ET DE VRAIES SOURCES A LA FOIS.
      *
-     * <p>{@code -Pzonelights} ne garde que les sources (l'ancien modele tout-lampes),
-     * {@code -Pnolamps} ne garde que la clarte cuite (l'ancien modele tout-cuit).
+     * <p>Ce n'est plus le modele par defaut : le remake eclaire a la lumiere du moteur, et la
+     * clarte cuite ne revient qu'avec {@code -Pbakedlight}. L'hybride n'a de sens que la --
+     * quand il y a un light map a accompagner. Sans lui, {@code HYBRID_AMBIENT} serait une
+     * ambiante haute posee pour reveler une clarte qui n'existe pas, et tout le niveau
+     * baignerait dans un gris plat.
+     *
+     * <p>{@code -Pnolamps} eteint les sources statiques.
      */
     private static boolean hybride() {
-        return System.getProperty("rebirth.zonelights") == null
-                && System.getProperty("rebirth.nolamps") == null;
+        return LevelBuilder.bakedLight() && System.getProperty("rebirth.nolamps") == null;
     }
 
     public void build(LevelData lvl, GlfData glf, LightAnim lightMap) {
@@ -321,6 +389,29 @@ public final class Lights3D {
         // les secteurs potentiellement visibles (cf. followPlayer).
         float gain = Float.parseFloat(System.getProperty("rebirth.lampgain",
                 String.valueOf(LAMP_GAIN)));
+        // SOL ET PLAFOND DE CHAQUE SECTEUR, pris sur les SURFACES et non sur roofH.
+        //
+        // roofH vaut la sentinelle -32768 dans la plupart des secteurs interieurs, qui ont
+        // pourtant un vrai plafond : s'y fier revenait a dire qu'aucune lampe ne pend nulle
+        // part, et c'est ce qu'on a mesure -- zero cone sur seize niveaux. Le plafond, c'est
+        // la surface de plafond du secteur.
+        //
+        // `vues` ne peut pas servir : il ecarte les secteurs noirs, et une lampe pend tres
+        // bien dans l'un d'eux.
+        java.util.Map<Integer, float[]> hauteurs = new java.util.HashMap<>();
+        for (LevelData.Zone z : zones) {
+            hauteurs.put(z.id, new float[] {-z.floorH / 8192f, Float.NaN});
+        }
+        for (LevelData.Flat f : lvl.flats == null ? List.<LevelData.Flat>of() : lvl.flats) {
+            if (!"ceil".equals(f.kind) || f.upper) {
+                continue;
+            }
+            float[] h = hauteurs.get(f.zone);
+            if (h != null) {
+                h[1] = -f.y / 128f;
+            }
+        }
+        spotCount = 0;
         for (LevelData.Obj o : lvl.objects == null ? List.<LevelData.Obj>of() : lvl.objects) {
             if (o.typeId != 1 || o.zone < 0) {
                 continue;
@@ -333,17 +424,53 @@ public final class Lights3D {
                 continue;
             }
             GlfData.ObjDef def = glf == null ? null : glf.object(o.def);
-            PointLight p = new PointLight();
-            p.setColor(teinteDeLaLampe(o, glf, def)
-                    .mult(hybride() ? gain : 2.2f));
-            p.setRadius(LAMP_RADIUS);
-            p.setPosition(new Vector3f(o.x / 64f, -o.height / 64f, -o.z / 64f));
-            root.addLight(p);
-            lamps.add(p);
-            lampZone.put(p, o.zone);
-            lampServes.put(p, new int[] {o.zone});
-            lampColour.put(p, p.getColor().clone());
-            lampRadius.put(p, p.getRadius());
+            ColorRGBA teinte = teinteDeLaLampe(o, glf, def).mult(hybride() ? gain : 2.2f);
+            float[] h = hauteurs.get(o.zone);
+            boolean nommee = o.name != null
+                    && o.name.toLowerCase(java.util.Locale.ROOT).startsWith("roof");
+            Vector3f ou = new Vector3f(o.x / 64f, hauteurDeLaLampe(o, h, nommee), -o.z / 64f);
+
+            // PENDUE AU PLAFOND ? ALORS C'EST UN SPOT.
+            //
+            // Une lampe de plafond posee en source ponctuelle eclaire une BULLE : le sol
+            // dessous, mais aussi le plafond au-dessus d'elle et les murs derriere. Rien de
+            // tout cela n'est faux, et rien n'y ressemble a une lampe. Un cone tourne vers
+            // le bas a un bord, et ce bord est ce que l'oeil lit comme « une lampe eclaire
+            // ici ».
+            //
+            // Le critere est geometrique, pas nominal : la lampe est dans le tiers haut de
+            // son secteur, et ce secteur a un vrai plafond. Une lampe murale, une borne, un
+            // fut lumineux posent toujours leur bulle.
+            boolean pendue = nommee && h != null && !Float.isNaN(h[1]);
+            Light lampe;
+            if (pendue) {
+                SpotLight sp = new SpotLight();
+                sp.setPosition(ou);
+                sp.setDirection(Vector3f.UNIT_Y.mult(-1f));
+                sp.setSpotRange(LAMP_RADIUS * 2f);
+                sp.setSpotInnerAngle(CONE_INTERIEUR);
+                sp.setSpotOuterAngle(CONE_EXTERIEUR);
+                // Un cone concentre ce qu'une bulle repandait partout : a teinte egale il
+                // tape plus fort. On le rend donc un peu, sans quoi les pieces a lampes de
+                // plafond ressortaient blanches.
+                sp.setColor(teinte.mult(GAIN_CONE));
+                lampe = sp;
+            } else {
+                PointLight pt = new PointLight();
+                pt.setColor(teinte);
+                pt.setRadius(LAMP_RADIUS);
+                pt.setPosition(ou);
+                lampe = pt;
+            }
+            root.addLight(lampe);
+            lamps.add(lampe);
+            lampZone.put(lampe, o.zone);
+            lampServes.put(lampe, new int[] {o.zone});
+            lampColour.put(lampe, lampe.getColor().clone());
+            lampRadius.put(lampe, portee(lampe));
+            if (pendue) {
+                spotCount++;
+            }
         }
 
         shadowLight = new PointLight();
@@ -395,7 +522,7 @@ public final class Lights3D {
         litFromZone = zone;
         int[] vis = pvsOf.get(zone);
         if (vis == null) {                             // zone inconnue : on ne prend pas de risque
-            lampRadius.forEach(PointLight::setRadius);
+            lampRadius.forEach(Lights3D::portee);
             return;
         }
         java.util.Set<Integer> on = new java.util.HashSet<>();
@@ -421,7 +548,7 @@ public final class Lights3D {
                     }
                 }
             }
-            p.setRadius(allume ? r : OFF_RADIUS);
+            portee(p, allume ? r : OFF_RADIUS);
         });
     }
 
@@ -433,8 +560,8 @@ public final class Lights3D {
     /** Nombre de sources reellement allumees (diagnostic). */
     public int litCount() {
         int n = 0;
-        for (PointLight p : lamps) {
-            if (p.getRadius() > OFF_RADIUS) {
+        for (Light p : lamps) {
+            if (portee(p) > OFF_RADIUS) {
                 n++;
             }
         }
@@ -640,20 +767,20 @@ public final class Lights3D {
         // Une ombre dit d'ou vient la lumiere. Prise au-dessus de la tete, elle tombe a
         // l'aplomb de ce qui la porte et ne raconte rien ; prise a la lampe de la piece,
         // elle s'allonge DANS LE BON SENS, et le joueur lit la scene avec.
-        PointLight proche = null;
+        Light proche = null;
         float best = SHADOW_FROM_LAMP * SHADOW_FROM_LAMP;
-        for (PointLight l : lamps) {
-            if (l.getRadius() <= OFF_RADIUS) {
+        for (Light l : lamps) {
+            if (portee(l) <= OFF_RADIUS) {
                 continue;                              // eteinte : sa piece n'est pas visible
             }
-            float d = l.getPosition().distanceSquared(new Vector3f(x, y, z));
+            float d = position(l).distanceSquared(new Vector3f(x, y, z));
             if (d < best) {
                 best = d;
                 proche = l;
             }
         }
         if (proche != null) {
-            shadowLamp.setPosition(proche.getPosition().clone());
+            shadowLamp.setPosition(position(proche).clone());
             return;
         }
         float h = y + LAMP_ABOVE;
@@ -676,6 +803,14 @@ public final class Lights3D {
     public boolean hasShadowSource() {
         return true;                                   // la lampe qui ombre existe toujours
     }
+
+    /** Combien de ces lampes sont des CONES (diagnostic). */
+    public int spotCount() {
+        return spotCount;
+    }
+
+    /** Combien de lampes du decor sont des cones. */
+    private int spotCount;
 
     public int lampCount() {
         return lamps.size();
@@ -730,7 +865,7 @@ public final class Lights3D {
             root.removeLight(ambient);
             ambient = null;
         }
-        for (PointLight p : lamps) {
+        for (Light p : lamps) {
             root.removeLight(p);
         }
         lamps.clear();

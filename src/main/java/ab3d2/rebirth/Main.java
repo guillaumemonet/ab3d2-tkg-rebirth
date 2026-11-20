@@ -491,8 +491,8 @@ public class Main extends SimpleApplication {
                     lights3d = new Lights3D(rootNode);
                 }
                 lights3d.build(level, glf, builder.lights());
-                System.out.printf("[Level] lumieres : %d lampes + %d dynamiques%n",
-                        lights3d.lampCount(), Lights3D.DYNAMIC);
+                System.out.printf("[Level] lumieres : %d lampes (dont %d cones) + %d dynamiques%n",
+                        lights3d.lampCount(), lights3d.spotCount(), Lights3D.DYNAMIC);
                 etatLumieres.poserOmbres();
             }
             // Lumieres dynamiques (plasma/roquette en vol, explosions, torches) : de vraies

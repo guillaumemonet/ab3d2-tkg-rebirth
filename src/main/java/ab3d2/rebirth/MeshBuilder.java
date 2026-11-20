@@ -34,9 +34,16 @@ public final class MeshBuilder {
         hasLitSource = true;
     }
 
-    /** Sources de luminosite par sommet (meme ordre que les sommets), ou null si aucune. */
+    /**
+     * Sources de luminosite par sommet (meme ordre que les sommets), ou null si aucune.
+     *
+     * <p>ET NULL AUSSI EN RENDU MOTEUR. Ces sources ne servent qu'a REFAIRE la couleur par
+     * sommet quand une lampe animee change de clarte ; sans couleur par sommet, il n'y a rien
+     * a refaire. Le rendre null ici suffit a ce que tout le suivi -- la liste des maillages
+     * eclaires, leur relecture, le rafraichissement -- ne s'arme jamais.
+     */
     public int[][] litSources() {
-        return hasLitSource ? litSource.toArray(new int[0][]) : null;
+        return hasLitSource && LevelBuilder.bakedLight() ? litSource.toArray(new int[0][]) : null;
     }
 
     public void vertex(float x, float y, float z, float u, float v, float b) {
@@ -172,7 +179,13 @@ public final class MeshBuilder {
         mesh.setBuffer(VertexBuffer.Type.TexCoord, 2, BufferUtils.createFloatBuffer(t));
         mesh.setBuffer(VertexBuffer.Type.Index, 3, BufferUtils.createIntBuffer(idx));
         mesh.setBuffer(VertexBuffer.Type.Normal, 3, BufferUtils.createFloatBuffer(flatNormals(p)));
-        mesh.setBuffer(VertexBuffer.Type.Color, 4, BufferUtils.createFloatBuffer(bakedColours()));
+        if (LevelBuilder.bakedLight()) {
+            // LA CLARTE CUITE, et seulement si elle sert : le materiau du rendu moteur
+            // n'active pas UseVertexColor, et ce tampon y serait quatre flottants par sommet
+            // calcules puis televerses pour rien.
+            mesh.setBuffer(VertexBuffer.Type.Color, 4,
+                    BufferUtils.createFloatBuffer(bakedColours()));
+        }
         if (hasBright) {
             float[] b = new float[bright.size()];
             for (int i = 0; i < b.length; i++) {
@@ -180,7 +193,7 @@ public final class MeshBuilder {
             }
             mesh.setBuffer(VertexBuffer.Type.TexCoord2, 2, BufferUtils.createFloatBuffer(b));
         }
-        if (hasLitSource) {
+        if (hasLitSource && LevelBuilder.bakedLight()) {
             // D'OU VIENT LA CLARTE DE CHAQUE SOMMET : son secteur, son point de bord, et
             // l'etage. Trois nombres, ranges dans un canal de coordonnees parce que c'est ce
             // qu'un maillage sait EMPORTER quand on l'ecrit dans un fichier.
