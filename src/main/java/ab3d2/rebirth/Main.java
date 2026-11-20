@@ -143,6 +143,8 @@ public class Main extends SimpleApplication {
     StoryState etatTexte;
     /** L'eclairage de la partie : sources du niveau, projectiles, ombres. */
     LightingState etatLumieres;
+    /** La partie elle-meme : le menu et les ecrans de texte l'eteignent en s'ouvrant. */
+    GameState etatJeu;
 
     /** Vrai tant que le menu est affiche : la simulation est alors a l'arret. */
     private boolean inMenu() {
@@ -380,9 +382,13 @@ public class Main extends SimpleApplication {
         etatMenu = new MenuState(this);
         etatTexte = new StoryState(this);
         etatLumieres = new LightingState(this);
+        etatJeu = new GameState(this);
         stateManager.attach(etatMenu);
         stateManager.attach(etatTexte);
         stateManager.attach(etatLumieres);
+        stateManager.attach(etatJeu);
+        // La vue de l'arme se met a jour QUOI QU'IL ARRIVE : son etat reste toujours actif.
+        stateManager.attach(new WeaponViewState(this));
         if (!loadLevel(levelLetter, null)) {
             stop();
             return;
@@ -1115,26 +1121,30 @@ public class Main extends SimpleApplication {
                 fpsAccum = 0f;
             }
         }
-        // La vue de l'arme a sa propre scene : PERSONNE ne la met a jour a notre place, et jME
-        // refuse de dessiner une scene laissee « sale ». Elle doit donc etre mise a jour a
-        // CHAQUE frame, quelle que soit la branche prise ci-dessous — d'ou le finally : les
-        // sorties anticipees (menu, ecran de texte) l'avaient oubliee et le jeu plantait des la
-        // premiere frame passee dans le menu.
-        try {
-            updateFrame(tpf);
-        } finally {
-            updateWeaponView(tpf);
+        // LA PARTIE ET LA VUE DE L'ARME SONT DES ETATS : jME les appelle lui-meme. Il ne
+        // reste ici que ce qui regarde la FENETRE -- la souris et les mesures.
+        //
+        // Les captures restent pilotees d'ici : elles doivent marcher sur le menu et les
+        // ecrans de texte autant que sur le jeu.
+        if (etatJeu != null) {
+            etatJeu.setEnabled(!inMenu() && !inStory());
+        }
+        if (inMenu() || inStory()) {
+            captureShot();                         // -Pshot marche aussi sur eux
         }
     }
 
+    /** Une image de PARTIE. Appelee par {@link GameState}, jamais quand un ecran est ouvert. */
+    void imageDeJeu(float tpf) {
+        updateFrame(tpf);
+    }
+
+    /** Une image de la vue de l'arme. Appelee par {@link WeaponViewState}, toujours. */
+    void majVueArme(float tpf) {
+        updateWeaponView(tpf);
+    }
+
     private void updateFrame(float tpf) {
-        // LE MENU ET LES ECRANS DE TEXTE SE METTENT A JOUR SEULS : ce sont des etats de
-        // jME, et leur update ne tourne que lorsqu'ils sont actifs. Il ne reste ici qu'a
-        // ne pas faire tourner la PARTIE derriere eux.
-        if (inStory() || inMenu()) {
-            captureShot();                             // -Pshot marche aussi sur eux
-            return;
-        }
         if (player != null) {
             // UN PAS PAR IMAGE QUAND ON CAPTURE (-Pshot).
             //
