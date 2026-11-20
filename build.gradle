@@ -16,6 +16,9 @@ plugins {
 
 repositories {
     mavenCentral()
+
+    // Minie (physique), Lemur (interface), Heart... passent par la.
+    maven { url = uri('https://jitpack.io') }
 }
 
 ext {
@@ -33,6 +36,15 @@ dependencies {
     implementation "org.jmonkeyengine:jme3-effects:$jmeVersion"
     // Chargement/ecriture des formats jME natifs (j3o), utile aux outils d'assets.
     implementation "org.jmonkeyengine:jme3-plugins:$jmeVersion"
+    // LE LECTEUR OGG. jME en declare un dans son AssetConfig, et se plaignait a CHAQUE
+    // lancement de ne pas le trouver : << Cannot find loader
+    // com.jme3.audio.plugins.OGGLoader >>. Le jeu n'a que des .wav, l'avertissement etait
+    // donc sans consequence -- mais un journal qui crie pour rien est un journal qu'on
+    // cesse de lire, et c'est ainsi qu'on rate celui qui compte.
+    implementation "org.jmonkeyengine:jme3-jogg:$jmeVersion"
+    // Les boites de dialogue AWT de jME (erreur fatale, choix d'affichage). Le SDK les
+    // attend ; sans elles il avertit au chargement du projet.
+    implementation "org.jmonkeyengine:jme3-awt-dialogs:$jmeVersion"
 
     implementation 'com.google.code.gson:gson:2.11.0'
 
@@ -61,7 +73,11 @@ sourceSets {
             // `full` a ete eprouve contre le portage par cinquante-deux taches ; le `sim` que
             // `rebirth` s'etait fait n'a jamais ete mesure. Toute divergence entre les deux
             // est donc une erreur du remake, pas un choix.
-            srcDirs = ['src', '../java/src', '../full/src']
+            // DISPOSITION STANDARD pour les sources du remake (src/main/java), comme
+            // tout projet Gradle ou jME : le SDK et NetBeans la trouvent sans reglage.
+            // Les deux autres racines gardent la leur -- ce sont d'AUTRES depots, et
+            // ../full/src porte la simulation verifiee, qu'on ne remanie pas d'ici.
+            srcDirs = ['src/main/java', '../java/src', '../full/src']
         }
         resources {
             // Les shaders du remake vivent desormais dans assets/Shaders : ils sont ainsi
