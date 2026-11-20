@@ -2,14 +2,8 @@ package ab3d2.rebirth;
 
 import com.jme3.app.SimpleApplication;
 import com.jme3.app.state.ScreenshotAppState;
-import com.jme3.input.KeyInput;
-import com.jme3.input.MouseInput;
 import com.jme3.input.controls.ActionListener;
-import com.jme3.input.controls.AnalogListener;
-import com.jme3.input.controls.KeyTrigger;
-import com.jme3.input.controls.MouseAxisTrigger;
 import com.jme3.math.ColorRGBA;
-import com.jme3.math.FastMath;
 import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Node;
@@ -23,9 +17,6 @@ import ab3d2.full.sim.Nav;
 import ab3d2.full.sim.PlayerSim;
 import ab3d2.full.sim.Shots;
 import ab3d2.full.SinCos;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Point d'entree du remake "rebirth" (jMonkeyEngine).
@@ -147,7 +138,7 @@ public class Main extends SimpleApplication {
     GameState etatJeu;
 
     /** Vrai tant que le menu est affiche : la simulation est alors a l'arret. */
-    private boolean inMenu() {
+    boolean inMenu() {
         return etatMenu != null && etatMenu.isEnabled();
     }
 
@@ -177,57 +168,11 @@ public class Main extends SimpleApplication {
     private int simFrames;
     private float accumulator;
 
-    // entrees
-    private final Map<String, Boolean> keys = new HashMap<>();
-    /** L'ecouteur de la PARTIE : les ecrans le retirent le temps de s'afficher. */
-    ActionListener ecouteurJeu;
-    /** Les commandes qu'il ecoute, pour pouvoir le reposer a l'identique. */
-    String[] nomsTouches;
-    private float lookX;                  // accumulateur souris horizontal (unites d'angle)
+    /** LES COMMANDES : liaisons, ecouteurs, visee, et la saisie du curseur. */
+    InputState entrees;
 
-    /**
-     * COMBIEN D'IMAGES LA SOURIS RESTE MUETTE apres une prise du curseur.
-     *
-     * <p>Quand la fenetre saisit le curseur, le systeme signale d'un coup tout l'ecart
-     * entre la ou il etait et le centre. Ce n'est pas un mouvement du joueur : c'est un
-     * artefact de la saisie, et il faisait partir la vue de travers au lancement, au point
-     * que deux captures du meme instant ne montraient pas la meme chose.
-     *
-     * <p>DEUX IMAGES, ET RIEN D'AUTRE. jME capture tres bien sans aide : tout ce qu'on
-     * ajoute par-dessus se paie en souris qui ne repond pas. Deux tentatives, toutes deux
-     * retirees :
-     *
-     * <ul>
-     *   <li>un SEUIL sur l'ecart, pour jeter les sauts de saisie. Un coup d'oeil rapide
-     *       depasse n'importe quel seuil : la visee etait bridee, impossible de se
-     *       retourner d'un geste.</li>
-     *   <li>le meme seuil REARME a chaque image de plus d'un quart de seconde, pour les
-     *       retours d'alt-tab. Mais un chargement de niveau, une pause du ramasse-miettes
-     *       ou les premieres images de la fenetre durent aussi longtemps : la souris se
-     *       faisait museler en boucle, et c'est ce qu'on sentait manette en main.</li>
-     * </ul>
-     *
-     * <p>Le decompte se fait en IMAGES, dans {@code simpleUpdate}. Il etait dans la
-     * simulation : quand plusieurs pas tombent dans la meme image il s'epuisait d'un coup,
-     * et quand elle ne tournait pas il ne s'epuisait jamais.
-     */
-    private static final int MOUSE_SETTLE = 2;
-
-    /** Images restantes avant que la souris ne compte. */
-    private int mouseSettle = MOUSE_SETTLE;
-    private float pitch = Float.parseFloat(System.getProperty("rebirth.pitch", "0"));
-    /** Mode demo (validation auto) : avance tout droit, action maintenue. */
-    private final boolean demo = System.getProperty("rebirth.demo") != null;
-    /** Validation visuelle : garde la gachette enfoncee (-Pfire). */
-    private final boolean autoFire = System.getProperty("rebirth.fire") != null;
     /** Validation automatique de PLAY GAME apres N frames de menu (validation). */
     final int autoPlay = Integer.getInteger("rebirth.autoplay", 0);
-
-    /**
-     * Sensibilite souris : unites d'angle (8192 = tour complet) par unite analogique jME.
-     * Vient de CONTROL OPTIONS ; -Psens la force pour les tests.
-     */
-    private float sensitivity = Float.parseFloat(System.getProperty("rebirth.sens", "-1"));
 
     public Main(String levelLetter, int shotAt, String camAt, boolean freeCam) {
         this.levelLetter = levelLetter;
@@ -279,7 +224,7 @@ public class Main extends SimpleApplication {
         cam.setFrustumPerspective(options.fovDegrees(),
                 (float) cam.getWidth() / cam.getHeight(), 0.05f, 4000f);
         if (!freeCam) {
-            initPlayerInput();
+            stateManager.attach(entrees = new InputState(this));
             hud = new Hud(assetManager, guiNode, cam.getWidth(), cam.getHeight());
             // Panneau de statut d'ORIGINE (le bandeau de newborderpacked). S'il est la, il
             // remplace le releve en texte du HUD.
@@ -619,160 +564,6 @@ public class Main extends SimpleApplication {
         flyCam.setDragToRotate(true);
     }
 
-    // ------------------------------------------------------------- entrees
-
-    private void initPlayerInput() {
-        flyCam.setEnabled(false);
-        inputManager.setCursorVisible(false);
-        mouseSettle = MOUSE_SETTLE;         // la saisie va sauter : on l'ignore
-
-        // Les liaisons viennent de CONTROL OPTIONS ; les fleches restent cablees en plus, car
-        // elles servent aussi a naviguer dans le menu (le jeu s'en sert de la meme facon :
-        // mnu_waitmenu lit forward_key et backward_key).
-        mapKey("forward", options.key("forward"), KeyInput.KEY_UP);
-        mapKey("backward", options.key("backward"), KeyInput.KEY_DOWN);
-        mapKey("left", options.key("left"));
-        mapKey("right", options.key("right"));
-        mapKey("run", options.key("run"), KeyInput.KEY_RSHIFT);
-        mapKey("jump", options.key("jump"));
-        mapKey("duck", options.key("duck"));
-        mapKey("action", options.key("action"));
-        mapKey("nextWeapon", options.key("nextWeapon"));
-        mapKey("menuOk", KeyInput.KEY_RETURN, KeyInput.KEY_SPACE);
-        mapKey("menuLeft", KeyInput.KEY_LEFT);
-        mapKey("menuRight", KeyInput.KEY_RIGHT);
-        mapKey("quit", KeyInput.KEY_ESCAPE);
-        // Carte : les memes touches que le jeu (TAB, F1/F2 pour le zoom, pave numerique pour
-        // la faire defiler, 5 pour recentrer).
-        mapKey("map", KeyInput.KEY_TAB);
-        mapKey("mapZoomIn", KeyInput.KEY_F1);
-        mapKey("mapZoomOut", KeyInput.KEY_F2);
-        mapKey("mapUp", KeyInput.KEY_NUMPAD8);
-        mapKey("mapDown", KeyInput.KEY_NUMPAD2);
-        mapKey("mapLeft", KeyInput.KEY_NUMPAD4);
-        mapKey("mapRight", KeyInput.KEY_NUMPAD6);
-        mapKey("mapCentre", KeyInput.KEY_NUMPAD5);
-        mapKey("mapFade", KeyInput.KEY_NUMPADENTER);
-        inputManager.addMapping("fire", new com.jme3.input.controls.MouseButtonTrigger(
-                MouseInput.BUTTON_LEFT));
-        if (options.key("fire") > 0) {
-            inputManager.addMapping("fire", new KeyTrigger(options.key("fire")));
-        }
-        keys.put("fire", false);
-        // Commandes de visee au clavier : le remake joue a la souris, mais CONTROL OPTIONS les
-        // propose, donc elles agissent vraiment.
-        mapKey("turnLeft", options.key("turnLeft"));
-        mapKey("turnRight", options.key("turnRight"));
-        mapKey("strafeMode", options.key("strafeMode"));
-        mapKey("lookUp", options.key("lookUp"));
-        mapKey("lookDown", options.key("lookDown"));
-        mapKey("centreView", options.key("centreView"));
-        mapKey("lookBehind", options.key("lookBehind"));
-        for (int i = 0; i <= 9; i++) {            // touches 1..9,0 : selection directe d'arme
-            mapKey("gun" + i, KeyInput.KEY_1 + i);
-        }
-
-        // L'ECOUTEUR DE LA PARTIE, ET RIEN D'AUTRE.
-        //
-        // Il commencait par deux branches -- sommes-nous dans un ecran de texte ? dans le
-        // menu ? -- avant d'en venir au jeu. Chaque ecran a maintenant SON ecouteur, pose
-        // quand il s'ouvre et retire quand il se ferme, et celui-ci est retire pendant ce
-        // temps. Aucune touche ne peut donc fuir vers la simulation : ce n'est plus une
-        // precaution a prendre, c'est une impossibilite.
-        ecouteurJeu = (name, pressed, tpf) -> {
-            if ("quit".equals(name) && pressed) {      // ECHAP : on quitte le NIVEAU vers le menu
-                if (menu != null) {
-                    etatMenu.setEnabled(true);
-                } else {
-                    stop();
-                }
-                return;
-            }
-            keys.put(name, pressed);
-            if (pressed && name.startsWith("gun")) {
-                selectGun(name.charAt(3) - '0');       // gun0 = touche 1 ... gun9 = touche 0
-            }
-            if (pressed && "nextWeapon".equals(name)) {
-                nextWeapon();
-            }
-            if (pressed && "lookBehind".equals(name)) {
-                lookBehindTap = true;
-            }
-            if (pressed && automap != null) {
-                switch (name) {
-                    case "map" -> automap.toggle();
-                    case "mapZoomIn" -> automap.zoom(-1);
-                    case "mapZoomOut" -> automap.zoom(1);
-                    case "mapCentre" -> automap.centre();
-                    case "mapFade" -> automap.toggleTransparent();
-                    default -> { }
-                }
-            }
-        };
-        String[] names = new String[] { "forward", "backward", "left", "right", "run", "jump",
-                "duck", "action", "quit", "fire", "nextWeapon", "gun0", "gun1", "gun2", "gun3",
-                "gun4", "gun5", "gun6", "gun7", "gun8", "gun9",
-                "map", "mapZoomIn", "mapZoomOut", "mapUp", "mapDown", "mapLeft", "mapRight",
-                "mapCentre", "mapFade", "menuOk", "menuLeft", "menuRight",
-                "turnLeft", "turnRight", "strafeMode", "lookUp", "lookDown", "centreView",
-                "lookBehind" };
-        nomsTouches = names;
-        inputManager.addListener(ecouteurJeu, names);
-
-        inputManager.addMapping("lookLeft", new MouseAxisTrigger(MouseInput.AXIS_X, true));
-        inputManager.addMapping("lookRight", new MouseAxisTrigger(MouseInput.AXIS_X, false));
-        inputManager.addMapping("lookUp", new MouseAxisTrigger(MouseInput.AXIS_Y, false));
-        inputManager.addMapping("lookDown", new MouseAxisTrigger(MouseInput.AXIS_Y, true));
-        AnalogListener onMouse = (name, value, tpf) -> {
-            if (mouseSettle > 0) {
-                return;                                // la prise du curseur, pas un geste
-            }
-            switch (name) {
-                case "lookLeft" -> lookX -= value * sensitivity;
-                case "lookRight" -> lookX += value * sensitivity;
-                case "lookUp" -> pitch = FastMath.clamp(
-                        pitch + value * 3f * invertMouse(), -1.4f, 1.4f);
-                case "lookDown" -> pitch = FastMath.clamp(
-                        pitch - value * 3f * invertMouse(), -1.4f, 1.4f);
-                default -> { }
-            }
-        };
-        inputManager.addListener(onMouse, "lookLeft", "lookRight", "lookUp", "lookDown");
-
-        // CONTROL OPTIONS : pendant un reliage il faut la touche BRUTE, pas une commande.
-        inputManager.addRawInputListener(new com.jme3.input.RawInputListener() {
-            @Override
-            public void onKeyEvent(com.jme3.input.event.KeyInputEvent e) {
-                if (e.isPressed() && menu != null && menu.rebinding()) {
-                    menu.rawKey(e.getKeyCode());
-                    e.setConsumed();
-                }
-            }
-
-            @Override public void beginInput() { }
-            @Override public void endInput() { }
-            @Override public void onJoyAxisEvent(com.jme3.input.event.JoyAxisEvent e) { }
-            @Override public void onJoyButtonEvent(com.jme3.input.event.JoyButtonEvent e) { }
-            @Override public void onMouseMotionEvent(com.jme3.input.event.MouseMotionEvent e) { }
-            @Override public void onMouseButtonEvent(com.jme3.input.event.MouseButtonEvent e) { }
-            @Override public void onTouchEvent(com.jme3.input.event.TouchEvent e) { }
-        });
-    }
-
-    private void mapKey(String name, int... codes) {
-        java.util.List<KeyTrigger> t = new java.util.ArrayList<>(codes.length);
-        for (int code : codes) {
-            if (code > 0) {                            // 0 = action non liee
-                t.add(new KeyTrigger(code));
-            }
-        }
-        if (!t.isEmpty()) {
-            inputManager.addMapping(name, t.toArray(new KeyTrigger[0]));
-        }
-        keys.put(name, false);
-    }
-
-
     /** Ou accrocher l'arme : sa vue dediee, ou la scene si elle n'a pas pu etre montee. */
     private Node weaponParent() {
         // -PweaponInScene : remet l'arme DANS la scene (elle traverse alors les murs). Sert a
@@ -887,19 +678,14 @@ public class Main extends SimpleApplication {
         weaponNode.updateGeometricState();
     }
 
-    /** INVERT MOUSE : -1 inverse l'axe vertical de la visee. */
-    private float invertMouse() {
-        return options.invertMouse ? -1f : 1f;
-    }
-
     /**
      * Applique les reglages de SCREEN / SOUND / CONTROL OPTIONS qui prennent effet TOUT DE
      * SUITE. La taille de fenetre, le plein ecran et la synchro verticale, eux, demandent de
      * recreer le contexte : c'est {@link #applyDisplayOptions()}.
      */
     void applyLiveOptions() {
-        if (sensitivity < 0f) {                        // -Psens n'a pas force la valeur
-            sensitivity = options.sensitivity();
+        if (entrees != null) {
+            entrees.appliquerReglages();
         }
         cam.setFrustumPerspective(options.fovDegrees(),
                 (float) cam.getWidth() / cam.getHeight(), 0.05f, 4000f);
@@ -946,7 +732,6 @@ public class Main extends SimpleApplication {
                 || System.getProperty("rebirth.stats") != null);
     }
 
-
     /** Montre ou cache tout ce qui appartient a la PARTIE : bandeau, jauges, arme. */
     void montrerInterface(boolean visible) {
         if (hud != null) {
@@ -957,77 +742,37 @@ public class Main extends SimpleApplication {
         }
     }
 
+    // LES ECRANS PASSENT TOUJOURS PAR ICI : le menu et les ecrans de texte appellent ces
+    // quatre methodes sur le jeu, et elles transmettent a l'etat des commandes. Garder la
+    // facade evite de faire connaitre InputState a tout le monde ; le null tient le mode
+    // camera libre, qui ne pose aucune commande.
+
     /** Reprend le curseur et laisse passer la secousse de saisie. */
     void reprendreCurseur() {
-        inputManager.setCursorVisible(false);
-        mouseSettle = MOUSE_SETTLE;         // la saisie va sauter : on l'ignore
-    }
-
-    /**
-     * LE CURSEUR RESTE PRIS, ET ON LE VERIFIE A CHAQUE IMAGE.
-     *
-     * <p>Le demander une fois ne suffit pas, et c'est la cause de la souris qui se
-     * << balade >> : {@code GlfwMouseInput.setCursorVisible} commence par
-     * {@code if (!context.isRenderable()) return;}. L'appel pose dans {@code simpleInitApp}
-     * tombe donc dans le vide quand la fenetre n'est pas encore affichable -- sans erreur,
-     * sans trace. Le curseur reste alors en mode NORMAL : il sort de la fenetre, et la vue
-     * ne suit plus au bord de l'ecran.
-     *
-     * <p>On ne le demande donc plus : on le VERIFIE. Une interrogation GLFW par image, et
-     * on repose le mode s'il n'est pas celui qu'on veut. L'etat du curseur cesse d'etre le
-     * resultat d'un appel passe pour devenir un invariant tenu.
-     */
-    private void tenirLeCurseur() {
-        if (!(context instanceof com.jme3.system.lwjgl.LwjglWindow fenetre)) {
-            return;                                    // pas de contexte GLFW sous la main
-        }
-        long win = fenetre.getWindowHandle();
-        if (win == 0L) {
-            return;                                    // la fenetre n'existe pas encore
-        }
-        // Le menu et les ecrans de texte rendent le curseur ; la partie le prend.
-        int voulu = inMenu()
-                ? org.lwjgl.glfw.GLFW.GLFW_CURSOR_NORMAL
-                : org.lwjgl.glfw.GLFW.GLFW_CURSOR_DISABLED;
-        if (org.lwjgl.glfw.GLFW.glfwGetInputMode(win,
-                org.lwjgl.glfw.GLFW.GLFW_CURSOR) != voulu) {
-            org.lwjgl.glfw.GLFW.glfwSetInputMode(win,
-                    org.lwjgl.glfw.GLFW.GLFW_CURSOR, voulu);
-            if (voulu == org.lwjgl.glfw.GLFW.GLFW_CURSOR_DISABLED) {
-                mouseSettle = MOUSE_SETTLE;            // la prise va sauter : on l'ignore
-            }
+        if (entrees != null) {
+            entrees.reprendreCurseur();
         }
     }
 
     /** Oublie les touches tenues : on change d'ecran, rien ne doit rester enfonce. */
     void relacherTouches() {
-        keys.replaceAll((k, v) -> false);
+        if (entrees != null) {
+            entrees.relacherTouches();
+        }
     }
 
-    /**
-     * UN ECRAN PREND LA MAIN SUR LES TOUCHES.
-     *
-     * <p>L'ecouteur de la partie est RETIRE, celui de l'ecran est pose a sa place. Tant
-     * qu'il est la, la simulation ne peut rien recevoir -- ce n'est plus une precaution a
-     * prendre dans chaque branche, c'est une impossibilite.
-     */
+    /** Un ecran prend la main sur les touches : la simulation ne recoit plus rien. */
     void passerLaMain(ActionListener ecran) {
-        if (nomsTouches == null) {
-            return;                                    // les liaisons ne sont pas encore posees
+        if (entrees != null) {
+            entrees.passerLaMain(ecran);
         }
-        inputManager.removeListener(ecouteurJeu);
-        inputManager.addListener(ecran, nomsTouches);
-        relacherTouches();
     }
 
     /** L'ecran se ferme : la partie reprend ses touches. */
     void reprendreLaMain(ActionListener ecran) {
-        if (nomsTouches == null) {
-            return;
+        if (entrees != null) {
+            entrees.reprendreLaMain(ecran);
         }
-        inputManager.removeListener(ecran);
-        inputManager.addListener(ecouteurJeu, nomsTouches);
-        relacherTouches();
     }
 
     /** 'A'..'P' -> 0..15. */
@@ -1035,22 +780,12 @@ public class Main extends SimpleApplication {
         return letter == null || letter.isEmpty() ? 0 : (letter.charAt(0) - 'A') & 15;
     }
 
-    /** Vitesse de rotation au clavier, en unites d'angle par frame de simulation. */
-    private static final float TURN_SPEED = 48f;
-    /** Vitesse de visee verticale au clavier, en radians par frame. */
-    private static final float LOOK_SPEED = 0.04f;
-    /** Front montant de LOOK BEHIND. */
-    private boolean lookBehindTap;
-
-    /** Front montant de la touche accroupi (le jeu efface la touche apres l'avoir lue). */
-    private boolean prevDuck;
-
     boolean key(String name) {
-        return Boolean.TRUE.equals(keys.get(name));
+        return entrees != null && entrees.key(name);
     }
 
     /** Selection directe d'arme (touches 1..9,0) : seulement une arme possedee. */
-    private void selectGun(int g) {
+    void selectGun(int g) {
         if (objects != null && objects.inventory.hasGun(g) && g != gun) {
             gun = g;
             announceGun();
@@ -1058,7 +793,7 @@ public class Main extends SimpleApplication {
     }
 
     /** .find_next_weapon : arme suivante possedee, en boucle sur 0..9. */
-    private void nextWeapon() {
+    void nextWeapon() {
         if (objects == null) {
             return;
         }
@@ -1084,17 +819,6 @@ public class Main extends SimpleApplication {
 
     @Override
     public void simpleUpdate(float tpf) {
-        if (mouseSettle > 0) {
-            mouseSettle--;                             // en IMAGES, pas en pas de simulation
-            lookX = 0;                                 // et ce qui serait deja tombe dedans
-        }
-        tenirLeCurseur();
-        if (System.getProperty("rebirth.cursorLog") != null && context
-                instanceof com.jme3.system.lwjgl.LwjglWindow f && f.getWindowHandle() != 0L) {
-            System.out.println("[curseur] mode GLFW = " + org.lwjgl.glfw.GLFW.glfwGetInputMode(
-                    f.getWindowHandle(), org.lwjgl.glfw.GLFW.GLFW_CURSOR)
-                    + "  (212995 = pris, 212993 = libre)");
-        }
         if (fpsLog) {                                  // -PfpsLog : cout reel d'une frame
             if (fpsFrames == 0 && fpsAccum == 0f) {
                 renderer.getStatistics().setEnabled(true);   // sinon elles restent a zero
@@ -1273,53 +997,9 @@ public class Main extends SimpleApplication {
         // c'est la seule chose que le remake lui donne, et c'est par la que passent ses
         // divergences a lui — la souris, la visee par pente, la camera libre.
         ab3d2.full.sim.World.Input vouloir = new ab3d2.full.sim.World.Input();
-        // plr_MouseControl : la souris pilote l'angle (unites entieres, pair via AMOD_A)
-        // TURN LEFT / TURN RIGHT : la meme entree que la souris, au clavier.
-        if (key("turnLeft")) {
-            lookX -= TURN_SPEED;
+        if (entrees != null) {
+            entrees.remplir(vouloir);
         }
-        if (key("turnRight")) {
-            lookX += TURN_SPEED;
-        }
-        int delta = (int) lookX;
-        if (delta != 0) {
-            lookX -= delta;
-            vouloir.turn += delta & ~1;                // AMOD_A : les angles sont PAIRS
-        }
-        if (lookBehindTap) {                           // LOOK BEHIND : demi-tour
-            lookBehindTap = false;
-            vouloir.turn += 4096;
-        }
-        if (key("lookUp")) {
-            pitch = FastMath.clamp(pitch + LOOK_SPEED, -1.4f, 1.4f);
-        }
-        if (key("lookDown")) {
-            pitch = FastMath.clamp(pitch - LOOK_SPEED, -1.4f, 1.4f);
-        }
-        if (key("centreView")) {
-            pitch = 0f;
-        }
-        vouloir.forward = key("forward") || demo;
-        vouloir.backward = key("backward");
-        // FORCE S/S : la touche de pas chasse transforme la rotation clavier en deplacement
-        // lateral, comme le « force sidestep » du jeu.
-        boolean strafe = key("strafeMode");
-        vouloir.stepLeft = key("left") || (strafe && key("turnLeft"));
-        vouloir.stepRight = key("right") || (strafe && key("turnRight"));
-        vouloir.run = key("run") || options.on(ab3d2.rebirth.menu.Options.ALWAYS_RUN);
-        vouloir.jump = key("jump");
-        boolean duck = key("duck");
-        vouloir.duck = duck && !prevDuck;              // clr.b (a5,d7.w) : un seul front
-        prevDuck = duck;
-
-        vouloir.action = key("action") || demo;
-        if (System.getProperty("rebirth.noAction") != null) {
-            vouloir.action = false;                    // test : rester a portee SANS actionner
-        }
-        vouloir.fire = key("fire") || autoFire;
-        // La visee se transmet par la PENTE du rayon, pas par les lignes d'ecran du jeu :
-        // c'est elle qui fait suivre le rayon aux tirs, quelle que soit l'ouverture de la vue.
-        vouloir.aim = Math.round(FastMath.tan(pitch) * 100f);
 
         // UNE IMAGE DE JEU, dans l'ordre de la boucle d'origine. Le remake l'ecrivait a la
         // main et s'y etait trompe : il donnait aux portes le LONG ENTIER des verrous, dont
@@ -1505,7 +1185,8 @@ public class Main extends SimpleApplication {
         if (sky != null) {
             sky.setLocalTranslation(cam.getLocation());   // le ciel reste a l'infini
         }
-        Quaternion q = new Quaternion().fromAngles(-pitch, player.yawRadians(), 0f);
+        float visee = entrees == null ? 0f : entrees.visee();
+        Quaternion q = new Quaternion().fromAngles(-visee, player.yawRadians(), 0f);
         cam.setRotation(q);
         // L'auditeur suit la camera : c'est lui qui donne la spatialisation des bruits.
         if (listener != null) {                        // null quand l'audio est coupe (-Pnosound)
