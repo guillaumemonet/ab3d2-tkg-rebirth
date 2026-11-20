@@ -34,6 +34,17 @@ public final class LightingState extends BaseAppState {
     /** Combien de projectiles volaient a l'image d'avant (pour voir un depart de coup). */
     private int tirsVivants;
 
+    /**
+     * LES IMPACTS DEJA FETES.
+     *
+     * <p>{@code popping} reste vrai plusieurs images -- c'est l'animation de l'eclatement.
+     * Sans memoire, chaque impact crachait sept eclats PAR IMAGE, et un tir de fusil a pompe
+     * remplissait le couloir. L'identite suffit : les projectiles sont recycles dans un tableau
+     * fixe, et un projectile qui repart efface sa marque.
+     */
+    private final java.util.Set<ab3d2.full.sim.Shots.Shot> dejaEclate =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+
     public LightingState(Main jeu) {
         this.jeu = jeu;
     }
@@ -101,9 +112,21 @@ public final class LightingState extends BaseAppState {
                 vivants++;                             // un impact n'est plus un tir en vol
             }
             boolean eclate = s.popping;
-            l.flash((s.x >> 16) / 64f, -s.heightWord / 64f, -(s.z >> 16) / 64f,
-                    eclate ? ECLAT : BALLE,
+            float ex = (s.x >> 16) / 64f;
+            float ey = -s.heightWord / 64f;
+            float ez = -(s.z >> 16) / 64f;
+            l.flash(ex, ey, ez, eclate ? ECLAT : BALLE,
                     eclate ? ECLAT_TEINTE : jeu.builder.shotTint(s));
+            // LES ECLATS PARTENT D'ICI, au meme endroit que l'eclair : c'est le seul endroit
+            // du remake qui sache qu'un projectile vient de toucher quelque chose. On ne les
+            // lance qu'une fois par impact -- popping dure plusieurs images.
+            if (eclate && jeu.etatPhysique != null && !dejaEclate.contains(s)) {
+                dejaEclate.add(s);
+                jeu.etatPhysique.eclat(ex, ey, ez, s.zone, ECLAT_TEINTE);
+            }
+            if (!eclate) {
+                dejaEclate.remove(s);                  // le projectile revit : il repartira
+            }
         }
         // LA BOUCHE DU CANON. Un tir qui part eclaire la piece le temps d'une image : c'est ce
         // qu'on voit d'une arme, bien plus que la balle elle-meme. On le reconnait a

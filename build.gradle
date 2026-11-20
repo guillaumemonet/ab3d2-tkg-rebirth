@@ -54,6 +54,14 @@ dependencies {
     // attend ; sans elles il avertit au chargement du projet.
     implementation "org.jmonkeyengine:jme3-awt-dialogs:$jmeVersion"
 
+    // LA PHYSIQUE : Minie, le portage Bullet maintenu de jMonkeyEngine.
+    //
+    // Elle ne touche PAS au jeu. Le deplacement, la collision, les portes et les ascenseurs
+    // restent la simulation portee, et c'est non negociable : c'est elle qui fait que le
+    // remake se joue comme l'original. La physique ne sert qu'a ce qui n'existe pas dans le
+    // jeu d'origine et ne peut rien casser -- les debris, les douilles, ce qui retombe.
+    implementation 'com.github.stephengold:Minie:9.0.1'
+
     implementation 'com.google.code.gson:gson:2.11.0'
 
     // Le portage-lecteur compile contre LWJGL (sa couche hote), meme quand on ne
@@ -150,7 +158,7 @@ tasks.named('run') {
         'stats', 'weaponLog', 'shimmer', 'deformLog', 'dynLog', 'shotLog', 'fire',
         'gun', 'demo', 'spawn', 'autoplay', 'weaponInScene', 'story', 'startmenu',
         'map', 'mapAll', 'angle', 'pitch', 'lightLog', 'lightBatch', 'noshadow',
-        'ssao', 'retro', 'zonelights', 'nolamps', 'wallBrightLog', 'ambient', 'lampgain', 'regiongain', 'norelief', 'noglow', 'parallax', 'specular', 'hires', 'nofog', 'fogstart', 'fogend', 'cursorLog', 'fullbright', 'vsign', 'nolevelscene', 'noPvsLights', 'fpsLog', 'novsync',
+        'ssao', 'retro', 'zonelights', 'nolamps', 'wallBrightLog', 'ambient', 'lampgain', 'regiongain', 'norelief', 'noglow', 'parallax', 'specular', 'hires', 'nofog', 'fogstart', 'fogend', 'cursorLog', 'fullbright', 'vsign', 'nolevelscene', 'noPvsLights', 'fpsLog', 'novsync', 'nophysics', 'physicsDebug', 'physicsLog',  'bakedlight',
     ])
 }
 

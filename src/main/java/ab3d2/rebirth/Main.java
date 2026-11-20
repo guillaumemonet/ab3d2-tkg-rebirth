@@ -45,7 +45,7 @@ public class Main extends SimpleApplication {
     final boolean freeCam;
 
     private LevelData level;
-    private LevelSim levelSim;
+    LevelSim levelSim;
     PlayerSim player;
     private Anims anims;
     /** -Pforcedoor : la porte que l'on fait bouger de force, ou -1. */
@@ -136,6 +136,8 @@ public class Main extends SimpleApplication {
     LightingState etatLumieres;
     /** La partie elle-meme : le menu et les ecrans de texte l'eteignent en s'ouvrant. */
     GameState etatJeu;
+    /** La physique, et rien que le decoratif : les eclats d'impact. */
+    PhysicsState etatPhysique;
 
     /** Vrai tant que le menu est affiche : la simulation est alors a l'arret. */
     boolean inMenu() {
@@ -332,6 +334,7 @@ public class Main extends SimpleApplication {
         stateManager.attach(etatTexte);
         stateManager.attach(etatLumieres);
         stateManager.attach(etatJeu);
+        stateManager.attach(etatPhysique = new PhysicsState(this));
         // La vue de l'arme se met a jour QUOI QU'IL ARRIVE : son etat reste toujours actif.
         stateManager.attach(new WeaponViewState(this));
         if (!loadLevel(levelLetter, null)) {
@@ -421,6 +424,9 @@ public class Main extends SimpleApplication {
         }
         levelNode = geometry;
         rootNode.attachChild(geometry);
+        if (etatPhysique != null) {
+            etatPhysique.poserLeDecor(geometry);       // de quoi faire rebondir les eclats
+        }
 
         boolean anyBackdrop = false;
         for (LevelData.Zone z : level.zones) {
