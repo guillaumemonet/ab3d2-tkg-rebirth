@@ -112,6 +112,21 @@ public final class PhysicsState extends BaseAppState {
         if (coupee) {
             return;
         }
+        // BULLET SE TAIT.
+        //
+        // Minie annonce chaque corps qu'il cree -- « INFOS: Created 2693aa36260 » --, et un
+        // impact en cree sept. Une partie d'une minute noyait la console sous des adresses
+        // memoire, et c'est ainsi qu'on rate la ligne qui compte. Le niveau reste a
+        // AVERTISSEMENT : ce qui ne va pas se dira toujours.
+        java.util.logging.Logger.getLogger("com.jme3.bullet.objects.PhysicsRigidBody")
+                .setLevel(java.util.logging.Level.WARNING);
+        java.util.logging.Logger.getLogger("com.jme3.bullet.objects.PhysicsBody")
+                .setLevel(java.util.logging.Level.WARNING);
+        java.util.logging.Logger.getLogger("com.jme3.bullet.PhysicsSpace")
+                .setLevel(java.util.logging.Level.WARNING);
+        java.util.logging.Logger.getLogger("com.jme3.bullet.collision.shapes.CollisionShape")
+                .setLevel(java.util.logging.Level.WARNING);
+
         bullet = new BulletAppState();
         // SEQUENTIEL, pas parallele. Le jeu avance sa simulation a pas fixe dans la boucle
         // d'image ; une physique qui tournerait a cote, sur son propre fil, rendrait deux
