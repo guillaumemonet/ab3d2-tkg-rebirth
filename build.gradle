@@ -158,7 +158,7 @@ tasks.named('run') {
         'stats', 'weaponLog', 'shimmer', 'deformLog', 'dynLog', 'shotLog', 'fire',
         'gun', 'demo', 'spawn', 'autoplay', 'weaponInScene', 'story', 'startmenu',
         'map', 'mapAll', 'angle', 'pitch', 'lightLog', 'lightBatch', 'noshadow',
-        'ssao', 'retro', 'zonelights', 'nolamps', 'wallBrightLog', 'ambient', 'lampgain', 'regiongain', 'norelief', 'noglow', 'parallax', 'specular', 'hires', 'nofog', 'fogstart', 'fogend', 'cursorLog', 'fullbright', 'vsign', 'nolevelscene', 'noPvsLights', 'fpsLog', 'novsync', 'nophysics', 'noscenelights', 'daygain', 'physicsDebug', 'physicsLog',  'bakedlight',
+        'ssao', 'retro', 'zonelights', 'nolamps', 'wallBrightLog', 'ambient', 'lampgain', 'regiongain', 'norelief', 'noglow', 'parallax', 'specular', 'hires', 'nofog', 'fogstart', 'fogend', 'cursorLog', 'fullbright', 'vsign', 'nolevelscene', 'noPvsLights', 'fpsLog', 'novsync', 'nophysics', 'noscenelights', 'daygain', 'physicsDebug', 'physicsLog',  'bakedlight', 'nomorph', 'morphLog',
     ])
 }
 
@@ -258,7 +258,7 @@ tasks.register('remap', JavaExec) {
 // APERCU D'UN MODELE : huit vues en une image, pour juger une silhouette sans ouvrir le SDK.
 tasks.register('preview', JavaExec) {
     group = 'assets'
-    description = "Tourniquet d'un modele (.j3o/.glb/.obj) : -Pmodele=<chemin> [-Papercu=x.png] [-Pniveau=0..31]"
+    description = "Tourniquet d'un modele : -Pmodele=<chemin> [-Papercu=x.png] [-Pniveau=0..31] [-Ppose=N[,5] [-Pmelange]]"
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'ab3d2.rebirth.ModelPreview'
     workingDir = projectDir
@@ -266,7 +266,7 @@ tasks.register('preview', JavaExec) {
     // PAS -Pmodel NI -Pout : Gradle a deja une propriete `model` (le modele logiciel) et
     // `hasProperty('model')` repond vrai meme sans -P. On recevait son rapport a la place
     // du chemin : << root project 'ab3d2-rebirth' illisible >>.
-    flags(it, ['modele', 'apercu', 'niveau'])
+    flags(it, ['modele', 'apercu', 'niveau', 'pose', 'melange'])
 }
 
 tasks.register('models', JavaExec) {

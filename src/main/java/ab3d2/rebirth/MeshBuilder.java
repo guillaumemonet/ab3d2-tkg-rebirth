@@ -93,8 +93,12 @@ public final class MeshBuilder {
      * Normales PLATES : les triangles ne sont pas indexes (chaque sommet est emis une fois par
      * triangle), donc la normale de la face va directement a ses trois sommets. C'est ce qu'il
      * faut pour un decor a facettes — aucun lissage a inventer.
+     *
+     * <p>Visible du paquet : {@link MorphModels} en a besoin pour calculer, pose par pose,
+     * l'ECART de normale d'un modele qui se deforme. Sans quoi un modele morphe garderait
+     * l'eclairage de sa premiere pose.
      */
-    private static float[] flatNormals(float[] p) {
+    static float[] flatNormals(float[] p) {
         float[] n = new float[p.length];
         for (int i = 0; i + 8 < p.length; i += 9) {
             float ax = p[i + 3] - p[i];

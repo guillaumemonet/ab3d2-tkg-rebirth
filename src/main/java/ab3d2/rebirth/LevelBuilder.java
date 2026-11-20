@@ -115,6 +115,82 @@ public final class LevelBuilder {
     private final List<LitModel> litModels = new ArrayList<>();
     private final List<LitSprite> litSprites = new ArrayList<>();
     private final List<AnimObject> animObjects = new ArrayList<>();
+
+    /**
+     * ETAT DE POSE D'UN MODELE QUI SE MELANGE.
+     *
+     * <p>Les images d'un modele vectoriel sont des POSES d'un meme maillage (cf.
+     * {@link MorphModels}) : au lieu d'echanger vingt maillages, on en garde un et on fait
+     * glisser les poids d'une pose a l'autre. Ce qu'on retient ici, c'est d'ou le chemin part,
+     * ou il va, et ou il en est.
+     *
+     * <p>La DUREE du chemin se mesure, elle ne se devine pas : c'est le temps pendant lequel
+     * la pose precedente a tenu. Une marche lente se melange lentement, un coup sec reste sec,
+     * et rien n'a besoin d'etre regle a la main.
+     */
+    private static final class Morphe {
+        /** Le chemin le plus court qu'on accepte : en dessous, autant sauter. */
+        private static final float DUREE_MIN = 0.02f;
+        /** Le plus long : au-dela, le modele traine derriere son animation. */
+        private static final float DUREE_MAX = 0.20f;
+
+        final MorphModels.Poses poses;
+        final Geometry geometrie;
+        private float[] depart;
+        private float[] cible;
+        private final float[] courant;
+        private int vers;
+        private float avance = 1f;
+        private float duree = 0.08f;
+        private float tenue;
+
+        Morphe(MorphModels.Poses poses, Geometry geometrie, int pose) {
+            this.poses = poses;
+            this.geometrie = geometrie;
+            this.vers = pose;
+            this.depart = poses.poidsDe(pose);
+            this.cible = poses.poidsDe(pose);
+            this.courant = poses.poidsDe(pose);
+            geometrie.setMorphState(courant);
+        }
+
+        /** L'animation demande une autre pose : on repart d'ou l'on est. */
+        void viser(int pose) {
+            if (pose == vers) {
+                return;
+            }
+            depart = courant.clone();
+            cible = poses.poidsDe(pose);
+            duree = Math.max(DUREE_MIN, Math.min(DUREE_MAX, tenue));
+            tenue = 0f;
+            vers = pose;
+            avance = 0f;
+        }
+
+        /** Avance le chemin du temps ecoule. Rend vrai si la pose affichee a change. */
+        boolean avancer(float tpf) {
+            tenue += tpf;
+            if (avance >= 1f) {
+                return false;
+            }
+            avance = Math.min(1f, avance + tpf / duree);
+            MorphModels.Poses.melange(depart, cible, avance, courant);
+            geometrie.setMorphState(courant);
+            return true;
+        }
+    }
+
+    /** Les modeles qui se melangent, par geometrie. Vide en rendu d'origine. */
+    private final Map<Geometry, Morphe> morphes = new java.util.IdentityHashMap<>();
+
+    /** -Pnomorph : revenir a l'echange de maillage, pour comparer. */
+    private final boolean sansMorphing = System.getProperty("rebirth.nomorph") != null;
+
+    /** -PmorphLog : dire quelle pose chaque modele melange recoit. */
+    private final boolean morphLog = System.getProperty("rebirth.morphLog") != null;
+
+    /** Les modeles qui AURAIENT pu se melanger et ne le peuvent pas. Un refus muet se cache. */
+    private final java.util.Set<String> refusDeMelange = new java.util.TreeSet<>();
     private final Map<LevelData.Obj, Geometry> objectGeometries = new HashMap<>();
     private final List<Geometry> shotGeoms = new ArrayList<>();
     private Node shotsNode;
@@ -1991,8 +2067,18 @@ public final class LevelBuilder {
         if (name == null) {
             return null;
         }
+        // LES IMAGES SONT DES POSES, pas des modeles. Quand elles partagent le meme
+        // decoupage, on batit le maillage de la pose 0 une fois pour toutes et on laisse le
+        // moteur melanger les ecarts : plus d'echange de maillage a chaque pas d'animation,
+        // et le chemin d'une pose a l'autre devient continu. cf. MorphModels.
+        MorphModels.Poses poses = melangeable(o)
+                ? MorphModels.charger(assetManager, name) : null;
+        if (poses == null && melangeable(o)) {
+            refusDeMelange.add(name);                  // dit pourquoi dans le rapport
+        }
         // Frame du modele = variante/couleur propre a l'instance (cles, indicateurs).
-        ObjModels.Model m = ObjModels.load(assetManager, String.format("models/%s/frame_%03d.obj", name, o.frame));
+        ObjModels.Model m = poses != null ? poses.base
+                : ObjModels.load(assetManager, String.format("models/%s/frame_%03d.obj", name, o.frame));
         if (m == null) {
             m = ObjModels.load(assetManager, String.format("models/%s/frame_000.obj", name));
         }
@@ -2009,6 +2095,10 @@ public final class LevelBuilder {
             mat = shadedModelMaterial();
         }
         g.setMaterial(mat != null ? mat : atlasMaterial(o.additive));
+        if (poses != null) {
+            MorphModels.preparer(g, poses);
+            morphes.put(g, new Morphe(poses, g, o.frame));
+        }
         if (mat != null && !modern) {                  // l'anneau LUT n'existe qu'en rendu d'origine
             litModels.add(new LitModel(g, o, m));
         }
@@ -2084,6 +2174,62 @@ public final class LevelBuilder {
 
     private static int M68kShort(int v) {
         return (short) v;
+    }
+
+    /**
+     * Ce modele-ci peut-il se melanger d'une pose a l'autre ?
+     *
+     * <p>Seulement en rendu MODERNE. Le rendu d'origine garde l'echange de maillage, et c'est
+     * voulu a deux titres : son materiau (ModelShade) ne declare pas le melange, et surtout
+     * l'Amiga SAUTAIT d'une pose a l'autre -- interpoler la ou on compare au portage image
+     * par image ferait mentir la comparaison. Les sprites additifs n'ont pas de modele.
+     */
+    private boolean melangeable(LevelData.Obj o) {
+        return modern && !fullbright && !o.additive && !sansMorphing;
+    }
+
+    /**
+     * AVANCE LE CHEMIN DE CHAQUE MODELE MELANGE du temps ecoule.
+     *
+     * <p>Appele une fois par IMAGE, pas par pas de simulation : c'est tout l'interet. La
+     * simulation pose une nouvelle image d'animation de loin en loin ; entre deux, le modele
+     * continue de glisser vers elle, et le mouvement devient continu sans qu'une seule donnee
+     * ne soit inventee -- les deux poses melangees sont celles du jeu.
+     */
+    /** Ce qui se melange dans ce niveau, et sur combien de poses. */
+    private void rapportDesPoses() {
+        if (morphes.isEmpty()) {
+            return;
+        }
+        Map<String, int[]> parModele = new java.util.TreeMap<>();
+        for (Morphe m : morphes.values()) {
+            int[] c = parModele.computeIfAbsent(m.poses.nom, k -> new int[] {0, 0});
+            c[0]++;
+            c[1] = m.poses.nombre();
+        }
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, int[]> e : parModele.entrySet()) {
+            sb.append(sb.length() == 0 ? "" : ", ")
+              .append(e.getKey()).append(' ').append(e.getValue()[1]).append(" poses")
+              .append(e.getValue()[0] > 1 ? " x" + e.getValue()[0] : "");
+        }
+        // Le nombre de poses d'un modele ne borne rien : ce qui compte est combien en PESENT
+        // a la fois, et un chemin d'une pose a l'autre n'en fait peser que deux.
+        System.out.printf("[Level] melange : %d modele(s), %d ecarts au plus a la fois -- %s%n",
+                morphes.size(), MorphModels.ECARTS_SIMULTANES, sb);
+        if (!refusDeMelange.isEmpty()) {
+            System.out.printf("[Level]   sans melange : %s (une seule image, ou des images qui"
+                    + " n'ont pas le meme decoupage)%n", String.join(", ", refusDeMelange));
+        }
+    }
+
+    public void avancerLesPoses(float tpf) {
+        if (morphes.isEmpty()) {
+            return;
+        }
+        for (Morphe m : morphes.values()) {
+            m.avancer(tpf);
+        }
     }
 
     /**
@@ -2216,12 +2362,9 @@ public final class LevelBuilder {
                     ao.geometry.setLocalRotation(
                             new Quaternion().fromAngles(0f, modelYaw(ao.obj.angle), 0f));
                 }
-                String name = glf.vectorModel(st.gfx());
-                ObjModels.Model m = name == null ? null
-                        : ObjModels.load(assetManager, String.format("models/%s/frame_%03d.obj", name, st.frame()));
-                if (m != null) {
-                    ao.geometry.setMesh(buildModelMesh(m, ao.obj));
-                }
+                // Meme chemin que pour un monstre : si la chose se melange, on vise la pose
+                // au lieu de rebatir le maillage.
+                setModelFrame(ao.geometry, ao.obj);
             } else {
                 ao.obj.sheet = st.gfx();
                 ao.obj.frame = st.frame();
@@ -2686,6 +2829,7 @@ public final class LevelBuilder {
         long nv = alienViews.stream().filter(v -> v.vector).count();
         System.out.printf("[Level] aliens : %d entites%s%n", alienViews.size(),
                 nv == 0 ? "" : " (dont " + nv + " en modele)");
+        rapportDesPoses();
         for (AlienView v : alienViews) {               // de quoi aller les regarder : -Pfreecam -Pat=x,y,z
             if (v.vector) {
                 Vector3f t = v.geometry.getLocalTranslation();
@@ -2755,6 +2899,21 @@ public final class LevelBuilder {
         String name = glf == null ? null : glf.vectorModel(o.model);
         if (name == null) {
             return;
+        }
+        Morphe morphe = morphes.get(g);
+        if (morphe != null && morphe.poses.nom.equals(name)) {
+            if (morphLog) {
+                System.out.printf("[morph] %s pose %d / %d%n", name, o.frame,
+                        morphe.poses.nombre() - 1);
+            }
+            morphe.viser(o.frame);                     // le maillage ne change plus : la pose, si
+            return;
+        }
+        if (morphe != null) {
+            // L'entite a CHANGE DE MODELE -- un monstre engendre d'un autre type. Les ecarts
+            // qu'elle portait ne decrivent plus rien : on la rend a l'echange de maillage.
+            morphes.remove(g);
+            g.setMorphState(new float[0]);
         }
         ObjModels.Model m = ObjModels.load(assetManager, String.format("models/%s/frame_%03d.obj", name, o.frame));
         if (m == null) {

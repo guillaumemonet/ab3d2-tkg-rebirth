@@ -6,6 +6,7 @@ import com.jme3.light.DirectionalLight;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.FastMath;
 import com.jme3.math.Vector3f;
+import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
 import com.jme3.system.AppSettings;
@@ -23,9 +24,16 @@ import com.jme3.system.AppSettings;
  * un {@code .j3o} du jeu en soixante-quatriemes -- et il n'y a aucune raison de les connaitre
  * pour le regarder.
  *
+ * <p>Avec {@code -Ppose}, il sert d'EPREUVE AU MELANGE : la meme pose, prise soit du maillage
+ * de cette image, soit de la pose 0 que le moteur deforme. Les deux captures doivent etre
+ * identiques au pixel. Une pose decimale -- {@code -Ppose=7,5} -- montre l'entre-deux, celui
+ * que le jeu interpole entre deux pas d'animation et que l'Amiga ne pouvait pas montrer.
+ *
  * <pre>
  * gradle -p rebirth preview -Pmodele=D:/IA/3D/work/out/ashnarg/0/mesh.glb
  * gradle -p rebirth preview -Pmodele=assets/models/CRAB/frame_000.j3o -Papercu=crab.png
+ * gradle -p rebirth preview -Pmodele=assets/models/CRAB/frame_000.j3o -Ppose=7
+ * gradle -p rebirth preview -Pmodele=assets/models/CRAB/frame_000.j3o -Ppose=7 -Pmelange
  * </pre>
  */
 public final class ModelPreview extends SimpleApplication {
@@ -43,6 +51,12 @@ public final class ModelPreview extends SimpleApplication {
     private final String sortie;
     /** Niveau de lumiere impose aux faces, ou -1 pour garder celui du modele. */
     private final int niveau;
+    /** Pose a montrer, ou -1 pour charger le fichier tel quel. Reelle : 7,5 est un entre-deux. */
+    private final float pose;
+    /** -Pmelange : obtenir la pose par deformation de la pose 0, au lieu de son maillage. */
+    private final boolean melange = System.getProperty("rebirth.melange") != null;
+    /** Le volume sur lequel cadrer, impose en mode pose pour que deux captures se comparent. */
+    private com.jme3.bounding.BoundingBox cadreSur;
     private Spatial modele;
     private float rayon = 1f;
     private Vector3f centre = Vector3f.ZERO;
@@ -51,10 +65,11 @@ public final class ModelPreview extends SimpleApplication {
             new java.awt.image.BufferedImage(COTE * 4, COTE * 2,
                     java.awt.image.BufferedImage.TYPE_INT_RGB);
 
-    private ModelPreview(String chemin, String sortie, int niveau) {
+    private ModelPreview(String chemin, String sortie, int niveau, float pose) {
         this.chemin = chemin;
         this.sortie = sortie;
         this.niveau = niveau;
+        this.pose = pose;
     }
 
     public static void main(String[] args) {
@@ -64,8 +79,10 @@ public final class ModelPreview extends SimpleApplication {
             return;
         }
         String sortie = System.getProperty("rebirth.apercu", "apercu.png");
+        String quellePose = System.getProperty("rebirth.pose");
         ModelPreview app = new ModelPreview(chemin, sortie,
-                Integer.getInteger("rebirth.niveau", -1));
+                Integer.getInteger("rebirth.niveau", -1),
+                quellePose == null ? -1f : Float.parseFloat(quellePose.replace(',', '.')));
         AppSettings s = new AppSettings(true);
         s.setResolution(COTE, COTE);
         s.setTitle("apercu : " + chemin);
@@ -97,19 +114,27 @@ public final class ModelPreview extends SimpleApplication {
         } catch (RuntimeException horsProjet) {
             // apercu d'un fichier quelconque, hors du projet : il se suffit a lui-meme
         }
-        try {
-            modele = assetManager.loadModel(f.getName());
-        } catch (RuntimeException e) {
-            System.err.println("[apercu] " + chemin + " illisible : " + e);
-            stop();
-            return;
+        if (pose >= 0) {
+            modele = unePose(f);
+            if (modele == null) {
+                stop();
+                return;
+            }
+        } else {
+            try {
+                modele = assetManager.loadModel(f.getName());
+            } catch (RuntimeException e) {
+                System.err.println("[apercu] " + chemin + " illisible : " + e);
+                stop();
+                return;
+            }
         }
 
         if (niveau >= 0) {
             eclairerLesFaces(modele, niveau);
         }
 
-        com.jme3.bounding.BoundingVolume bv = modele.getWorldBound();
+        com.jme3.bounding.BoundingVolume bv = cadreSur != null ? cadreSur : modele.getWorldBound();
         if (bv instanceof com.jme3.bounding.BoundingBox bb) {
             centre = bb.getCenter().clone();
             rayon = Math.max(0.001f, Math.max(bb.getXExtent(),
@@ -135,6 +160,89 @@ public final class ModelPreview extends SimpleApplication {
 
         cam.setFrustumPerspective(45f, 1f, rayon * 0.01f, rayon * 40f);
         System.out.printf("[apercu] %s : rayon %.3f, centre %s%n", chemin, rayon, centre);
+    }
+
+    /**
+     * UNE POSE, PRISE DE L'UNE DES DEUX FACONS, A LA MEME PLACE ET DANS LE MEME CADRE.
+     *
+     * <p>{@code -Ppose=7} montre le maillage de l'image 7, charge tel quel ;
+     * {@code -Ppose=7 -Pmelange} montre le maillage de la pose 0 que le moteur DEFORME jusqu'a
+     * cette meme image. Les deux images doivent etre IDENTIQUES AU PIXEL -- c'est la seule
+     * facon honnete d'eprouver le melange, et c'est pourquoi les deux ne sont pas mises cote a
+     * cote : en perspective, deux objets poses a deux endroits ne se voient pas sous le meme
+     * angle, et la comparaison ne voudrait rien dire.
+     *
+     * <p>Le cadrage se prend sur la POSE 0 dans les deux cas, sans quoi deux poses de tailles
+     * differentes seraient vues de deux distances differentes.
+     *
+     * <p>{@code -Pmodele} designe ici un fichier d'image quelconque du modele -- c'est son
+     * DOSSIER qui nomme le modele.
+     */
+    private com.jme3.scene.Spatial unePose(java.io.File f) {
+        String nom = f.getAbsoluteFile().getParentFile().getName();
+        MorphModels.Poses poses = MorphModels.charger(assetManager, nom);
+        if (poses == null) {
+            System.err.println("[apercu] " + nom + " ne se melange pas : ses images n'ont pas"
+                    + " le meme decoupage");
+            return null;
+        }
+        if (pose > poses.nombre() - 1) {
+            System.err.println("[apercu] " + nom + " n'a que " + poses.nombre() + " poses");
+            return null;
+        }
+        int entiere = (int) pose;
+        float entreDeux = pose - entiere;
+        cadreSur = (com.jme3.bounding.BoundingBox) maillage(poses.base).getBound();
+        Geometry g;
+        if (melange) {
+            g = new Geometry("melange", maillage(poses.base));
+            g.setMaterial(materiauDuModele());
+            MorphModels.preparer(g, poses);
+            // UN ENTRE-DEUX SE DEMANDE EN DECIMALES : -Ppose=7,5 est le milieu du chemin
+            // entre la septieme pose et la huitieme -- ce que le jeu montre entre deux pas
+            // d'animation, et que l'Amiga ne pouvait pas montrer.
+            g.setMorphState(entreDeux == 0f ? poses.poidsDe(entiere)
+                    : MorphModels.Poses.melange(poses.poidsDe(entiere),
+                            poses.poidsDe(entiere + 1), entreDeux, null));
+        } else {
+            ObjModels.Model tel = ObjModels.load(assetManager,
+                    String.format("models/%s/frame_%03d.obj", nom, entiere));
+            if (tel == null) {
+                System.err.println("[apercu] pose " + pose + " introuvable");
+                return null;
+            }
+            g = new Geometry("tel-quel", maillage(tel));
+            g.setMaterial(materiauDuModele());
+        }
+        System.out.printf(java.util.Locale.ROOT, "[apercu] %s pose %.2f sur %d, %s%n", nom,
+                pose, poses.nombre() - 1, melange ? "par melange" : "maillage tel quel");
+        return g;
+    }
+
+    /** Le maillage brut d'un modele : positions, UV, normales plates. Pas d'eclairage de face. */
+    private static com.jme3.scene.Mesh maillage(ObjModels.Model m) {
+        MeshBuilder mb = new MeshBuilder();
+        for (float[] t : m.tris) {
+            for (int k = 0; k < 3; k++) {
+                mb.vertex(t[k * 5], t[k * 5 + 1], t[k * 5 + 2], t[k * 5 + 3], t[k * 5 + 4]);
+            }
+        }
+        return mb.build();
+    }
+
+    /** Le materiau du jeu en rendu moderne : l'atlas en couleurs, eclaire par le moteur. */
+    private com.jme3.material.Material materiauDuModele() {
+        com.jme3.material.Material mat = new com.jme3.material.Material(assetManager,
+                "Common/MatDefs/Light/Lighting.j3md");
+        mat.setTexture("DiffuseMap", Assets.texture("textures/texturemaps_atlas.png"));
+        mat.setBoolean("UseMaterialColors", true);
+        mat.setColor("Diffuse", ColorRGBA.White);
+        mat.setColor("Ambient", ColorRGBA.White);
+        mat.setColor("Specular", ColorRGBA.Black);
+        mat.setFloat("Shininess", 1f);
+        mat.getAdditionalRenderState().setFaceCullMode(
+                com.jme3.material.RenderState.FaceCullMode.Off);
+        return mat;
     }
 
     /**

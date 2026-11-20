@@ -907,6 +907,11 @@ public class Main extends SimpleApplication {
             builder.updateShots(shots.shots());
             etatLumieres.eclairerTirs();
             builder.updateAliens();
+            // LE MELANGE DES POSES SUIT L'HORLOGE, PAS LA SIMULATION. C'est entre deux pas
+            // d'animation que le modele glisse d'une pose a l'autre ; sous -Pshot, ou l'on
+            // avance d'un pas par image pour que la capture soit reproductible, l'image rendue
+            // doit etre celle de la pose ATTEINTE -- on lui donne donc le pas entier.
+            builder.avancerLesPoses(shotAt > 0 ? 1f : tpf);
             builder.updateWater(simFrames);
             if (hud != null) {
                 hud.underwater(underwaterMode());
