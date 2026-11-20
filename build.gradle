@@ -244,6 +244,17 @@ tasks.register('materials', JavaExec) {
 
 // LES MODELES EN .j3o : le format natif de jME, que le SDK sait ouvrir. Le couple
 // .obj + .lvl reste a cote comme source d'extraction.
+// REMAPPAGE : les pixels du JEU plaques sur un volume devine par l'outil sprite-vers-3D.
+tasks.register('remap', JavaExec) {
+    group = 'assets'
+    description = "Projette les vues du jeu sur un maillage : -Pmodele=<glb> -Pvues=<dossier> [-Psortie=x.j3o]"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.rebirth.Remap'
+    workingDir = projectDir
+    systemProperty 'rebirth.assets', assetsDir.absolutePath
+    flags(it, ['modele', 'vues', 'sortie'])
+}
+
 // APERCU D'UN MODELE : huit vues en une image, pour juger une silhouette sans ouvrir le SDK.
 tasks.register('preview', JavaExec) {
     group = 'assets'
