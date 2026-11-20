@@ -43,14 +43,88 @@ public final class ObjModels {
     private ObjModels() {
     }
 
-    /** Renvoie le modele du fichier OBJ (cache), ou null s'il est absent/vide. */
-    public static Model load(String relative) {
+    /**
+     * Le modele d'une image (cache), ou null s'il est absent/vide.
+     *
+     * <p>LE {@code .j3o} D'ABORD. C'est le format natif de jME : le SDK l'ouvre, le charge est
+     * binaire, et le materiau voyage avec. Le couple {@code .obj} + {@code .lvl} reste a cote
+     * comme SOURCE d'extraction -- et comme secours tant que {@code gradle -p rebirth models}
+     * n'a pas tourne.
+     *
+     * <p>{@code am} peut etre null : l'extraction elle-meme relit les OBJ pour fabriquer les
+     * {@code .j3o}, et n'a pas d'AssetManager sous la main.
+     */
+    public static Model load(com.jme3.asset.AssetManager am, String relative) {
         if (CACHE.containsKey(relative)) {
             return CACHE.get(relative);
         }
-        Model m = parse(Assets.text(relative), Assets.text(relative.replace(".obj", ".lvl")));
+        Model m = null;
+        String j3o = relative.replace(".obj", ".j3o");
+        if (am != null && Assets.exists(j3o)) {
+            try {
+                m = depuisJ3o(am, j3o);
+            } catch (RuntimeException casse) {
+                System.err.println("[models] " + j3o + " illisible (" + casse.getMessage()
+                        + ") : on retombe sur l'OBJ");
+            }
+        }
+        if (m == null) {
+            m = parse(Assets.text(relative), Assets.text(relative.replace(".obj", ".lvl")));
+        }
         CACHE.put(relative, m);
         return m;
+    }
+
+    /** L'ancienne entree, sans moteur : l'extraction s'en sert pour lire les OBJ. */
+    public static Model load(String relative) {
+        return load(null, relative);
+    }
+
+    /**
+     * Relit un {@code .j3o} ecrit par {@code ModelExport}.
+     *
+     * <p>Le maillage y est NON INDEXE, trois sommets par triangle dans l'ordre des faces, et
+     * {@code TexCoord2} porte le couple (niveau de base, octet d'angle) de la face sur chacun
+     * de ses trois sommets. Il n'y a donc plus de table de faces a reconstituer : chaque
+     * triangle est sa propre face, et {@code triFace} devient l'identite.
+     */
+    private static Model depuisJ3o(com.jme3.asset.AssetManager am, String j3o) {
+        com.jme3.scene.Spatial sp = am.loadModel(j3o);
+        com.jme3.scene.Mesh mesh = sp instanceof com.jme3.scene.Geometry g ? g.getMesh() : null;
+        if (mesh == null) {
+            return null;
+        }
+        java.nio.FloatBuffer pos = mesh.getFloatBuffer(
+                com.jme3.scene.VertexBuffer.Type.Position);
+        java.nio.FloatBuffer uv = mesh.getFloatBuffer(
+                com.jme3.scene.VertexBuffer.Type.TexCoord);
+        java.nio.FloatBuffer face = mesh.getFloatBuffer(
+                com.jme3.scene.VertexBuffer.Type.TexCoord2);
+        if (pos == null || uv == null || face == null) {
+            return null;
+        }
+        int n = pos.limit() / 9;                       // 3 sommets de 3 flottants par triangle
+        if (n == 0) {
+            return null;
+        }
+        float[][] tris = new float[n][15];
+        int[] triFace = new int[n];
+        int[] niveau = new int[n];
+        int[] angle = new int[n];
+        for (int i = 0; i < n; i++) {
+            for (int k = 0; k < 3; k++) {
+                int v = i * 3 + k;
+                tris[i][k * 5] = pos.get(v * 3);
+                tris[i][k * 5 + 1] = pos.get(v * 3 + 1);
+                tris[i][k * 5 + 2] = pos.get(v * 3 + 2);
+                tris[i][k * 5 + 3] = uv.get(v * 2);
+                tris[i][k * 5 + 4] = uv.get(v * 2 + 1);
+            }
+            triFace[i] = i;
+            niveau[i] = Math.round(face.get(i * 3 * 2));
+            angle[i] = Math.round(face.get(i * 3 * 2 + 1));
+        }
+        return new Model(tris, triFace, niveau, angle);
     }
 
     private static Model parse(String text, String levels) {

@@ -234,6 +234,17 @@ tasks.register('materials', JavaExec) {
     systemProperty 'rebirth.assets', assetsDir.absolutePath
 }
 
+// LES MODELES EN .j3o : le format natif de jME, que le SDK sait ouvrir. Le couple
+// .obj + .lvl reste a cote comme source d'extraction.
+tasks.register('models', JavaExec) {
+    group = 'assets'
+    description = "Ecrit les modeles vectoriels en .j3o (apres `materials`)"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.rebirth.extract.ModelExport'
+    workingDir = projectDir
+    systemProperty 'rebirth.assets', assetsDir.absolutePath
+}
+
 tasks.register('scenes', JavaExec) {
     group = 'assets'
     description = "Ecrit les niveaux en scenes .j3o (ouvrables dans le SDK jME)"

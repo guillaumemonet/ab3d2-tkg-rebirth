@@ -98,7 +98,11 @@ clone neuf les fabrique :
 gradle -p rebirth extract        # assets d'origine -> PNG/JSON/OBJ/WAV
 gradle -p rebirth materials      # -> assets/materials/*.j3m
 gradle -p rebirth scenes         # -> assets/Scenes/*.j3o
+gradle -p rebirth models         # -> assets/models/*/*.j3o
 ```
+
+`models` vient APRES `materials` : chaque `.j3o` de modele porte
+`materials/model_shaded.j3m`, et c'est ce qui le rend regardable dans le SDK.
 
 Tant qu'`extract` n'a pas tourne, le noeud `assets` est presque vide : c'est normal.
 
@@ -108,8 +112,8 @@ Tant qu'`extract` n'a pas tourne, le noeud `assets` est presque vide : c'est nor
 |---|---|
 | `Scenes/` | les niveaux en `.j3o` |
 | `Shaders/` | les nuanceurs a nous -- les SEULS assets versionnes |
-| `materials/` | les `.j3m` du decor |
-| `models/` | les modeles vectoriels et leurs donnees d'eclairage par face |
+| `materials/` | les `.j3m` du decor et des modeles |
+| `models/` | les modeles vectoriels en `.j3o`, et le couple `.obj` + `.lvl` qui leur sert de source |
 | `textures/` | murs, sols, objets, ciel, et la palette de reference |
 | `levels/` | la geometrie des seize niveaux |
 | `tables/` | `glf.json` (la base du jeu) et les tables d'origine |

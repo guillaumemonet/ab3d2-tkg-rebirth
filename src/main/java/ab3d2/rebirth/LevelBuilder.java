@@ -1950,9 +1950,9 @@ public final class LevelBuilder {
             return null;
         }
         // Frame du modele = variante/couleur propre a l'instance (cles, indicateurs).
-        ObjModels.Model m = ObjModels.load(String.format("models/%s/frame_%03d.obj", name, o.frame));
+        ObjModels.Model m = ObjModels.load(assetManager, String.format("models/%s/frame_%03d.obj", name, o.frame));
         if (m == null) {
-            m = ObjModels.load(String.format("models/%s/frame_000.obj", name));
+            m = ObjModels.load(assetManager, String.format("models/%s/frame_000.obj", name));
         }
         if (m == null) {
             return null;
@@ -2040,22 +2040,47 @@ public final class LevelBuilder {
         return (short) v;
     }
 
-    /** Materiau eclaire des modeles : carte d'indices de l'atlas + LUT (la meme que les sols). */
+    /**
+     * Materiau eclaire des modeles : carte d'indices de l'atlas + LUT (la meme que les sols).
+     *
+     * <p>Il vient de {@code materials/model_shaded.j3m} quand il existe -- le SDK sait alors
+     * l'ouvrir, et c'est lui que porte chaque {@code .j3o} de modele. La construction en code
+     * reste en secours tant que {@code gradle -p rebirth materials} n'a pas tourne.
+     *
+     * <p>Deux reglages ne s'expriment pas (ou mal) dans un {@code .j3m} et se reposent ici :
+     * le filtrage « au plus proche », comme pour tout le decor, et le repli en butee de bord
+     * sur la table -- 256 par 32, un texel par couple (indice, niveau) : en repli simple, le
+     * niveau 31 reboucle sur le 0 et les faces les plus claires virent au noir.
+     */
     private Material shadedModelMaterial() {
         Material cached = materials.get("model_shaded");
         if (cached != null) {
             return cached;
         }
-        Texture2D idx = Assets.texture("textures/texturemaps_atlas.idx.png");
-        Texture2D lut = Assets.texture("textures/floors/floor_shade.lut.png");
-        if (idx == null || lut == null) {
-            return null;
+        Material mat = null;
+        try {
+            mat = assetManager.loadMaterial("materials/model_shaded.j3m");
+            pixelate(mat);
+            j3mLoaded++;
+        } catch (RuntimeException absent) {
+            mat = null;                                // pas encore genere : on le fabrique
         }
-        Material mat = new Material(assetManager, "Shaders/ModelShade.j3md");
-        mat.setTexture("IndexMap", idx);
-        lut.setWrap(com.jme3.texture.Texture.WrapMode.EdgeClamp);
-        mat.setTexture("Lut", lut);
-        mat.getAdditionalRenderState().setFaceCullMode(RenderState.FaceCullMode.Off);
+        if (mat == null) {
+            Texture2D idx = Assets.texture("textures/texturemaps_atlas.idx.png");
+            Texture2D lut = Assets.texture("textures/floors/floor_shade.lut.png");
+            if (idx == null || lut == null) {
+                return null;
+            }
+            mat = new Material(assetManager, "Shaders/ModelShade.j3md");
+            mat.setTexture("IndexMap", idx);
+            mat.setTexture("Lut", lut);
+            mat.getAdditionalRenderState().setFaceCullMode(RenderState.FaceCullMode.Off);
+        }
+        com.jme3.texture.Texture lut = mat.getTextureParam("Lut") == null ? null
+                : mat.getTextureParam("Lut").getTextureValue();
+        if (lut != null) {
+            lut.setWrap(com.jme3.texture.Texture.WrapMode.EdgeClamp);
+        }
         materials.put("model_shaded", mat);
         return mat;
     }
@@ -2135,7 +2160,7 @@ public final class LevelBuilder {
                 }
                 String name = glf.vectorModel(st.gfx());
                 ObjModels.Model m = name == null ? null
-                        : ObjModels.load(String.format("models/%s/frame_%03d.obj", name, st.frame()));
+                        : ObjModels.load(assetManager, String.format("models/%s/frame_%03d.obj", name, st.frame()));
                 if (m != null) {
                     ao.geometry.setMesh(buildModelMesh(m, ao.obj));
                 }
@@ -2426,7 +2451,7 @@ public final class LevelBuilder {
                 || zone != weaponZone) {
             String name = glf.vectorModel(modelIdx);
             ObjModels.Model m = name == null ? null
-                    : ObjModels.load(String.format("models/%s/frame_%03d.obj", name, frame));
+                    : ObjModels.load(assetManager, String.format("models/%s/frame_%03d.obj", name, frame));
             if (m == null) {
                 if (weaponGeom != null) {
                     weaponGeom.setCullHint(com.jme3.scene.Spatial.CullHint.Always);
@@ -2666,7 +2691,7 @@ public final class LevelBuilder {
         if (name == null) {
             return;
         }
-        ObjModels.Model m = ObjModels.load(String.format("models/%s/frame_%03d.obj", name, o.frame));
+        ObjModels.Model m = ObjModels.load(assetManager, String.format("models/%s/frame_%03d.obj", name, o.frame));
         if (m == null) {
             return;
         }

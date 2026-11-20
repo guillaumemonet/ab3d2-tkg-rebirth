@@ -69,6 +69,30 @@ public final class MaterialExport {
             }
             """;
 
+    /**
+     * Materiau des MODELES vectoriels, decalque de {@code LevelBuilder.shadedModelMaterial}.
+     *
+     * <p>Il n'eclaire pas comme le decor : la luminosite d'une face ne vient pas d'une lumiere
+     * jME mais de la table d'origine, {@code shade[256*32 + niveau*256 + indice]}, ou le niveau
+     * est celui de la face plus l'anneau directionnel de l'endroit. D'ou le nuanceur dedie, la
+     * carte d'INDICES de l'atlas (et non ses couleurs) et la table en texture.
+     *
+     * <p>{@code WrapEdgeClamp} sur la table n'est pas un detail : elle fait 256 par 32, un
+     * texel par couple (indice, niveau). En repli, le niveau 31 reboucle sur le 0 et les faces
+     * les plus claires virent au noir.
+     */
+    private static final String MODELE = """
+            Material model_shaded : Shaders/ModelShade.j3md {
+                MaterialParameters {
+                    IndexMap : textures/texturemaps_atlas.idx.png
+                    Lut : WrapEdgeClamp textures/floors/floor_shade.lut.png
+                }
+                AdditionalRenderState {
+                    FaceCull Off
+                }
+            }
+            """;
+
     private MaterialExport() {
     }
 
@@ -144,9 +168,12 @@ public final class MaterialExport {
         // plat le remplacerait par une simple texture eclairee. A reprendre quand on saura
         // decrire cette eau en j3m.
 
+        write(matDir.resolve("model_shaded.j3m"), MODELE);
+
         System.out.printf("[materials] %d niveaux lus -> %d murs, %d sols dans %s"
                 + "  (%d eaux laissees a leur materiau dedie)%n",
                 levels, nWalls, flats.size(), matDir, waters.size());
+        System.out.println("[materials] model_shaded.j3m (les modeles vectoriels)");
     }
 
     private static void write(Path p, String body) throws IOException {
