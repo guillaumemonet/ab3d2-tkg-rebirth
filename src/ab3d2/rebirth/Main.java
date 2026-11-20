@@ -957,6 +957,42 @@ public class Main extends SimpleApplication {
         mouseSettle = MOUSE_SETTLE;         // la saisie va sauter : on l'ignore
     }
 
+    /**
+     * LE CURSEUR RESTE PRIS, ET ON LE VERIFIE A CHAQUE IMAGE.
+     *
+     * <p>Le demander une fois ne suffit pas, et c'est la cause de la souris qui se
+     * << balade >> : {@code GlfwMouseInput.setCursorVisible} commence par
+     * {@code if (!context.isRenderable()) return;}. L'appel pose dans {@code simpleInitApp}
+     * tombe donc dans le vide quand la fenetre n'est pas encore affichable -- sans erreur,
+     * sans trace. Le curseur reste alors en mode NORMAL : il sort de la fenetre, et la vue
+     * ne suit plus au bord de l'ecran.
+     *
+     * <p>On ne le demande donc plus : on le VERIFIE. Une interrogation GLFW par image, et
+     * on repose le mode s'il n'est pas celui qu'on veut. L'etat du curseur cesse d'etre le
+     * resultat d'un appel passe pour devenir un invariant tenu.
+     */
+    private void tenirLeCurseur() {
+        if (!(context instanceof com.jme3.system.lwjgl.LwjglWindow fenetre)) {
+            return;                                    // pas de contexte GLFW sous la main
+        }
+        long win = fenetre.getWindowHandle();
+        if (win == 0L) {
+            return;                                    // la fenetre n'existe pas encore
+        }
+        // Le menu et les ecrans de texte rendent le curseur ; la partie le prend.
+        int voulu = inMenu()
+                ? org.lwjgl.glfw.GLFW.GLFW_CURSOR_NORMAL
+                : org.lwjgl.glfw.GLFW.GLFW_CURSOR_DISABLED;
+        if (org.lwjgl.glfw.GLFW.glfwGetInputMode(win,
+                org.lwjgl.glfw.GLFW.GLFW_CURSOR) != voulu) {
+            org.lwjgl.glfw.GLFW.glfwSetInputMode(win,
+                    org.lwjgl.glfw.GLFW.GLFW_CURSOR, voulu);
+            if (voulu == org.lwjgl.glfw.GLFW.GLFW_CURSOR_DISABLED) {
+                mouseSettle = MOUSE_SETTLE;            // la prise va sauter : on l'ignore
+            }
+        }
+    }
+
     /** Oublie les touches tenues : on change d'ecran, rien ne doit rester enfonce. */
     void relacherTouches() {
         keys.replaceAll((k, v) -> false);
@@ -1045,6 +1081,13 @@ public class Main extends SimpleApplication {
         if (mouseSettle > 0) {
             mouseSettle--;                             // en IMAGES, pas en pas de simulation
             lookX = 0;                                 // et ce qui serait deja tombe dedans
+        }
+        tenirLeCurseur();
+        if (System.getProperty("rebirth.cursorLog") != null && context
+                instanceof com.jme3.system.lwjgl.LwjglWindow f && f.getWindowHandle() != 0L) {
+            System.out.println("[curseur] mode GLFW = " + org.lwjgl.glfw.GLFW.glfwGetInputMode(
+                    f.getWindowHandle(), org.lwjgl.glfw.GLFW.GLFW_CURSOR)
+                    + "  (212995 = pris, 212993 = libre)");
         }
         if (fpsLog) {                                  // -PfpsLog : cout reel d'une frame
             if (fpsFrames == 0 && fpsAccum == 0f) {
