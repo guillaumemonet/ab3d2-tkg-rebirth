@@ -1,1 +1,9 @@
 rootProject.name = 'ab3d2-rebirth'
+
+// LES ASSETS SONT UN SOUS-PROJET, et c'est ce qui les rend visibles dans le SDK jME.
+//
+// Le dossier porte a la fois un projet Ant (nbproject/) et un projet Gradle. NetBeans
+// prend le Gradle, et le descripteur Ant -- avec son noeud Assets -- est purement ignore.
+// Un sous-projet, lui, apparait dans l'arbre des deux cotes : c'est la convention du
+// gabarit officiel, et le SDK sait alors ouvrir et editer les .j3o et les .j3m.
+include 'assets'

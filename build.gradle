@@ -27,6 +27,35 @@ ext {
     lwjglNatives = 'natives-windows'
 }
 
+// LE SOUS-PROJET DES ASSETS.
+//
+// Il ne change RIEN a l'execution : le jeu lit ses assets sur le DISQUE, par un
+// FileLocator pose sur rebirth.assets, et c'est voulu -- c'est ce qui permet de deposer
+// d'autres textures et de les voir au lancement suivant sans reconstruire.
+//
+// Il existe pour le SDK jME, qui montre alors un noeud Assets et sait ouvrir les .j3o et
+// les .j3m, et pour empaqueter une version distribuable.
+//
+// Les dossiers *4x sont EXCLUS : vingt-huit megaoctets de textures agrandies, que l'outil
+// regenere et que le depot ignore deja.
+project(':assets') {
+    apply plugin: 'java'
+    buildDir = rootProject.file('build/assets')
+    sourceSets {
+        main {
+            resources {
+                srcDir '.'
+                exclude '**/sub4x/**', '**/floors4x/**', 'build/**'
+            }
+        }
+    }
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+    }
+}
+
 dependencies {
     // jME 3 + backend LWJGL3 (apporte transitivement glfw/opengl/openal + natives).
     implementation "org.jmonkeyengine:jme3-core:$jmeVersion"
