@@ -85,15 +85,73 @@ public final class Assets {
      */
     private static final boolean HIRES = System.getProperty("rebirth.hires") != null;
 
-    /** Le chemin agrandi correspondant, ou {@code null} s'il n'y en a pas. */
+    /**
+     * Le chemin agrandi correspondant, ou {@code null} s'il n'y en a pas.
+     *
+     * <p>TOLERANT SUR LE NOM. L'outil ecrit {@code floor_05.png} a cote de l'original, mais
+     * une texture refaite a la main arrive sous le nom qu'on lui a donne --
+     * {@code floor_05hd.jpg} par exemple. On accepte donc le meme debut de nom suivi de ce
+     * qu'on veut, dans n'importe quel format d'image, a condition que la suite ne commence
+     * pas par un chiffre : sans cela {@code wall_1_0_12} attraperait {@code wall_1_0_128}.
+     *
+     * <p>Et on le DIT au premier trouve. Un fichier mal nomme etait jusqu'ici ignore en
+     * silence, ce qui est la pire facon d'echouer : on cherche le defaut dans le rendu
+     * pendant que le fichier n'a simplement jamais ete lu.
+     */
     private static String agrandi(String relative) {
         int barre = relative.lastIndexOf('/');
         if (barre <= 0) {
             return null;
         }
-        String dossier = relative.substring(0, barre);
-        String quatre = dossier + "4x" + relative.substring(barre);
-        return Files.isRegularFile(path(quatre)) ? quatre : null;
+        String dossier = relative.substring(0, barre) + "4x";
+        String fichier = relative.substring(barre + 1);
+        int point = fichier.lastIndexOf('.');
+        String base = point < 0 ? fichier : fichier.substring(0, point);
+        java.nio.file.Path dir = path(dossier);
+        if (!Files.isDirectory(dir)) {
+            return null;
+        }
+        // LE NOM LE PLUS LONG GAGNE. L'outil ecrit floor_05.png ; une texture refaite a la
+        // main arrive sous floor_05hd.jpg et doit l'emporter -- un nom plus precis est un
+        // choix delibere, le nom nu est ce que la chaine automatique produit.
+        try (java.util.stream.Stream<java.nio.file.Path> liste = Files.list(dir)) {
+            java.util.Optional<String> trouve = liste
+                    .map(f -> f.getFileName().toString())
+                    .filter(f -> convient(f, base))
+                    .max(java.util.Comparator.comparingInt(String::length)
+                            .thenComparing(java.util.Comparator.naturalOrder()));
+            if (trouve.isPresent()) {
+                String chemin = dossier + "/" + trouve.get();
+                if (DITES.add(base)) {
+                    System.out.println("[Assets] " + relative + " -> " + chemin);
+                }
+                return chemin;
+            }
+        } catch (IOException ignore) {
+            return null;
+        }
+        return null;
+    }
+
+    /** Les substitutions deja annoncees : une ligne par texture, pas une par appel. */
+    private static final java.util.Set<String> DITES = new java.util.HashSet<>();
+
+    /** Ce fichier remplace-t-il la texture {@code base} ? */
+    private static boolean convient(String fichier, String base) {
+        int point = fichier.lastIndexOf('.');
+        if (point < 0) {
+            return false;
+        }
+        String ext = fichier.substring(point + 1).toLowerCase(java.util.Locale.ROOT);
+        if (!ext.equals("png") && !ext.equals("jpg") && !ext.equals("jpeg")) {
+            return false;
+        }
+        String nom = fichier.substring(0, point);
+        if (!nom.startsWith(base)) {
+            return false;
+        }
+        // Ce qui suit le nom de base ne doit pas etre un chiffre : voir le javadoc.
+        return nom.length() == base.length() || !Character.isDigit(nom.charAt(base.length()));
     }
 
     /** Charge un PNG en BufferedImage (cache). Renvoie null si absent. */
@@ -117,10 +175,35 @@ public final class Assets {
                 System.err.println("[Assets] PNG illisible : " + p + " (" + e.getMessage() + ")");
             }
         }
+        // UNE PLANCHE DE QUATRE CARTES se reconnait ici, et on n'en rend que la COULEUR.
+        // Tout le jeu demande une texture par son chemin et attend une image a plaquer ;
+        // lui rendre la planche entiere couvrirait les murs d'un quart de leur propre
+        // texture. Les trois autres cartes restent disponibles par cartes().
+        CartesPackees quatre = CartesPackees.decouper(img);
+        if (quatre != null) {
+            CARTES.put(relative, quatre);
+            img = quatre.couleur;
+        }
         // La cle du cache reste le chemin DEMANDE : tout le reste du jeu continue de nommer
         // les textures par leur chemin d'origine, qu'elles soient agrandies ou non.
         IMAGES.put(relative, img);
         return img;
+    }
+
+    /** Les planches de quatre cartes deja reconnues, par chemin demande. */
+    private static final java.util.Map<String, CartesPackees> CARTES = new java.util.HashMap<>();
+
+    /**
+     * Les quatre cartes d'une texture, si elle est venue en planche.
+     *
+     * <p>Charge l'image au besoin : demander les cartes d'une texture jamais lue doit
+     * marcher.
+     */
+    public static CartesPackees cartes(String relative) {
+        if (!IMAGES.containsKey(relative)) {
+            image(relative);
+        }
+        return CARTES.get(relative);
     }
 
     /** Charge un PNG en Texture2D jME, filtre "au plus proche" (look retro). Null si absent. */

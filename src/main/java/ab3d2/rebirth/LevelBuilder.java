@@ -1033,6 +1033,16 @@ public final class LevelBuilder {
             return;                                // texture batie en memoire : pas de chemin
         }
         String chemin = t.getTextureValue().getKey().getName();
+
+        // LA TEXTURE PORTE-T-ELLE SES PROPRES CARTES ? Si oui, elles l'emportent sur celles
+        // qu'on deduit : elles disent ce que la surface EST, la ou nos deductions ne font
+        // que relire ce qu'un peintre de 1996 a suggere par la couleur.
+        CartesPackees quatre = Assets.cartes(chemin);
+        if (quatre != null) {
+            poserCartesFournies(m, chemin, quatre);
+            return;
+        }
+
         Texture2D n = reliefs.computeIfAbsent(chemin,
                 k -> Relief.normalMap(Assets.image(k)));
         if (n == null) {
@@ -1085,6 +1095,93 @@ public final class LevelBuilder {
                 m.setFloat("Shininess", 24f);
             }
         }
+    }
+
+    /**
+     * POSE LES CARTES QUE LA TEXTURE APPORTE elle-meme.
+     *
+     * <p>Quatre quartiers, dans l'ordre de lecture : couleur, normales (hauteur dans leur
+     * alpha), lueur, brillance. Ce sont exactement les quatre cartes que le materiau sait
+     * employer -- la convention tombe juste.
+     *
+     * <p>LE PARALLAXE NE S'ALLUME QUE SI LA HAUTEUR EST LA. Elle voyage dans le canal alpha
+     * des normales, et un JPEG n'en a pas : la planche doit etre un PNG pour creuser.
+     */
+    private void poserCartesFournies(Material m, String chemin, CartesPackees q) {
+        m.setTexture("NormalMap", carteLissee(chemin + "#n", q.normales));
+        if (q.avecHauteur && m.getMaterialDef().getMaterialParam("ParallaxHeight") != null) {
+            m.setBoolean("PackedNormalParallax", true);
+            m.setFloat("ParallaxHeight", Float.parseFloat(
+                    System.getProperty("rebirth.parallax", "0.035")));
+            m.setBoolean("SteepParallax", true);
+        }
+        if (m.getMaterialDef().getMaterialParam("GlowMap") != null
+                && System.getProperty("rebirth.noglow") == null
+                && lueurPlausible(chemin, q.lueur)) {
+            m.setTexture("GlowMap", carteLissee(chemin + "#g", q.lueur));
+        }
+        if (m.getMaterialDef().getMaterialParam("SpecularMap") != null) {
+            m.setTexture("SpecularMap", carteLissee(chemin + "#s", q.brillance));
+            float brillance = Float.parseFloat(
+                    System.getProperty("rebirth.specular", "0.85"));
+            m.setColor("Specular", new ColorRGBA(brillance, brillance, brillance, 1f));
+            m.setFloat("Shininess", 24f);
+        }
+    }
+
+    /**
+     * CETTE CARTE DE LUEUR EN EST-ELLE UNE ?
+     *
+     * <p>Un masque d'emissivite est presque NOIR : il ne marque que ce qui emet, un voyant,
+     * une bande lumineuse. Les seize sous-tuiles du jeu qui en portent en couvrent de deux
+     * centiemes a deux pour cent de leur surface.
+     *
+     * <p>Une carte presque blanche dit donc que TOUTE la surface emet -- un sol entier qui
+     * brille --, et c'est a peu pres toujours une autre carte rangee la par erreur : une
+     * hauteur ou une occlusion, claires par nature. Mesure sur le sol fourni : 106 666
+     * pixels satures avec, 35 066 sans.
+     *
+     * <p>On l'ecarte donc, EN LE DISANT. Laisser passer donnerait un sol blanc sans que
+     * rien n'explique pourquoi.
+     */
+    private boolean lueurPlausible(String chemin, java.awt.image.BufferedImage img) {
+        long somme = 0;
+        int n = 0;
+        int pas = Math.max(1, Math.min(img.getWidth(), img.getHeight()) / 48);
+        for (int y = 0; y < img.getHeight(); y += pas) {
+            for (int x = 0; x < img.getWidth(); x += pas) {
+                int p = img.getRGB(x, y);
+                somme += Math.max((p >> 16) & 0xFF, Math.max((p >> 8) & 0xFF, p & 0xFF));
+                n++;
+            }
+        }
+        float moyenne = n == 0 ? 0f : somme / (float) n / 255f;
+        if (moyenne <= LUEUR_MAX) {
+            return true;
+        }
+        if (lueursEcartees.add(chemin)) {
+            System.err.printf("[cartes] %s : carte de lueur ECARTEE, clarte moyenne %.0f%%."
+                    + " Un masque d'emissivite est presque noir ; celui-ci ferait briller"
+                    + " toute la surface. Une hauteur ou une occlusion rangee la ?%n",
+                    chemin, moyenne * 100f);
+        }
+        return false;
+    }
+
+    /** Au-dela, ce n'est plus un masque d'emissivite mais une autre carte. */
+    private static final float LUEUR_MAX = 0.35f;
+    /** Les cartes deja signalees : une ligne par texture, pas une par materiau. */
+    private final java.util.Set<String> lueursEcartees = new java.util.HashSet<>();
+
+    /** Une carte de relief s'interpole, contrairement a la couleur : voir Relief. */
+    private Texture2D carteLissee(String cle, java.awt.image.BufferedImage img) {
+        return reliefs.computeIfAbsent(cle, k -> {
+            Texture2D t = Assets.toTexture(img);
+            t.setMagFilter(com.jme3.texture.Texture.MagFilter.Bilinear);
+            t.setMinFilter(com.jme3.texture.Texture.MinFilter.BilinearNoMipMaps);
+            t.setWrap(com.jme3.texture.Texture.WrapMode.Repeat);
+            return t;
+        });
     }
 
     /** Les cartes de normales (et de hauteur) deja calculees, par chemin de texture. */
