@@ -173,6 +173,56 @@ public final class MorphModels {
     }
 
     /**
+     * DEFAIT ce que {@link #preparer} a pose : l'entite change de modele.
+     *
+     * <p>Il faut tout reprendre, parce que {@code Geometry.setMesh} ne touche a RIEN de ce qui
+     * concerne le melange : ni le controle, ni les reglages du materiau, ni l'etat des poids.
+     * Un maillage neuf sans ecarts laisserait derriere lui un nuanceur qui compte encore
+     * quatre ecarts et va lire des attributs de sommet qui n'existent plus.
+     */
+    public static void oublier(com.jme3.scene.Geometry g) {
+        com.jme3.anim.MorphControl ctrl = g.getControl(com.jme3.anim.MorphControl.class);
+        if (ctrl != null) {
+            g.removeControl(ctrl);
+        }
+        com.jme3.material.Material mat = g.getMaterial();
+        if (mat != null) {
+            mat.clearParam("MorphWeights");
+            mat.clearParam("NumberOfMorphTargets");
+            mat.clearParam("NumberOfTargetsBuffers");
+        }
+        g.setNbSimultaneousGPUMorph(-1);               // que jME le recalcule s'il le faut
+    }
+
+    /**
+     * POSE LES POIDS, meme si un modele precedent en a laisse plus.
+     *
+     * <p>jME garde l'etat des poids dans la GEOMETRIE, et sa longueur est celle du maillage qui
+     * l'a cree. {@code setMesh} ne la revise pas, et {@code setMorphState} recopie AVEUGLEMENT
+     * cette longueur-la depuis le tableau qu'on lui donne :
+     *
+     * <pre>
+     *   System.arraycopy(state, 0, morphState, 0, morphState.length);
+     * </pre>
+     *
+     * <p>Un modele de vingt poses suivi d'un modele de cinq fait donc lire vingt flottants dans
+     * un tableau de cinq -- et le jeu s'arrete sur un {@code ArrayIndexOutOfBoundsException}
+     * venu du fond du moteur. On complete donc de zeros jusqu'a la longueur qu'il attend ; les
+     * poids en trop ne designent aucun ecart du maillage courant, et le controle, qui compte
+     * les ecarts du MAILLAGE, ne les lit pas.
+     */
+    public static void poser(com.jme3.scene.Geometry g, float[] poids) {
+        float[] etat = g.getMorphState();
+        if (etat != null && etat.length > poids.length) {
+            float[] large = new float[etat.length];
+            System.arraycopy(poids, 0, large, 0, poids.length);
+            g.setMorphState(large);
+            return;
+        }
+        g.setMorphState(poids);
+    }
+
+    /**
      * Les poses d'un modele, ou {@code null} s'il ne s'y prete pas.
      *
      * <p>Un modele ne s'y prete pas quand ses images ne partagent pas le meme decoupage : le

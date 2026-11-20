@@ -151,7 +151,7 @@ public final class LevelBuilder {
             this.depart = poses.poidsDe(pose);
             this.cible = poses.poidsDe(pose);
             this.courant = poses.poidsDe(pose);
-            geometrie.setMorphState(courant);
+            MorphModels.poser(geometrie, courant);
         }
 
         /** L'animation demande une autre pose : on repart d'ou l'on est. */
@@ -175,7 +175,7 @@ public final class LevelBuilder {
             }
             avance = Math.min(1f, avance + tpf / duree);
             MorphModels.Poses.melange(depart, cible, avance, courant);
-            geometrie.setMorphState(courant);
+            MorphModels.poser(geometrie, courant);
             return true;
         }
     }
@@ -2909,27 +2909,56 @@ public final class LevelBuilder {
             morphe.viser(o.frame);                     // le maillage ne change plus : la pose, si
             return;
         }
-        if (morphe != null) {
-            // L'entite a CHANGE DE MODELE -- un monstre engendre d'un autre type. Les ecarts
-            // qu'elle portait ne decrivent plus rien : on la rend a l'echange de maillage.
-            morphes.remove(g);
-            g.setMorphState(new float[0]);
-        }
-        ObjModels.Model m = ObjModels.load(assetManager, String.format("models/%s/frame_%03d.obj", name, o.frame));
+        // L'ENTITE A CHANGE DE MODELE -- un monstre engendre d'un autre type, par exemple.
+        // Les ecarts qu'elle portait ne decrivent plus rien : il faut les defaire et refaire
+        // ceux du nouveau modele, s'il s'y prete. On charge AVANT de defaire quoi que ce soit,
+        // pour qu'un modele introuvable laisse l'entite telle qu'elle est plutot que nue.
+        MorphModels.Poses poses = melangeable(o) ? MorphModels.charger(assetManager, name) : null;
+        ObjModels.Model m = poses != null ? poses.base
+                : ObjModels.load(assetManager,
+                        String.format("models/%s/frame_%03d.obj", name, o.frame));
         if (m == null) {
             return;
         }
+        // jME alloue l'etat des poids UNE SEULE FOIS, a la taille du premier maillage melange
+        // que la geometrie ait porte, et ne le revise jamais -- ni setMesh ni setMorphState ne
+        // le redimensionnent. Un modele qui reclamerait PLUS d'ecarts que cet etat n'en tient
+        // ferait lire le moteur au-dela du tableau. Aucune donnee du jeu ne produit ce cas (les
+        // quatre objets qui changent de modele vont tous vers un modele qui ne se melange pas),
+        // mais il ne doit pas se solder par un arret : on rend cette geometrie-la a l'echange
+        // de maillage, et on le dit.
+        float[] etat = g.getMorphState();
+        if (poses != null && etat != null && etat.length < poses.nombre() - 1) {
+            System.out.printf("[Level] %s garde l'echange de maillage : %d ecarts, etat de %d%n",
+                    name, poses.nombre() - 1, etat.length);
+            poses = null;
+        }
+        if (morphe != null) {
+            morphes.remove(g);
+            MorphModels.oublier(g);
+        }
         g.setMesh(buildModelMesh(m, o));
+        if (poses != null) {
+            MorphModels.preparer(g, poses);
+            morphes.put(g, new Morphe(poses, g, o.frame));
+        }
     }
 
     public void updateAliens() {
         for (AlienView v : alienViews) {
             ab3d2.full.sim.Aliens.Alien a = v.alien;
-            if (!a.alive || a.zone < 0 || !visible(a.zone)) {
+            // TANT QUE `drawn` EST FAUX, L'ALIEN N'A PAS D'IMAGE. La simulation ne le pose
+            // qu'au premier pas d'animation (Aliens.doAttackAnim : « les octets de dessin
+            // existent »), et le portage de reference ne dessine pas un monstre avant :
+            // Viewer.java ne le met dans sa liste que `if (m.drawn)`. Avant ce pas, `sheet` et
+            // `frame` valent encore zero -- ce qui, pour une entite dessinee en MODELE, designe
+            // le modele numero zero, le GENERATOR. Un Crab Boss s'affichait donc en generateur
+            // tant qu'il n'avait pas commence a penser.
+            if (!a.alive || a.zone < 0 || !a.drawn || !visible(a.zone)) {
                 if (v.vector && v.shown != 0) {        // un modele est rare : on suit son sort
                     v.shown = 0;
-                    System.out.printf("[Level] modele %s retire (vivant=%b zone=%d)%n",
-                            v.proxy.name, a.alive, a.zone);
+                    System.out.printf("[Level] modele %s retire (vivant=%b dessinable=%b zone=%d)%n",
+                            v.proxy.name, a.alive, a.drawn, a.zone);
                 }
                 v.geometry.setCullHint(com.jme3.scene.Spatial.CullHint.Always);
                 if (v.aux != null) {
