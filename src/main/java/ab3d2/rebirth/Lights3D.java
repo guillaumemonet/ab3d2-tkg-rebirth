@@ -29,17 +29,12 @@ public final class Lights3D {
 
     /** Portee d'une lampe de decor, en unites jME (1 unite = 64 unites monde). */
     private static final float LAMP_RADIUS = 14f;
-    /**
-     * DE COMBIEN DEUX SOURCES D'UNE MEME REGION SONT ESPACEES, en unites jME.
-     *
-     * <p>Une piece n'a pas besoin d'une source par secteur : le decoupage en secteurs sert la
-     * collision et la visibilite, pas l'eclairage. Ce qui compte pour l'oeil, c'est qu'une
-     * region de meme clarte soit eclairee REGULIEREMENT — d'ou un pas fixe, et non une lampe
-     * par morceau de geometrie.
-     */
-    private static final float SPACING = 18f;
-    /** La portee d'une source de region : plus large que le pas, pour que les halos se joignent. */
-    private static final float REGION_RADIUS = 40f;
+    /** Portee minimale d'une source de piece : une reserve, une alcove. */
+    private static final float PORTEE_MIN = 22f;
+    /** Portee maximale : au-dela, une source eclaire a travers tout un niveau. */
+    private static final float PORTEE_MAX = 70f;
+    /** Ce qu'on ajoute au rayon de la piece pour que ses bords ne tombent pas dans le noir. */
+    private static final float PORTEE_MARGE = 16f;
     /**
      * De combien deux secteurs voisins peuvent differer de clarte en restant la MEME region.
      *
@@ -758,80 +753,83 @@ public final class Lights3D {
             regions.computeIfAbsent(v.region, k -> new ArrayList<>()).add(v);
         }
 
-        // 2. DECOUPER chaque region en cases d'un pas fixe, et garder celles qu'elle occupe.
+        // 2. UNE SOURCE PAR REGION, et c'est tout.
+        //
+        // Elle etait decoupee en cases d'un pas fixe, avec une source par case : soixante et
+        // onze sources au niveau A pour cent trente-quatre secteurs. Plus fidele, et plus
+        // cher a tous les etages -- un paquet de lumieres par surface a filtrer, a trier et a
+        // dessiner, et c'est le va-et-vient de ce paquet quand on tourne qui fait sauter la
+        // clarte d'un mur a l'autre.
+        //
+        // UNE PIECE, UNE LAMPE. La region, c'est deja la piece : des secteurs voisins de meme
+        // clarte. On pose la source en son milieu et on lui donne de quoi la couvrir --
+        // le plus grand ecart au milieu, plus une marge pour que les bords ne tombent pas
+        // dans le noir. Les lampes de plafond, elles, restent en plus : ce sont elles qui
+        // font le detail.
         for (List<Zone> region : regions.values()) {
+            float x = 0;
+            float y = 0;
+            float z = 0;
+            float sol = 0;
             float clarte = 0;
             for (Zone v : region) {
+                x += v.x;
+                y += v.y;
+                z += v.z;
+                sol += v.sol;
                 clarte += v.clarte;
             }
-            clarte /= region.size();                   // la MEME clarte pour toute la region
-            java.util.Map<Long, List<Zone>> cases = new java.util.LinkedHashMap<>();
+            int n = region.size();
+            x /= n;
+            y /= n;
+            z /= n;
+            sol /= n;
+            clarte /= n;                               // la MEME clarte pour toute la piece
+
+            // De quoi couvrir la piece : le secteur le plus loin du milieu, plus une marge.
+            float loin = 0f;
             for (Zone v : region) {
-                long cx = (long) Math.floor(v.x / SPACING);
-                long cz = (long) Math.floor(v.z / SPACING);
-                cases.computeIfAbsent((cx << 32) ^ (cz & 0xFFFFFFFFL),
-                        k -> new ArrayList<>()).add(v);
+                float dx = v.x - x;
+                float dz = v.z - z;
+                loin = Math.max(loin, (float) Math.sqrt(dx * dx + dz * dz));
             }
-            // 3. UNE SOURCE PAR CASE, au milieu de ce que la region y occupe.
-            for (List<Zone> dedans : cases.values()) {
-                float x = 0;
-                float y = 0;
-                float z = 0;
-                float sol = 0;
-                for (Zone v : dedans) {
-                    x += v.x;
-                    y += v.y;
-                    z += v.z;
-                    sol += v.sol;
-                }
-                x /= dedans.size();
-                y /= dedans.size();
-                z /= dedans.size();
-                sol /= dedans.size();
-                // INTENSITE : le facteur du light map est une luminosite de SURFACE, pas une
-                // puissance de source. La surface la plus exposee est le sol juste sous la
-                // lumiere, ou l'attenuation vaut (1 - hauteur/portee) et N.L vaut 1 ; on cale
-                // donc l'intensite pour que AMBIANTE + ce maximum fasse tout juste 1, sinon
-                // les regions les plus claires partent en blanc pur.
-                float chute = y - sol;
-                float att = Math.max(0.15f, 1f - chute / REGION_RADIUS);
-                // EN HYBRIDE, LA SOURCE NE PORTE QUE LE RELIEF.
-                //
-                // La division par l'attenuation ci-dessus sert au modele TOUT-LAMPES, ou la
-                // source doit a elle seule amener la surface au niveau voulu. Gardee ici,
-                // elle donnait a chaque source de quoi eclairer une piece entiere : les
-                // dessus horizontaux, qu'elle regarde de face et de pres, partaient au BLANC
-                // pendant que les murs, qu'elle rase, restaient sombres.
-                //
-                // La clarte cuite porte l'eclairage ; la source ajoute le point chaud et la
-                // chute, a hauteur d'une fraction seulement.
-                float intensite = hybride()
-                        ? clarte * Float.parseFloat(System.getProperty(
-                                "rebirth.regiongain", String.valueOf(REGION_GAIN)))
-                        : clarte * (PEAK_LEVEL - AMBIENT_LEVEL) / att;
-                PointLight p = new PointLight();
-                p.setColor(new ColorRGBA(1f, 0.96f, 0.88f, 1f).mult(intensite));
-                p.setRadius(REGION_RADIUS);
-                p.setPosition(new Vector3f(x, y, z));
-                int[] sert = new int[dedans.size()];
-                StringBuilder nom = new StringBuilder(REGION).append(" z=");
-                for (int i = 0; i < sert.length; i++) {
-                    sert[i] = dedans.get(i).id;
-                    nom.append(i == 0 ? "" : ",").append(sert[i]);
-                }
-                // LE NOM DIT CE QU'ELLE DESSERT, et c'est ce qui la fait survivre a un
-                // aller-retour par le .j3o : une lumiere ecrite dans la scene y perd les
-                // tables que le jeu tenait a cote d'elle, mais pas son nom.
-                p.setName(nom.toString());
-                root.addLight(p);
-                lamps.add(p);
-                lampColour.put(p, p.getColor().clone());
-                lampRadius.put(p, p.getRadius());
-                for (int id : sert) {
-                    zoneLight.putIfAbsent(id, p);
-                }
-                lampServes.put(p, sert);
+            float portee = Math.min(PORTEE_MAX, Math.max(PORTEE_MIN, loin + PORTEE_MARGE));
+
+            // INTENSITE : le facteur du light map est une luminosite de SURFACE, pas une
+            // puissance de source. La surface la plus exposee est le sol juste sous la
+            // lumiere, ou l'attenuation vaut (1 - hauteur/portee) et N.L vaut 1 ; on cale
+            // donc l'intensite pour que AMBIANTE + ce maximum fasse tout juste 1, sinon les
+            // pieces les plus claires partent en blanc pur.
+            float chute = y - sol;
+            float att = Math.max(0.15f, 1f - chute / portee);
+            // En hybride, la clarte cuite porte l'eclairage et la source n'ajoute que le
+            // point chaud et la chute.
+            float intensite = hybride()
+                    ? clarte * Float.parseFloat(System.getProperty(
+                            "rebirth.regiongain", String.valueOf(REGION_GAIN)))
+                    : clarte * (PEAK_LEVEL - AMBIENT_LEVEL) / att;
+            PointLight p = new PointLight();
+            p.setColor(new ColorRGBA(1f, 0.96f, 0.88f, 1f).mult(intensite));
+            p.setRadius(portee);
+            p.setPosition(new Vector3f(x, y, z));
+            int[] sert = new int[n];
+            StringBuilder nom = new StringBuilder(REGION).append(" z=");
+            for (int i = 0; i < n; i++) {
+                sert[i] = region.get(i).id;
+                nom.append(i == 0 ? "" : ",").append(sert[i]);
             }
+            // LE NOM DIT CE QU'ELLE DESSERT, et c'est ce qui la fait survivre a un
+            // aller-retour par le .j3o : une lumiere ecrite dans la scene y perd les tables
+            // que le jeu tenait a cote d'elle, mais pas son nom.
+            p.setName(nom.toString());
+            root.addLight(p);
+            lamps.add(p);
+            lampColour.put(p, p.getColor().clone());
+            lampRadius.put(p, p.getRadius());
+            for (int id : sert) {
+                zoneLight.putIfAbsent(id, p);
+            }
+            lampServes.put(p, sert);
         }
     }
 

@@ -50,9 +50,17 @@ import java.util.List;
 public final class PhysicsState extends BaseAppState {
 
     /** Combien d'eclats part un impact. */
-    private static final int PAR_ECLAT = 7;
-    /** Taille d'un eclat, en unites jME (1 unite = 64 unites monde). */
-    private static final float TAILLE = 0.085f;
+    private static final int PAR_ECLAT = 9;
+    /**
+     * Taille d'un eclat, en unites jME (1 unite = 64 unites monde).
+     *
+     * <p>DES ETINCELLES, PAS DES CAILLOUX. La premiere version jetait des cubes de huit
+     * centiemes d'unite, en couleur pleine : a deux metres on voyait des DES rouler sur le
+     * sol, et c'est tout ce qu'on voyait. Un impact ne fait pas de gravats, il fait des
+     * etincelles -- petites, claires, qui s'ajoutent a ce qu'il y a derriere au lieu de le
+     * cacher, et qui s'eteignent vite.
+     */
+    private static final float TAILLE = 0.035f;
     /** De combien l'eclat nait AU-DESSUS du point d'impact, pour ne pas naitre dans le mur. */
     private static final float DECOLLE = 0.12f;
     /** Sa masse : assez pour retomber vite, pas assez pour traverser un mur. */
@@ -60,7 +68,9 @@ public final class PhysicsState extends BaseAppState {
     /** Vitesse de depart, en unites par seconde. */
     private static final float JET = 7.5f;
     /** Combien de secondes un eclat vit avant de disparaitre. */
-    private static final float VIE = 2.4f;
+    private static final float VIE = 1.3f;
+    /** La derniere fraction de sa vie pendant laquelle il s'eteint. */
+    private static final float EXTINCTION = 0.9f;
     /** Au-dela, les plus vieux s'effacent : un couloir mitraille ne doit pas ramer. */
     private static final int MAX_VIVANTS = 72;
     /** La pesanteur, en unites jME par seconde carree (1 unite = 64 unites monde). */
@@ -96,10 +106,13 @@ public final class PhysicsState extends BaseAppState {
     /** Un eclat et le temps qu'il lui reste. */
     private static final class Eclat {
         final Geometry geometrie;
+        /** Sa teinte a plein : l'extinction part de la, et non de la couleur deja baissee. */
+        final ColorRGBA teinte;
         float reste = VIE;
 
-        Eclat(Geometry g) {
+        Eclat(Geometry g, ColorRGBA teinte) {
             geometrie = g;
+            this.teinte = teinte;
         }
     }
 
@@ -143,6 +156,10 @@ public final class PhysicsState extends BaseAppState {
         matiere = new Material(app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
         matiere.setColor("Color", ColorRGBA.White);
         matiere.getAdditionalRenderState().setFaceCullMode(RenderState.FaceCullMode.Off);
+        // ADDITIF : une etincelle AJOUTE sa lumiere, elle ne bouche pas la vue. C'est aussi
+        // ce qui la fait disparaitre proprement en s'eteignant, sans silhouette qui reste.
+        matiere.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.AlphaAdditive);
+        matiere.getAdditionalRenderState().setDepthWrite(false);
 
         if (enAttente != null) {
             Node attendu = enAttente;
@@ -330,6 +347,7 @@ public final class PhysicsState extends BaseAppState {
             m.setColor("Color", teinte.clone());
             g.setMaterial(m);
             g.setShadowMode(RenderQueue.ShadowMode.Off);
+            g.setQueueBucket(RenderQueue.Bucket.Transparent);
             g.setLocalTranslation(x, y, z);
             eclats.attachChild(g);
 
@@ -358,7 +376,7 @@ public final class PhysicsState extends BaseAppState {
                     (des.nextFloat() - 0.5f) * 12f));
             corps.setRestitution(0.35f);
             corps.setFriction(0.8f);
-            vivants.add(new Eclat(g));
+            vivants.add(new Eclat(g, teinte.clone()));
         }
     }
 
@@ -376,15 +394,14 @@ public final class PhysicsState extends BaseAppState {
             e.reste -= tpf;
             if (e.reste <= 0f) {
                 retirer(i);
-            } else if (e.reste < 0.6f) {
-                // IL S'EFFACE au lieu de disparaitre d'un coup : un eclat qui s'evanouit se
-                // remarque moins qu'un eclat qui cesse d'exister.
+            } else if (e.reste < EXTINCTION) {
+                // ELLE S'ETEINT au lieu de disparaitre d'un coup. En additif, baisser la
+                // couleur SUFFIT : il n'y a pas de silhouette a faire disparaitre, juste une
+                // lueur qui s'en va.
+                float f = e.reste / EXTINCTION;
                 Material m = e.geometrie.getMaterial();
-                ColorRGBA c = m.getParamValue("Color");
-                if (c != null) {
-                    m.getAdditionalRenderState().setBlendMode(RenderState.BlendMode.Alpha);
-                    m.setColor("Color", new ColorRGBA(c.r, c.g, c.b, e.reste / 0.6f));
-                }
+                ColorRGBA c = e.teinte;
+                m.setColor("Color", new ColorRGBA(c.r * f, c.g * f, c.b * f, f));
             }
         }
     }
