@@ -1,0 +1,37 @@
+// LES ASSETS DU REMAKE, declares comme un projet a eux.
+//
+// Ce fichier ne construit rien d'interessant : il EXISTE, et c'est tout son role.
+//
+// Le SDK jME attache son ProjectAssetManager -- celui sans lequel un .j3o, un .j3m ou un
+// .j3md ne s'ouvre pas -- en deux temps : il cherche d'abord un sous-projet nomme `assets`
+// dans le modele Gradle, puis il demande a NetBeans d'ouvrir CE dossier comme un projet
+// (ProjectManager.findProject). Un dossier sans script de construction n'est pas un projet
+// NetBeans : la seconde etape echoue en silence, le noeud `assets` apparait quand meme dans
+// l'arbre, et aucun modele ne s'ouvre. C'est exactement le symptome qu'on avait.
+//
+// La racine des assets est alors ce dossier-ci, ce qui donne au SDK les memes chemins qu'au
+// jeu, dont le FileLocator est pose sur Assets.root().
+
+apply plugin: 'java'
+
+// Les sorties ne vont PAS dans assets/build : ce dossier est celui des donnees du jeu, et
+// le SDK le montre tel quel.
+buildDir = rootProject.file('build/assets')
+
+sourceSets {
+    main {
+        resources {
+            srcDir '.'
+            // Les dossiers *4x sont des textures AGRANDIES, que tools/textures4x.py
+            // regenere et que le depot ignore deja : les empaqueter reviendrait a les
+            // versionner par la bande.
+            exclude '**/sub4x/**', '**/floors4x/**', 'build/**', 'build.gradle'
+        }
+    }
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}

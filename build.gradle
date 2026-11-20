@@ -27,34 +27,13 @@ ext {
     lwjglNatives = 'natives-windows'
 }
 
-// LE SOUS-PROJET DES ASSETS.
+// LE SOUS-PROJET DES ASSETS : voir assets/build.gradle.
 //
-// Il ne change RIEN a l'execution : le jeu lit ses assets sur le DISQUE, par un
-// FileLocator pose sur rebirth.assets, et c'est voulu -- c'est ce qui permet de deposer
-// d'autres textures et de les voir au lancement suivant sans reconstruire.
-//
-// Il existe pour le SDK jME, qui montre alors un noeud Assets et sait ouvrir les .j3o et
-// les .j3m, et pour empaqueter une version distribuable.
-//
-// Les dossiers *4x sont EXCLUS : vingt-huit megaoctets de textures agrandies, que l'outil
-// regenere et que le depot ignore deja.
-project(':assets') {
-    apply plugin: 'java'
-    buildDir = rootProject.file('build/assets')
-    sourceSets {
-        main {
-            resources {
-                srcDir '.'
-                exclude '**/sub4x/**', '**/floors4x/**', 'build/**'
-            }
-        }
-    }
-    java {
-        toolchain {
-            languageVersion = JavaLanguageVersion.of(21)
-        }
-    }
-}
+// Il est declare la-bas, et non ici, pour une raison precise : le SDK jME attache son
+// ProjectAssetManager -- celui qui ouvre les .j3o, les .j3m et les .j3md -- en cherchant
+// un sous-projet nomme assets, PUIS en demandant a NetBeans d'ouvrir ce dossier comme un
+// projet a part entiere. Sans script de construction a lui, le dossier n'en est pas un :
+// le noeud apparait dans l'arbre, et rien ne s'ouvre.
 
 dependencies {
     // jME 3 + backend LWJGL3 (apporte transitivement glfw/opengl/openal + natives).

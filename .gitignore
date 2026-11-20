@@ -17,6 +17,8 @@
 # Seuls les SHADERS sont a nous, donc versionnes.
 /assets/*
 !/assets/Shaders/
+# ... et le script qui fait d'assets un PROJET : sans lui, le SDK jME n'ouvre aucun .j3o.
+!/assets/build.gradle
 
 # --- Captures et diagnostics ---
 /*.png

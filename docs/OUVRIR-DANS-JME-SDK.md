@@ -23,18 +23,40 @@ include 'assets'
 ```
 
 ```gradle
-// build.gradle
-project(':assets') {
-    apply plugin: 'java'
-    buildDir = rootProject.file('build/assets')
-    sourceSets { main { resources { srcDir '.'
-        exclude '**/sub4x/**', '**/floors4x/**', 'build/**' } } }
-    java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
-}
+// assets/build.gradle  -- et NON le build.gradle de la racine : cf. plus bas
+apply plugin: 'java'
+buildDir = rootProject.file('build/assets')
+sourceSets { main { resources { srcDir '.'
+    exclude '**/sub4x/**', '**/floors4x/**', 'build/**', 'build.gradle' } } }
+java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
 ```
 
-Rien d'autre n'est a faire : apres un **Reload Project** (clic droit sur le projet), l'arbre
-montre `assets`, et les `.j3o`, `.j3m` et `.j3md` s'ouvrent dans leurs editeurs.
+## Et pourquoi le sous-projet ne suffit pas
+
+Le noeud `assets` est apparu, mais aucun `.j3o` ne s'ouvrait. La raison est dans le SDK
+lui-meme (`com.jme3.gde.core.assets.AssetsLookupProvider`), qui s'y prend en DEUX temps pour
+un projet Gradle :
+
+1. il cherche, dans le modele Gradle, un sous-projet nomme `assets` (ou `:assets`) ;
+2. il demande ensuite a NetBeans d'ouvrir ce dossier **comme un projet a part entiere**
+   (`ProjectManager.findProject`), et n'attache son `ProjectAssetManager` que si ca marche.
+
+Un dossier sans script de construction n'est pas un projet NetBeans. La seconde etape echouait
+donc en silence : l'arbre montrait `assets` -- c'est le sous-projet Gradle --, mais il n'y
+avait aucun `ProjectAssetManager`, et sans lui rien ne s'ouvre. D'ou **`assets/build.gradle`**,
+qui ne sert qu'a exister. La configuration du sous-projet y a donc demenage depuis la racine.
+
+L'assetManager du SDK prend alors `assets/` pour racine -- le SDK appelle
+`new ProjectAssetManager(projetAssets, "")` --, exactement comme le `FileLocator` du jeu, pose
+sur `Assets.root()`. Les chemins ecrits dans les `.j3o` (`materials/flat_1.j3m`,
+`textures/walls/sub/wall_2_0_128.png`, `Common/MatDefs/Light/Lighting.j3md`) sont donc les
+memes des deux cotes.
+
+Le format, lui, n'etait pas en cause : le SDK embarque jME **3.8.0** et le projet construit
+avec **3.9.0**, mais les deux ecrivent et lisent la meme version 3 de `.j3o`.
+
+Apres un **Reload Project** (clic droit sur le projet), l'arbre montre `assets`, et les `.j3o`,
+`.j3m` et `.j3md` s'ouvrent dans leurs editeurs.
 
 ## Deux ecarts assumes par rapport au gabarit
 
