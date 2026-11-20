@@ -137,7 +137,7 @@ public final class GlareExport {
         root.put("objects", champsParNiveau);
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("glare.json");
+        Path f = outRoot.resolve("releves/glare.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[glare] %d vues, %d poses, %d pixels, %d laissés au hasard → %s%n",
                 cas.size(), poses, pixels, hasard[0], f);

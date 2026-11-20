@@ -69,7 +69,7 @@ public final class ObjAnimExport {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("objanim.json");
+        Path f = outRoot.resolve("releves/objanim.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[objanim] %d appels (%d definitions x 2 scripts x %d pas) -> %s%n",
                 cas.size(), DEFS, PAS, f);

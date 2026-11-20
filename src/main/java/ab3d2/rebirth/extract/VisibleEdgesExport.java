@@ -91,7 +91,7 @@ public final class VisibleEdgesExport {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("visedges.json");
+        Path f = outRoot.resolve("releves/visedges.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.println("[visedges] " + cas.size() + " poses → " + f);
     }

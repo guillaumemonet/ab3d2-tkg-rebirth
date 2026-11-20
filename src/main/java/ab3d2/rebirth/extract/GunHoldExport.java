@@ -77,7 +77,7 @@ public final class GunHoldExport {
         root.put("gunObjects", gunObjects());
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("gunhold.json");
+        Path f = outRoot.resolve("releves/gunhold.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[gunhold] %d poses d'arme en main (%d armes x %d poses) -> %s%n",
                 cas.size(), GUNS, poses.length, f);

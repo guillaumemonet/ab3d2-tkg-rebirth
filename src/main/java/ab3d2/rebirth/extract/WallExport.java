@@ -110,7 +110,7 @@ public final class WallExport {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("walls.json");
+        Path f = outRoot.resolve("releves/walls.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.println("[walls] " + cas.size() + " poses → " + f);
     }

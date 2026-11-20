@@ -124,7 +124,7 @@ public final class SpriteOrderExport {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("spriteorder.json");
+        Path f = outRoot.resolve("releves/spriteorder.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.println("[spriteorder] " + cas.size() + " poses → " + f);
     }

@@ -98,7 +98,7 @@ public final class XformExport {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("xform.json");
+        Path f = outRoot.resolve("releves/xform.json");
         String json = new GsonBuilder().disableHtmlEscaping().create().toJson(root);
         Files.writeString(f, json);
         System.out.println("[xform] " + cas.size() + " poses → " + f);

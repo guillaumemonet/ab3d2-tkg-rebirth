@@ -25,6 +25,16 @@ public final class Extract {
                 ? Path.of(prop)
                 : Path.of("assets");
 
+        // LES DOSSIERS AVANT LES FICHIERS. Chaque export ecrit directement son chemin ;
+        // sur un depot frais, assets/ n'existe meme pas.
+        //
+        // releves/ est a part : ce sont les ORACLES, les relectures du portage que les
+        // harnais comparent au remake. Le jeu n'en lit aucun -- ils pesaient trois cent
+        // trente megaoctets a la racine des assets, melanges aux donnees de jeu.
+        java.nio.file.Files.createDirectories(out.resolve("releves"));
+        java.nio.file.Files.createDirectories(out.resolve("tables"));
+        java.nio.file.Files.createDirectories(out.resolve("textures"));
+
         PortReader.boot();
         System.out.println("[rebirth] extraction '" + what + "' → " + out.toAbsolutePath());
 

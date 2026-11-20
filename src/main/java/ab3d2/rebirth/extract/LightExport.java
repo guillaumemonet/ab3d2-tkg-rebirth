@@ -81,7 +81,7 @@ public final class LightExport {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("lights.json");
+        Path f = outRoot.resolve("releves/lights.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.println("[lights] " + cas.size() + " poses → " + f);
     }

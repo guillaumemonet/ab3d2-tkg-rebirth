@@ -126,7 +126,7 @@ public final class AlienAnimExport {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("alienanim.json");
+        Path f = outRoot.resolve("releves/alienanim.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[alienanim] %d appels (%d monstres x %d facons x les images"
                 + " atteignables, trois auxiliaires pour ceux qui en portent un) -> %s%n",

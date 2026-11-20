@@ -125,7 +125,7 @@ public final class MenuFxExport {
         racine.put("steps", instants);
 
         Files.createDirectories(out);
-        Path f = out.resolve("menufx.json");
+        Path f = out.resolve("releves/menufx.json");
         Files.writeString(f, new GsonBuilder().create().toJson(racine));
         System.out.printf("[menufx] bruit %d o, %d instants, police %d o -> %s%n",
                 BRUIT, INSTANTS.length, 3 * PLANESIZE, f);

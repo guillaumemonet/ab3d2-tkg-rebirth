@@ -127,7 +127,7 @@ public final class ModelPointsExport {
         root.put("objects", champsParNiveau);
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("modelpoints.json");
+        Path f = outRoot.resolve("releves/modelpoints.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[modelpoints] %d vues, %d modèles, %d points → %s%n",
                 cas.size(), captures, points, f);

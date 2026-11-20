@@ -116,7 +116,7 @@ public final class ObjectLifeExport {
         root.put("frames", IMAGES);
         root.put("levels", niveaux);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("objectlife.json");
+        Path f = outRoot.resolve("releves/objectlife.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[objectlife] %d niveaux, %d etats d'objet -> %s%n",
                 NIVEAUX.length, etats, f);

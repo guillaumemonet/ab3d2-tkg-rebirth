@@ -78,7 +78,7 @@ public final class ZoneOrderExport {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("zoneorder.json");
+        Path f = outRoot.resolve("releves/zoneorder.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.println("[zoneorder] " + cas.size() + " poses → " + f);
     }

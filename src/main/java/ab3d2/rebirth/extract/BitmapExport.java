@@ -110,7 +110,7 @@ public final class BitmapExport {
         root.put("objects", champsParNiveau);
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("bitmap.json");
+        Path f = outRoot.resolve("releves/bitmap.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.println("[bitmap] " + cas.size() + " poses → " + f);
     }

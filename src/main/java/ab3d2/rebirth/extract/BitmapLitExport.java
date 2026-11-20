@@ -126,7 +126,7 @@ public final class BitmapLitExport {
         root.put("objects", champsParNiveau);
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("bitmaplit.json");
+        Path f = outRoot.resolve("releves/bitmaplit.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[bitmaplit] %d poses, %d sprites éclairés, %d pixels, %d laissés au"
                 + " hasard → %s%n", cas.size(), sprites, pixels, hasard[0], f);

@@ -117,7 +117,7 @@ public final class ShootExport {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("levels", niveaux);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("shoot.json");
+        Path f = outRoot.resolve("releves/shoot.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[shoot] %d niveaux, %d coups -> %s%n", NIVEAUX.length, cas, f);
     }

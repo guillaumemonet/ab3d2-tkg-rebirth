@@ -58,7 +58,7 @@ public final class BitsExport {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("levels", niveaux);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("bits.json");
+        Path f = outRoot.resolve("releves/bits.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[bits] %d niveaux, %d gerbes -> %s%n", NIVEAUX.length, cas, f);
     }

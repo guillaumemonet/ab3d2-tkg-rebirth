@@ -68,7 +68,7 @@ public final class PaulaExport {
         root.put("steps", suite(faux));
 
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("paula.json");
+        Path f = outRoot.resolve("releves/paula.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[paula] table %d octets, %d bruitages, %d pas -> %s%n",
                 256 * 65, ((List<?>) root.get("samples")).size(),

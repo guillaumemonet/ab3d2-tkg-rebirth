@@ -78,7 +78,7 @@ public final class AnimsExport {
         root.put("frames", IMAGES);
         root.put("levels", niveaux);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("anims.json");
+        Path f = outRoot.resolve("releves/anims.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[anims] %d niveaux, %d scenes de %d images -> %s%n",
                 NIVEAUX.length, scenes, IMAGES, f);

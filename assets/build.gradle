@@ -25,7 +25,10 @@ sourceSets {
             // Les dossiers *4x sont des textures AGRANDIES, que tools/textures4x.py
             // regenere et que le depot ignore deja : les empaqueter reviendrait a les
             // versionner par la bande.
-            exclude '**/sub4x/**', '**/floors4x/**', 'build/**', 'build.gradle'
+            // releves/ : trois cent quarante megaoctets d'ORACLES -- les relectures du
+            // portage que les harnais comparent au remake. Le jeu n'en lit aucun.
+            exclude 'releves/**'
+            exclude '**/sub4x/**', '**/floors4x/**', '**/sky4x/**', 'build/**', 'build.gradle'
         }
     }
 }

@@ -102,6 +102,25 @@ gradle -p rebirth scenes         # -> assets/Scenes/*.j3o
 
 Tant qu'`extract` n'a pas tourne, le noeud `assets` est presque vide : c'est normal.
 
+## Ce qu'il y a dans `assets/`
+
+| | |
+|---|---|
+| `Scenes/` | les niveaux en `.j3o` |
+| `Shaders/` | les nuanceurs a nous -- les SEULS assets versionnes |
+| `materials/` | les `.j3m` du decor |
+| `models/` | les modeles vectoriels et leurs donnees d'eclairage par face |
+| `textures/` | murs, sols, objets, ciel, et la palette de reference |
+| `levels/` | la geometrie des seize niveaux |
+| `tables/` | `glf.json` (la base du jeu) et les tables d'origine |
+| `sfx/`, `music/` | les sons |
+| `hud/`, `menu/`, `intro/`, `fx/` | ce qui se dessine en pixels |
+| `releves/` | **les ORACLES**, et rien d'autre |
+
+`releves/` merite un mot. Ce sont les relectures du PORTAGE que les harnais comparent au
+remake -- trois cent quarante megaoctets. Le jeu n'en lit aucun. Ils trainaient a la racine
+des assets, melanges aux donnees de jeu, et ils sont exclus du paquet.
+
 ## Le descripteur Ant
 
 `nbproject/` et `build.xml` restent dans le depot, inertes. Si un jour vous voulez ouvrir le

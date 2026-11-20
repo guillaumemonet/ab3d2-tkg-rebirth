@@ -103,7 +103,7 @@ public final class HudRasterExport {
         root.put("splits", splitCases());
 
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("hudraster.json");
+        Path f = outRoot.resolve("releves/hudraster.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[hudraster] bordure %dx%d, %d etats de bandeau, %d reticules,"
                 + " %d lignes de texte -> %s%n", W, H,

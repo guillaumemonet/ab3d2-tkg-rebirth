@@ -217,7 +217,7 @@ public class Main extends SimpleApplication {
         // materiaux .j3m, et demain les scenes .j3o, par assetManager plutot qu'en code.
         assetManager.registerLocator(Assets.root().toString(),
                 com.jme3.asset.plugins.FileLocator.class);
-        glf = Assets.json("glf.json", GlfData.class);
+        glf = Assets.json("tables/glf.json", GlfData.class);
         viewPort.setBackgroundColor(new ColorRGBA(0.04f, 0.04f, 0.06f, 1f));
         // L'ouverture vient de SCREEN OPTIONS ; applyLiveOptions la reapplique a chaque
         // changement.

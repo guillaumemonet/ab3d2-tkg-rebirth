@@ -52,7 +52,7 @@ public final class Glf {
 
         Files.createDirectories(outRoot);
         String json = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create().toJson(root);
-        Path f = outRoot.resolve("glf.json");
+        Path f = outRoot.resolve("tables/glf.json");
         Files.writeString(f, json);
         System.out.println("[glf] glf.json écrit (" + json.length() + " o) → " + f);
     }

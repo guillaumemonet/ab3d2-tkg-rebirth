@@ -140,7 +140,7 @@ public final class SkyExport {
         root.put("height", SKY_H);
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("sky.json");
+        Path f = outRoot.resolve("releves/sky.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[sky] %d poses, %d octets de pixels → %s%n", cas.size(), octets, f);
     }

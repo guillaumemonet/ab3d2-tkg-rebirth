@@ -115,7 +115,7 @@ public final class WallPaintExport {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("wallpaint.json");
+        Path f = outRoot.resolve("releves/wallpaint.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[wallpaint] %d poses, %d colonnes → %s%n", cas.size(), colonnes, f);
     }

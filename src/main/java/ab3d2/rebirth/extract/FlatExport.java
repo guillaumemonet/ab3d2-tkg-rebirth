@@ -111,7 +111,7 @@ public final class FlatExport {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("flats.json");
+        Path f = outRoot.resolve("releves/flats.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.println("[flats] " + cas.size() + " poses → " + f);
     }

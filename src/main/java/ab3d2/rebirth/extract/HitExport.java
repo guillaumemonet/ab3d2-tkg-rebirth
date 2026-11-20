@@ -138,7 +138,7 @@ public final class HitExport {
         root.put("seed", GRAINE);
         root.put("levels", niveaux);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("hit.json");
+        Path f = outRoot.resolve("releves/hit.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[hit] %d niveaux, %d coups -> %s%n", NIVEAUX.length, cas, f);
     }

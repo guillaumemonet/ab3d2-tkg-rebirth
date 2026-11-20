@@ -79,7 +79,7 @@ public final class MaterialExport {
         Files.createDirectories(matDir);
         Files.createDirectories(subDir);
 
-        GlfData glf = Assets.json("glf.json", GlfData.class);
+        GlfData glf = Assets.json("tables/glf.json", GlfData.class);
 
         // Les clés réellement employées, tous niveaux confondus.
         Set<String> walls = new LinkedHashSet<>();     // "tex_fromTile_texW"

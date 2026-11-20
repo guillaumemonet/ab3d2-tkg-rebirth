@@ -63,7 +63,7 @@ public final class EdgePvsExport {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("levels", niveaux);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("edgepvs.json");
+        Path f = outRoot.resolve("releves/edgepvs.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.println("[edgepvs] " + niveaux.size() + " niveaux → " + f);
     }

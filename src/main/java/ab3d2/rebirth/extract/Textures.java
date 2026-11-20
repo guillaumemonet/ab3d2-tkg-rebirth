@@ -242,7 +242,7 @@ public final class Textures {
         for (int i = 0; i < 256; i++) {
             img.setRGB(i, 0, pal[i]);
         }
-        ImageIO.write(img, "png", root.resolve("palette.png").toFile());
+        ImageIO.write(img, "png", root.resolve("textures").resolve("palette.png").toFile());
         System.out.println("[textures] palette.png (256x1)");
     }
 }

@@ -133,7 +133,7 @@ public final class ModelPixelsExport {
         root.put("objects", champsParNiveau);
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("modelpixels.json");
+        Path f = outRoot.resolve("releves/modelpixels.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[modelpixels] %d vues, %d colonnes, %d pixels → %s%n",
                 cas.size(), colonnes, pixels, f);

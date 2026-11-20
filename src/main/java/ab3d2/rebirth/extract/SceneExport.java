@@ -59,7 +59,7 @@ public final class SceneExport {
         AssetManager am = new DesktopAssetManager(true);
         am.registerLocator(root.toString(), FileLocator.class);
 
-        GlfData glf = Assets.json("glf.json", GlfData.class);
+        GlfData glf = Assets.json("tables/glf.json", GlfData.class);
 
         String only = System.getProperty("rebirth.level");
         int done = 0;

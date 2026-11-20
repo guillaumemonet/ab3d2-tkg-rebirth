@@ -49,7 +49,7 @@ public final class MenuTest extends SimpleApplication {
         // Racine d'assets jME : shaders, materiaux .j3m et scenes .j3o.
         assetManager.registerLocator(ab3d2.rebirth.Assets.root().toString(),
                 com.jme3.asset.plugins.FileLocator.class);
-        GlfData glf = Assets.json("glf.json", GlfData.class);
+        GlfData glf = Assets.json("tables/glf.json", GlfData.class);
         menu = MenuUi.create(assetManager, guiNode, cam.getWidth(), cam.getHeight(),
                 glf, Options.load());
         if (menu == null) {

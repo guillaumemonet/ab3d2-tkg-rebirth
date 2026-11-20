@@ -105,7 +105,7 @@ public final class ModelFacesExport {
         root.put("objects", champsParNiveau);
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("modelfaces.json");
+        Path f = outRoot.resolve("releves/modelfaces.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[modelfaces] %d vues, %d faces dont %d teintées → %s%n",
                 cas.size(), faces, teintes, f);

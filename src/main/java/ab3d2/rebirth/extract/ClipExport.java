@@ -89,7 +89,7 @@ public final class ClipExport {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("clips.json");
+        Path f = outRoot.resolve("releves/clips.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.println("[clips] " + cas.size() + " poses → " + f);
     }

@@ -89,7 +89,7 @@ public final class BrightRingsExport {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("brightrings.json");
+        Path f = outRoot.resolve("releves/brightrings.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.println("[brightrings] " + cas.size() + " secteurs → " + f);
     }

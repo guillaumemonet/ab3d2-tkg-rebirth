@@ -110,7 +110,7 @@ public final class ModelEdgesExport {
         root.put("objects", champsParNiveau);
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("modeledges.json");
+        Path f = outRoot.resolve("releves/modeledges.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[modeledges] %d vues, %d faces dont %d peintes, %d colonnes → %s%n",
                 cas.size(), faces, tracees, colonnes, f);

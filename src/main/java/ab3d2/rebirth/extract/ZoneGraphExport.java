@@ -148,7 +148,7 @@ public final class ZoneGraphExport {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("zonegraph.json");
+        Path f = outRoot.resolve("releves/zonegraph.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[zonegraph] %d poses, %d commandes → %s%n", cas.size(), commandes, f);
     }

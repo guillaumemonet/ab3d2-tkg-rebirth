@@ -89,7 +89,7 @@ public final class ShimmerExport {
         racine.put("cases", cas);
 
         Files.createDirectories(out);
-        Path f = out.resolve("shimmer.json");
+        Path f = out.resolve("releves/shimmer.json");
         Files.writeString(f, new GsonBuilder().create().toJson(racine));
         System.out.printf("[shimmer] %d motifs x %d pas -> %s%n", cas.size(), PAS, f);
     }

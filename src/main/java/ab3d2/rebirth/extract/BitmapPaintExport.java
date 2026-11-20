@@ -135,7 +135,7 @@ public final class BitmapPaintExport {
         root.put("objects", champsParNiveau);
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("bitmappaint.json");
+        Path f = outRoot.resolve("releves/bitmappaint.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[bitmappaint] %d poses, %d sprites, %d pixels, %d laissés au"
                 + " hasard → %s%n", cas.size(), sprites, pixels, hasard[0], f);

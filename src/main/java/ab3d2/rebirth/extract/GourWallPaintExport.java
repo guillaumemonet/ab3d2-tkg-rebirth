@@ -112,7 +112,7 @@ public final class GourWallPaintExport {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("gourwallpaint.json");
+        Path f = outRoot.resolve("releves/gourwallpaint.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[gourwallpaint] %d poses, %d colonnes → %s%n", cas.size(), colonnes, f);
     }

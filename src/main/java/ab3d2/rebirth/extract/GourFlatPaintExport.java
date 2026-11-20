@@ -126,7 +126,7 @@ public final class GourFlatPaintExport {
         root.put("pointBrights", graine);
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("gourflatpaint.json");
+        Path f = outRoot.resolve("releves/gourflatpaint.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.println("[gourflatpaint] " + cas.size() + " poses → " + f);
     }

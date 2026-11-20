@@ -105,7 +105,7 @@ public final class BlastExport {
         root.put("seed", GRAINE);
         root.put("levels", niveaux);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("blast.json");
+        Path f = outRoot.resolve("releves/blast.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[blast] %d niveaux, %d explosions -> %s%n", NIVEAUX.length, cas, f);
     }

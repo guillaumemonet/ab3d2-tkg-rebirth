@@ -114,7 +114,7 @@ public final class FlatPaintExport {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("cases", cas);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("flatpaint.json");
+        Path f = outRoot.resolve("releves/flatpaint.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.println("[flatpaint] " + cas.size() + " poses → " + f);
     }

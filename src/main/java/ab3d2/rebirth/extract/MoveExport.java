@@ -128,7 +128,7 @@ public final class MoveExport {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("levels", niveaux);
         Files.createDirectories(outRoot);
-        Path f = outRoot.resolve("move.json");
+        Path f = outRoot.resolve("releves/move.json");
         Files.writeString(f, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[move] %d niveaux, %d deplacements -> %s%n", NIVEAUX.length, cas, f);
     }

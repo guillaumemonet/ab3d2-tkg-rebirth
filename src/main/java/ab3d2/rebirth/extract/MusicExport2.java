@@ -64,7 +64,7 @@ public final class MusicExport2 {
         root.put("made", faits);
 
         Files.createDirectories(outRoot);
-        Path out = outRoot.resolve("music.json");
+        Path out = outRoot.resolve("releves/music.json");
         Files.writeString(out, new GsonBuilder().disableHtmlEscaping().create().toJson(root));
         System.out.printf("[music] module de %d octets, %d images x 2 series -> %s%n",
                 module.length, IMAGES, out);
