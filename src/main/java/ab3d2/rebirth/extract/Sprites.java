@@ -36,6 +36,40 @@ public final class Sprites {
     private Sprites() {
     }
 
+    /**
+     * Combien de COLONNES possede vraiment une feuille — sa seule borne exacte.
+     *
+     * <p>Le fichier {@code .PTR} est une suite de longs, un par colonne, et {@code Res_LoadObjects}
+     * le charge tel quel : sa taille divisee par quatre donne le nombre de colonnes, et aucune
+     * frame ne peut en designer au-dela. On resout le chemin par le resolveur du portage, celui-la
+     * meme que {@code DosLib.Open} emploie, pour que la casse et les sous-dossiers se trouvent
+     * comme en jeu. Introuvable : on rend -1, et la borne ne s'applique pas.
+     */
+    private static int colonnes(String nomGfx) {
+        try {
+            Path ptr = ab3d2.Assets.resolve(nomGfx + ".PTR");
+            return ptr != null && Files.isRegularFile(ptr) ? (int) (Files.size(ptr) / 4) : -1;
+        } catch (RuntimeException | java.io.IOException introuvable) {
+            return -1;
+        }
+    }
+
+    /**
+     * Efface les PNG d'une extraction PRECEDENTE pour les frames qu'on vient de rejeter.
+     *
+     * <p>L'extraction ecrit par-dessus ; elle n'enleve rien. Sans ce menage, le bruit decode
+     * avant la correction resterait sur le disque et le jeu continuerait a pouvoir l'ouvrir.
+     */
+    private static void menage(Path sdir, java.util.List<Integer> rejetees) throws Exception {
+        for (int fr : rejetees) {
+            Files.deleteIfExists(sdir.resolve(String.format("frame_%02d.png", fr)));
+            Files.deleteIfExists(sdir.resolve(String.format("frame_%02d.idx.png", fr)));
+            for (int p = 1; p < 4; p++) {
+                Files.deleteIfExists(sdir.resolve(String.format("frame_%02d_p%d.png", fr, p)));
+            }
+        }
+    }
+
     static void extract(Path dir, int[] pal) throws Exception {
         PortReader.bootWithAssets();
         int glf = PortReader.glf();
@@ -55,17 +89,30 @@ public final class Sprites {
                 continue;
             }
             String sheet = PortReader.baseName(name);
+            int colonnes = colonnes(name);
             boolean hqn = HQN.contains(sheet.toLowerCase());
             boolean add = additive.contains(sh);
             // HQN : monstres éclairés → 4 variantes de palette (blocs de 256 : palShade+p*256).
             // p sélectionné en jeu par WhichLightPal = vec-2 (ex. GUARD : p0 vert, p1 bleu, p2 rouge).
             int nPal = hqn ? 4 : 1;
             int wrote = 0;
+            java.util.List<Integer> rejetees = new java.util.ArrayList<>();
             for (int fr = 0; fr < 32; fr++) {
                 int rec = glf + Defs.GLFT_FrameData_l + sh * 256 + fr * 8;
                 int w = Mem.uw(rec + 4) * 2;                 // LW/LH stockés en DEMI-taille (×2 = pixels)
                 int h = Mem.uw(rec + 6) * 2;
                 if (w <= 0 || h <= 0 || w > 1024 || h > 1024) {
+                    continue;
+                }
+                // LA TABLE DE FRAMES EST PLUS LONGUE QUE LA FEUILLE. Son record fait 256 octets
+                // par feuille, soit TRENTE-DEUX frames, qu'elles existent ou non ; passe la
+                // derniere vraie, on lit ce que l'outil de l'epoque a laisse la. Ces records-la
+                // ont l'air valides -- ALIEN2 19 annonce 90x100, TRICLAW 18 annonce 128x128 --
+                // mais leurs colonnes tombent APRES LA FIN du .PTR, et le decodage ramene alors
+                // du bruit pris dans l'allocation suivante.
+                int premiere = Mem.uw(rec);
+                if (colonnes > 0 && premiere + w > colonnes) {
+                    rejetees.add(fr);
                     continue;
                 }
                 // NB : une frame peut etre VIDE (toutes ses colonnes transparentes dans le champ
@@ -105,6 +152,7 @@ public final class Sprites {
                 }
             }
             if (wrote > 0) {
+                menage(dir.resolve(sheet), rejetees);
                 if (hqn) {
                     // Palette de lumière de la feuille : 4 variantes × 256 entrées. Le jeu y lit
                     // `variante*256 + niveau*8 + (idx & 7)` (le niveau vient de l'éclairage).
@@ -116,7 +164,10 @@ public final class Sprites {
                     }
                     ImageIO.write(lut, "png", dir.resolve(sheet).resolve("pal.png").toFile());
                 }
-                System.out.printf("  sprite %-14s %d frame(s)%s%n", sheet, wrote, hqn ? " (+ indices/palette)" : "");
+                System.out.printf("  sprite %-14s %d frame(s)%s%s%n", sheet, wrote,
+                        hqn ? " (+ indices/palette)" : "",
+                        rejetees.isEmpty() ? ""
+                                : "  [" + rejetees.size() + " hors feuille : " + rejetees + "]");
                 sheets++;
             }
         }
