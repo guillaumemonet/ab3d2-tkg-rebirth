@@ -17,7 +17,9 @@ import urllib.request
 API = "http://127.0.0.1:7860"
 JEU = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                    "..", "assets", "textures") + os.sep
-LOTS = [("walls/sub", "walls/sub4x"), ("floors", "floors4x")]
+# Le CIEL en fait partie : sa panoramique de 648 px couvre un demi-tour, donc elle se voit
+# agrandie quatre fois a l'ecran -- c'est la texture la plus etiree du jeu.
+LOTS = [("walls/sub", "walls/sub4x"), ("floors", "floors4x"), ("sky", "sky4x")]
 
 
 def agrandir(p):

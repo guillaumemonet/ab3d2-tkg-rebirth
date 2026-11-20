@@ -161,7 +161,7 @@ public class Main extends SimpleApplication {
     /** Le depart force (-Pspawn) ne vaut que pour le premier niveau charge. */
     private boolean firstLoad = true;
 
-    private com.jme3.scene.Geometry sky;
+    private com.jme3.scene.Spatial sky;
     private ScreenshotAppState screenshot;
     private int frame;
     /** Frames de SIMULATION ecoulees (50 Hz) : anime l'eau comme le VBL du jeu. */
@@ -1182,9 +1182,6 @@ public class Main extends SimpleApplication {
         }
         etatLumieres.suivreLeJoueur(player.worldX(), player.worldY(), player.worldZ(),
                 plafond);
-        if (sky != null) {
-            sky.setLocalTranslation(cam.getLocation());   // le ciel reste a l'infini
-        }
         float visee = entrees == null ? 0f : entrees.visee();
         Quaternion q = new Quaternion().fromAngles(-visee, player.yawRadians(), 0f);
         cam.setRotation(q);
