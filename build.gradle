@@ -258,7 +258,7 @@ tasks.register('remap', JavaExec) {
 // APERCU D'UN MODELE : huit vues en une image, pour juger une silhouette sans ouvrir le SDK.
 tasks.register('preview', JavaExec) {
     group = 'assets'
-    description = "Tourniquet d'un modele (.j3o/.glb/.obj) : -Pmodele=<chemin> [-Papercu=x.png]"
+    description = "Tourniquet d'un modele (.j3o/.glb/.obj) : -Pmodele=<chemin> [-Papercu=x.png] [-Pniveau=0..31]"
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'ab3d2.rebirth.ModelPreview'
     workingDir = projectDir
@@ -266,7 +266,7 @@ tasks.register('preview', JavaExec) {
     // PAS -Pmodel NI -Pout : Gradle a deja une propriete `model` (le modele logiciel) et
     // `hasProperty('model')` repond vrai meme sans -P. On recevait son rapport a la place
     // du chemin : << root project 'ab3d2-rebirth' illisible >>.
-    flags(it, ['modele', 'apercu'])
+    flags(it, ['modele', 'apercu', 'niveau'])
 }
 
 tasks.register('models', JavaExec) {

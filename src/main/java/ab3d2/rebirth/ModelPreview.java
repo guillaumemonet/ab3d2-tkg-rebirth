@@ -41,6 +41,8 @@ public final class ModelPreview extends SimpleApplication {
 
     private final String chemin;
     private final String sortie;
+    /** Niveau de lumiere impose aux faces, ou -1 pour garder celui du modele. */
+    private final int niveau;
     private Spatial modele;
     private float rayon = 1f;
     private Vector3f centre = Vector3f.ZERO;
@@ -49,9 +51,10 @@ public final class ModelPreview extends SimpleApplication {
             new java.awt.image.BufferedImage(COTE * 4, COTE * 2,
                     java.awt.image.BufferedImage.TYPE_INT_RGB);
 
-    private ModelPreview(String chemin, String sortie) {
+    private ModelPreview(String chemin, String sortie, int niveau) {
         this.chemin = chemin;
         this.sortie = sortie;
+        this.niveau = niveau;
     }
 
     public static void main(String[] args) {
@@ -61,7 +64,8 @@ public final class ModelPreview extends SimpleApplication {
             return;
         }
         String sortie = System.getProperty("rebirth.apercu", "apercu.png");
-        ModelPreview app = new ModelPreview(chemin, sortie);
+        ModelPreview app = new ModelPreview(chemin, sortie,
+                Integer.getInteger("rebirth.niveau", -1));
         AppSettings s = new AppSettings(true);
         s.setResolution(COTE, COTE);
         s.setTitle("apercu : " + chemin);
@@ -101,6 +105,10 @@ public final class ModelPreview extends SimpleApplication {
             return;
         }
 
+        if (niveau >= 0) {
+            eclairerLesFaces(modele, niveau);
+        }
+
         com.jme3.bounding.BoundingVolume bv = modele.getWorldBound();
         if (bv instanceof com.jme3.bounding.BoundingBox bb) {
             centre = bb.getCenter().clone();
@@ -127,6 +135,35 @@ public final class ModelPreview extends SimpleApplication {
 
         cam.setFrustumPerspective(45f, 1f, rayon * 0.01f, rayon * 40f);
         System.out.printf("[apercu] %s : rayon %.3f, centre %s%n", chemin, rayon, centre);
+    }
+
+    /**
+     * IMPOSE UN NIVEAU DE LUMIERE A TOUTES LES FACES.
+     *
+     * <p>Un modele vectoriel porte, en {@code TexCoord2}, le niveau de base de chaque face : le
+     * jeu y ajoute l'anneau directionnel de l'endroit ou l'objet se trouve, et c'est seulement
+     * la somme que le nuanceur lit. Hors niveau, personne n'ajoute rien -- l'apercu sort donc
+     * presque noir, et on n'y voit pas la texture. {@code -Pniveau=31} la montre a plein jour.
+     */
+    private static void eclairerLesFaces(Spatial quoi, int niveau) {
+        if (quoi instanceof Node n) {
+            for (Spatial enfant : n.getChildren()) {
+                eclairerLesFaces(enfant, niveau);
+            }
+            return;
+        }
+        if (!(quoi instanceof com.jme3.scene.Geometry g)) {
+            return;
+        }
+        com.jme3.scene.VertexBuffer vb =
+                g.getMesh().getBuffer(com.jme3.scene.VertexBuffer.Type.TexCoord2);
+        if (vb == null || !(vb.getData() instanceof java.nio.FloatBuffer f)) {
+            return;
+        }
+        for (int i = 0; i < f.limit(); i += 2) {
+            f.put(i, niveau);
+        }
+        vb.updateData(f);
     }
 
     @Override
