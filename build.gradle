@@ -244,6 +244,20 @@ tasks.register('materials', JavaExec) {
 
 // LES MODELES EN .j3o : le format natif de jME, que le SDK sait ouvrir. Le couple
 // .obj + .lvl reste a cote comme source d'extraction.
+// APERCU D'UN MODELE : huit vues en une image, pour juger une silhouette sans ouvrir le SDK.
+tasks.register('preview', JavaExec) {
+    group = 'assets'
+    description = "Tourniquet d'un modele (.j3o/.glb/.obj) : -Pmodele=<chemin> [-Papercu=x.png]"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'ab3d2.rebirth.ModelPreview'
+    workingDir = projectDir
+    systemProperty 'rebirth.assets', assetsDir.absolutePath
+    // PAS -Pmodel NI -Pout : Gradle a deja une propriete `model` (le modele logiciel) et
+    // `hasProperty('model')` repond vrai meme sans -P. On recevait son rapport a la place
+    // du chemin : << root project 'ab3d2-rebirth' illisible >>.
+    flags(it, ['modele', 'apercu'])
+}
+
 tasks.register('models', JavaExec) {
     group = 'assets'
     description = "Ecrit les modeles vectoriels en .j3o (apres `materials`)"
