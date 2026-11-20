@@ -158,7 +158,7 @@ tasks.named('run') {
         'stats', 'weaponLog', 'shimmer', 'deformLog', 'dynLog', 'shotLog', 'fire',
         'gun', 'demo', 'spawn', 'autoplay', 'weaponInScene', 'story', 'startmenu',
         'map', 'mapAll', 'angle', 'pitch', 'lightLog', 'lightBatch', 'noshadow',
-        'ssao', 'retro', 'zonelights', 'nolamps', 'wallBrightLog', 'ambient', 'lampgain', 'regiongain', 'norelief', 'noglow', 'parallax', 'specular', 'hires', 'nofog', 'fogstart', 'fogend', 'cursorLog', 'fullbright', 'vsign', 'nolevelscene', 'noPvsLights', 'fpsLog', 'novsync', 'nophysics', 'noscenelights', 'physicsDebug', 'physicsLog',  'bakedlight',
+        'ssao', 'retro', 'zonelights', 'nolamps', 'wallBrightLog', 'ambient', 'lampgain', 'regiongain', 'norelief', 'noglow', 'parallax', 'specular', 'hires', 'nofog', 'fogstart', 'fogend', 'cursorLog', 'fullbright', 'vsign', 'nolevelscene', 'noPvsLights', 'fpsLog', 'novsync', 'nophysics', 'noscenelights', 'daygain', 'physicsDebug', 'physicsLog',  'bakedlight',
     ])
 }
 

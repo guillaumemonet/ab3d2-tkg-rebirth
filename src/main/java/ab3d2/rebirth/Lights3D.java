@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.jme3.light.AmbientLight;
+import com.jme3.light.DirectionalLight;
 import com.jme3.light.Light;
 import com.jme3.light.PointLight;
 import com.jme3.light.SpotLight;
@@ -60,6 +61,38 @@ public final class Lights3D {
     private static final String LAMPE = "lampe";
     /** Prefixe du nom d'une lampe de plafond (un cone). */
     private static final String SPOT = "spot";
+    /** Prefixe du nom du SOLEIL : la lumiere des secteurs a ciel ouvert. */
+    private static final String SOLEIL = "soleil";
+    /**
+     * D'OU VIENT LE JOUR, en coordonnees jME.
+     *
+     * <p>Pas tout a fait du zenith : une lumiere strictement verticale eclaire les sols a
+     * plein et laisse les murs noirs, et c'est precisement ce qu'on voulait eviter. Inclinee,
+     * elle donne un cote eclaire et un cote a l'ombre -- le relief se lit.
+     */
+    private static final Vector3f JOUR = new Vector3f(-0.35f, -1f, -0.22f).normalizeLocal();
+    /**
+     * CE QUE VAUT LE JOUR par rapport a une lampe de piece.
+     *
+     * <p>Une directionnelle n'a pas d'attenuation : elle porte partout avec la meme force. A
+     * intensite egale elle ecrase donc une ponctuelle, qui perd les trois quarts de sa valeur
+     * au bord de sa portee.
+     *
+     * <p>CALE SUR LA MESURE, pas au jugement. Le portage rend une cour a 47,3 de clarte
+     * moyenne sans jamais saturer, et c'est ce que le remake vise depuis le debut (cf.
+     * PEAK_LEVEL). Cinq valeurs essayees au meme endroit du niveau L :
+     *
+     * <pre>
+     *   0,62 -> moyenne 35,2            (trop sombre : les murs ne se lisent plus)
+     *   1,0  -> moyenne 43,3   0,05 %
+     *   1,2  -> moyenne 47,6   0,19 %   &lt;- retenu
+     *   1,4  -> moyenne 51,7   0,41 %
+     *   1,8  -> moyenne 59,8   1,2 %    (les sols partent au blanc)
+     * </pre>
+     *
+     * <p>{@code -Pdaygain} la force, pour en essayer une autre.
+     */
+    private static final float GAIN_JOUR = 1.2f;
     /** Rayon donne a une lumiere ecartee : assez petit pour que le filtre de jME la rejette. */
     private static final float OFF_RADIUS = 0.01f;
     /**
@@ -148,6 +181,8 @@ public final class Lights3D {
         float sol;
         float clarte;
         int region;
+        /** Vrai si le secteur n'a pas de plafond : c'est le ciel qui l'eclaire. */
+        boolean ouverte;
     }
     private final java.util.Map<Light, ColorRGBA> lampColour = new java.util.HashMap<>();
 
@@ -309,6 +344,9 @@ public final class Lights3D {
             if (l instanceof SpotLight) {
                 spotCount++;                           // le compte se relit aussi dans la scene
             }
+            if (l instanceof DirectionalLight d) {
+                soleil = d;
+            }
             lampColour.put(l, l.getColor().clone());
             lampRadius.put(l, portee(l));
             int[] sert = secteursDe(l.getName());
@@ -334,7 +372,7 @@ public final class Lights3D {
         for (Light l : n.getLocalLightList()) {
             String nom = l.getName();
             if (nom != null && (nom.startsWith(REGION) || nom.startsWith(LAMPE)
-                    || nom.startsWith(SPOT))) {
+                    || nom.startsWith(SPOT) || nom.startsWith(SOLEIL))) {
                 porteurs.add(n);
                 prises.add(l);
             }
@@ -452,6 +490,21 @@ public final class Lights3D {
         // On reunit donc les secteurs VOISINS DE MEME CLARTE en regions, et chaque region
         // recoit des sources posees a PAS FIXE. L'eclairage ne depend plus de la facon dont
         // la geometrie est decoupee — c'est ce qui le rend uniforme.
+        // LES SECTEURS A CIEL OUVERT, reconnus a l'ABSENCE de surface de plafond. Le champ
+        // roofH ne sert a rien ici : il vaut la sentinelle -32768 dans la plupart des secteurs
+        // interieurs, qui ont pourtant un vrai plafond. Une zone sans surface de plafond, elle,
+        // laisse voir le ciel -- c'est exactement la regle que suit le decor pour ne pas lui en
+        // dessiner un.
+        java.util.Set<Integer> sansPlafond = new java.util.HashSet<>();
+        for (LevelData.Zone z : lvl.zones == null ? List.<LevelData.Zone>of() : lvl.zones) {
+            sansPlafond.add(z.id);
+        }
+        for (LevelData.Flat f : lvl.flats == null ? List.<LevelData.Flat>of() : lvl.flats) {
+            if ("ceil".equals(f.kind) && !f.upper) {
+                sansPlafond.remove(f.zone);
+            }
+        }
+
         List<LevelData.Point> pts = lvl.points == null ? List.<LevelData.Point>of() : lvl.points;
         List<LevelData.Zone> zones = lvl.zones == null ? List.<LevelData.Zone>of() : lvl.zones;
         java.util.Map<Integer, Zone> vues = new java.util.LinkedHashMap<>();
@@ -502,6 +555,7 @@ public final class Lights3D {
                 toit = sol + 2.5f;                     // plafond incoherent (sous le sol)
             }
             Zone v = new Zone();
+            v.ouverte = sansPlafond.contains(z.id);
             v.id = z.id;
             v.x = cx / n / 64f;
             v.z = -cz / n / 64f;
@@ -668,7 +722,16 @@ public final class Lights3D {
         litFromZone = zone;
         int[] vis = pvsOf.get(zone);
         if (vis == null) {                             // zone inconnue : on ne prend pas de risque
-            lampRadius.forEach(Lights3D::portee);
+            lampRadius.forEach((l, r) -> {
+                if (l instanceof DirectionalLight) {
+                    ColorRGBA plein = lampColour.get(l);
+                    if (plein != null) {
+                        l.setColor(plein.clone());
+                    }
+                } else {
+                    portee(l, r);
+                }
+            });
             return;
         }
         java.util.Set<Integer> on = new java.util.HashSet<>();
@@ -694,7 +757,15 @@ public final class Lights3D {
                     }
                 }
             }
-            portee(p, allume ? r : OFF_RADIUS);
+            if (p instanceof DirectionalLight) {
+                // UNE DIRECTIONNELLE S'ETEINT PAR SA COULEUR. Elle n'a pas de portee a
+                // annuler : elle porte partout, et laissee allumee elle ferait entrer le jour
+                // dans les couloirs fermes.
+                ColorRGBA plein = lampColour.get(p);
+                p.setColor(allume && plein != null ? plein.clone() : ColorRGBA.BlackNoAlpha);
+            } else {
+                portee(p, allume ? r : OFF_RADIUS);
+            }
         });
     }
 
@@ -742,7 +813,11 @@ public final class Lights3D {
             }
             for (LevelData.ZoneEdge e : z.edges) {
                 Zone b = vues.get(e.joinZone);
-                if (b != null && Math.abs(a.clarte - b.clarte) <= SAME_LIGHT) {
+                // DEHORS NE SE MELANGE PAS AVEC DEDANS. Une region a ciel ouvert prend le
+                // jour ; une piece prend sa lampe. Fusionner les deux donnerait une region
+                // moitie-moitie, qu'aucune des deux lumieres n'eclaire correctement.
+                if (b != null && Math.abs(a.clarte - b.clarte) <= SAME_LIGHT
+                        && a.ouverte == b.ouverte) {
                     unir(chef, a.id, b.id);
                 }
             }
@@ -766,6 +841,11 @@ public final class Lights3D {
         // le plus grand ecart au milieu, plus une marge pour que les bords ne tombent pas
         // dans le noir. Les lampes de plafond, elles, restent en plus : ce sont elles qui
         // font le detail.
+        // LE JOUR, pour toutes les regions a ciel ouvert reunies.
+        java.util.List<Integer> auJour = new ArrayList<>();
+        float clarteDuJour = 0f;
+        int regionsAuJour = 0;
+
         for (List<Zone> region : regions.values()) {
             float x = 0;
             float y = 0;
@@ -785,6 +865,21 @@ public final class Lights3D {
             z /= n;
             sol /= n;
             clarte /= n;                               // la MEME clarte pour toute la piece
+
+            // A CIEL OUVERT : PAS DE LAMPE, LE JOUR.
+            //
+            // Une ponctuelle posee au milieu d'une cour fait un halo au centre et laisse les
+            // bords dans le noir -- et une cour, c'est justement ce qui est eclaire PARTOUT
+            // pareil. Une directionnelle n'a pas d'attenuation : c'est la lumiere qui
+            // convient, et c'est aussi la moins chere.
+            if (region.get(0).ouverte) {
+                for (Zone v : region) {
+                    auJour.add(v.id);
+                }
+                clarteDuJour += clarte;
+                regionsAuJour++;
+                continue;
+            }
 
             // De quoi couvrir la piece : le secteur le plus loin du milieu, plus une marge.
             float loin = 0f;
@@ -831,6 +926,50 @@ public final class Lights3D {
             }
             lampServes.put(p, sert);
         }
+
+        if (!auJour.isEmpty()) {
+            poserLeJour(auJour, clarteDuJour / regionsAuJour);
+        }
+    }
+
+    /**
+     * LE SOLEIL DES SECTEURS A CIEL OUVERT.
+     *
+     * <p>Une seule lumiere pour tout le dehors du niveau, a la clarte moyenne de ses regions
+     * ouvertes et a la couleur du ciel qu'on y voit.
+     *
+     * <p>Elle ne s'allume QUE quand le dehors est en vue : une directionnelle porte partout,
+     * et laissee allumee elle ferait entrer le jour dans les couloirs fermes.
+     */
+    private void poserLeJour(java.util.List<Integer> secteurs, float clarte) {
+        float[] ciel = Sky.couleurDuCiel();
+        ColorRGBA teinte = ciel == null ? new ColorRGBA(1f, 0.97f, 0.9f, 1f)
+                : new ColorRGBA(ciel[0], ciel[1], ciel[2], 1f);
+        DirectionalLight jour = new DirectionalLight();
+        jour.setDirection(JOUR.clone());
+        jour.setColor(teinte.mult(clarte * Float.parseFloat(
+                System.getProperty("rebirth.daygain", String.valueOf(GAIN_JOUR)))));
+        int[] sert = new int[secteurs.size()];
+        StringBuilder nom = new StringBuilder(SOLEIL).append(" z=");
+        for (int i = 0; i < sert.length; i++) {
+            sert[i] = secteurs.get(i);
+            nom.append(i == 0 ? "" : ",").append(sert[i]);
+        }
+        jour.setName(nom.toString());
+        root.addLight(jour);
+        lamps.add(jour);
+        lampColour.put(jour, jour.getColor().clone());
+        lampRadius.put(jour, 0f);                      // une directionnelle n'a pas de portee
+        lampServes.put(jour, sert);
+        soleil = jour;
+    }
+
+    /** Le soleil du niveau, ou null s'il n'a aucun secteur a ciel ouvert. */
+    private DirectionalLight soleil;
+
+    /** Le soleil du niveau, ou null : les secteurs a ciel ouvert n'ont pas d'autre source. */
+    public DirectionalLight soleil() {
+        return soleil;
     }
 
     private static int racine(java.util.Map<Integer, Integer> chef, int a) {
@@ -1026,6 +1165,7 @@ public final class Lights3D {
             root.removeLight(p);
         }
         lamps.clear();
+        soleil = null;
         for (int i = 0; i < DYNAMIC; i++) {
             if (dyn[i] != null) {
                 root.removeLight(dyn[i]);

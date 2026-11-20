@@ -76,6 +76,45 @@ public final class Sky {
     private Sky() {
     }
 
+    /**
+     * LA COULEUR DU CIEL, moyenne de sa bande haute, ramenee a pleine valeur.
+     *
+     * <p>Elle sert a teinter le SOLEIL des zones a ciel ouvert : une lumiere qui vient du ciel
+     * doit avoir la couleur du ciel qu'on voit, sans quoi on eclaire un paysage violet avec du
+     * blanc. On ne garde que la TEINTE, pas la clarte : l'intensite vient de la luminosite que
+     * les auteurs ont donnee aux secteurs.
+     *
+     * <p>{@code null} si la panoramique n'est pas extraite.
+     */
+    public static float[] couleurDuCiel() {
+        BufferedImage src = Assets.image("textures/sky/backdrop.png");
+        if (src == null) {
+            return null;
+        }
+        int lignes = Math.max(1, src.getHeight() / 6);  // le haut : du ciel, pas du paysage
+        long r = 0;
+        long v = 0;
+        long b = 0;
+        int n = 0;
+        for (int y = 0; y < lignes; y++) {
+            for (int x = 0; x < src.getWidth(); x++) {
+                int p = src.getRGB(x, y);
+                r += (p >> 16) & 0xFF;
+                v += (p >> 8) & 0xFF;
+                b += p & 0xFF;
+                n++;
+            }
+        }
+        if (n == 0) {
+            return null;
+        }
+        float fr = r / (float) n;
+        float fv = v / (float) n;
+        float fb = b / (float) n;
+        float max = Math.max(1f, Math.max(fr, Math.max(fv, fb)));
+        return new float[] {fr / max, fv / max, fb / max};
+    }
+
     /** Le ciel, ou {@code null} si la panoramique n'est pas extraite. */
     public static Spatial create(AssetManager assetManager) {
         Texture2D tex = panoramique();
