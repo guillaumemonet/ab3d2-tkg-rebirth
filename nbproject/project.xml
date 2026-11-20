@@ -12,6 +12,7 @@
             <source-roots>
                 <root id="src.dir"/>
                 <root id="port.src.dir" name="portage (lecteur des formats d'origine)"/>
+                <root id="sim.src.dir" name="simulation (full, verifiee)"/>
             </source-roots>
             <test-roots/>
         </data>
