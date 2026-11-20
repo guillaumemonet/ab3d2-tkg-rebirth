@@ -1688,6 +1688,23 @@ public final class LevelBuilder {
         return (4096f - angle) / 8192f * FastMath.TWO_PI;
     }
 
+    /**
+     * LA TAILLE DE DESSIN D'UN PAS D'ANIMATION, en unites jME, ou {@code null} s'il n'en dit
+     * rien.
+     *
+     * <p>Le jeu dessine un graphique a la taille portee par le pas courant -- octet fort :
+     * largeur, octet faible : hauteur, en pixels -- et non a celle de son bitmap. Les deux ne
+     * coincident pas : trente pas d'objet sur soixante-trois declarent autre chose que leur
+     * PNG. Les cles, par exemple, sont des bitmaps de 32 par 32 que le jeu etire en 26 par 38.
+     *
+     * <p>Zero veut dire << rien de dit >> : l'appelant retombe alors sur le bitmap.
+     */
+    private static float[] tailleDuPas(int word2) {
+        int w = (word2 >>> 8) & 0xFF;
+        int h = word2 & 0xFF;
+        return w <= 0 || h <= 0 ? null : new float[] {w / SPRITE_PPU, h / SPRITE_PPU};
+    }
+
     private static Mesh spriteQuad(float w, float h) {
         MeshBuilder mb = new MeshBuilder();
         quad(mb,
@@ -1709,11 +1726,28 @@ public final class LevelBuilder {
         }
         float w = img.getWidth() / SPRITE_PPU;
         float h = img.getHeight() / SPRITE_PPU;
+        // LA TAILLE VIENT DU PREMIER PAS DE SON SCRIPT quand il en declare une. Le pas suivant
+        // la corrigera si elle change : c'est la boucle d'animation qui la repose.
+        float[] dit = tailleDuPas(premierPas(o));
+        if (dit != null) {
+            w = dit[0];
+            h = dit[1];
+        }
         // EN VOLUME QUAND C'EST UNE CHOSE A RAMASSER (cf. enVolume).
         Mesh relief = enVolume(o) ? SpriteExtrude.build(img, SPRITE_PPU,
                 Math.max(3f, img.getWidth() * EPAISSEUR) / SPRITE_PPU) : null;
         Geometry g = new Geometry("spr_" + o.name,
                 relief != null ? relief : spriteQuad(w, h));
+        if (relief != null && dit != null) {
+            // UN VOLUME SE MET A L'ECHELLE, il ne se redecoupe pas.
+            //
+            // L'extrusion est batie sur le bitmap : c'est lui qui donne la silhouette et
+            // l'epaisseur. Les munitions sont justement les objets concernes -- vingt par
+            // vingt declares pour une image de trente-deux --, et ce sont elles qu'on
+            // ramasse en volume. Sans cela elles sortaient une fois et demie trop grosses.
+            g.setLocalScale(dit[0] / (img.getWidth() / SPRITE_PPU),
+                    dit[1] / (img.getHeight() / SPRITE_PPU), 1f);
+        }
         Material lit = null;
         if (modern && !fullbright && !o.additive) {
             // Rendu MOTEUR : la texture couleur de la frame, eclairee par les lumieres de la
@@ -2101,6 +2135,18 @@ public final class LevelBuilder {
      * Script d'animation par defaut d'un objet place, ou null s'il est fige.
      * Seuls les objets (typeId 1) ont une definition ODefT ; les aliens ont leurs propres tables.
      */
+    /** Le {@code word2} du premier pas du script au repos d'un objet, ou zero. */
+    private int premierPas(LevelData.Obj o) {
+        if (glf == null || o.typeId != 1) {
+            return 0;
+        }
+        GlfData.ObjDef def = glf.object(o.def);
+        if (def == null || def.defAnim == null || def.defAnim.isEmpty()) {
+            return 0;
+        }
+        return def.defAnim.get(0).word2;
+    }
+
     private ObjectAnim objectAnim(LevelData.Obj o) {
         if (glf == null || o.typeId != 1) {
             return null;
@@ -2198,6 +2244,13 @@ public final class LevelBuilder {
                     if (tex != null) {
                         setAlbedo(mat, tex);
                     }
+                }
+                // LA TAILLE SUIT LE PAS. Un panneau anime gardait celle de sa premiere
+                // image pour toute l'animation : un pas qui declare une autre taille -- il
+                // y en a -- ne changeait que l'image.
+                float[] ditPas = tailleDuPas(st.word2());
+                if (ditPas != null && !enVolume(ao.obj)) {
+                    ao.geometry.setMesh(spriteQuad(ditPas[0], ditPas[1]));
                 }
             }
         }
@@ -2763,7 +2816,7 @@ public final class LevelBuilder {
             if (v.proxy.sheet != a.sheet || v.proxy.frame != a.frame) {
                 v.proxy.sheet = a.sheet;
                 v.proxy.frame = a.frame;
-                setSpriteFrame(v.geometry, v.proxy);
+                setSpriteFrame(v.geometry, v.proxy, a.drawWord2);
             }
             // Le sprite est dessine en miroir pour les vues de droite (le jeu n'a que la gauche).
             float sx = Math.abs(v.geometry.getLocalScale().x) * (a.flip ? -1f : 1f);
@@ -2817,6 +2870,11 @@ public final class LevelBuilder {
             }
             float w = img.getWidth() / SPRITE_PPU;
             float h = img.getHeight() / SPRITE_PPU;
+            float[] ditAux = tailleDuPas(st.word2);
+            if (ditAux != null) {
+                w = ditAux[0];
+                h = ditAux[1];
+            }
             if (v.aux == null) {
                 v.aux = new Geometry("aux_" + a.index, offsetSpriteQuad(w, h, ox));
                 // GFXType 2 = glare : melange additif, comme les autres eclats du jeu.
@@ -2854,7 +2912,7 @@ public final class LevelBuilder {
     }
 
     /** Change la texture (ou la carte d'indices) d'un panneau de sprite deja construit. */
-    private void setSpriteFrame(Geometry g, LevelData.Obj o) {
+    private void setSpriteFrame(Geometry g, LevelData.Obj o, int word2) {
         String sheet = glf == null ? null : glf.spriteSheet(o.sheet);
         if (sheet == null) {
             return;
@@ -2877,6 +2935,13 @@ public final class LevelBuilder {
         if (img != null) {
             float w = img.getWidth() / SPRITE_PPU;
             float h = img.getHeight() / SPRITE_PPU;
+            // La simulation RELEVAIT DEJA cette taille (Aliens.Alien.drawWord2) : elle
+            // n'arrivait simplement jamais jusqu'au panneau.
+            float[] dit = tailleDuPas(word2);
+            if (dit != null) {
+                w = dit[0];
+                h = dit[1];
+            }
             g.setMesh(spriteQuad(w, h));
         }
     }
