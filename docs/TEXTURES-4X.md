@@ -44,11 +44,20 @@ Compares sur cinq matieres (pierre, coque metallique, porte a chevrons, Gieger, 
 
 | | |
 |---|---|
-| **DAT x4** | propre et fidele, un peu lisse sur la pierre — le defaut |
-| **R-ESRGAN 4x+** | garde mieux les joints sombres, plus doux ailleurs |
+| **4x-UltraSharp** | **le choix retenu** : il rend son GRAIN a la pierre la ou les autres la lissent, et ajoute de la matiere au metal sans emousser les bandes de danger |
+| **4x_foolhardy_Remacri** | tres proche, un peu plus doux |
+| **DAT x4** | propre et fidele, mais lisse la pierre en plastique |
+| **R-ESRGAN 4x+** | joints plus sombres, surfaces plus plates |
 | **SwinIR 4x** | le plus flou, a ecarter |
-| **ESRGAN_4x** | beaucoup de grain, mais invente : il grave de fausses rayures |
-| **4x-UltraSharp**, **Remacri** | installes dans `models/ESRGAN`, a essayer |
+| **ESRGAN_4x** | beaucoup de grain, mais INVENTE : il grave de fausses rayures sur la coque |
+
+UltraSharp et Remacri ne sont pas livres avec le WebUI. Ils se posent dans
+`models/ESRGAN/` (67 Mo chacun, depuis `huggingface.co/uwg/upscaler`) et n'apparaissent
+qu'au REDEMARRAGE : la liste des agrandisseurs n'est balayee qu'au lancement.
+
+`webui-api.bat`, a cote de `webui-user.bat`, lance le WebUI avec les arguments qu'il faut
+sur une carte de 8 Go -- surtout `--medvram-sdxl`, sans lequel un SDXL reclame 11,2 Go et
+deborde en RAM systeme.
 
 ## Le piege du lissage
 
