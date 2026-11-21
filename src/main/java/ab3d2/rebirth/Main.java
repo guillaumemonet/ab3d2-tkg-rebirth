@@ -30,6 +30,7 @@ import ab3d2.full.SinCos;
  *   gradle -p rebirth/game run -Plevel=c       # autre niveau
  *   gradle -p rebirth/game run -Pshot=90       # capture puis quitte (validation visuelle)
  *   gradle -p rebirth/game run -Pfreecam       # camera libre (debug geometrie)
+ *   gradle -p rebirth/game run -Pgodmode       # inventaire plein, degats sans effet
  * </pre>
  */
 public class Main extends SimpleApplication {
@@ -58,6 +59,8 @@ public class Main extends SimpleApplication {
     private GlfData glf;
     /** PlrT_GunSelected_b : arme en main (index dans GLFT_ShootDefs). */
     private int gun = Integer.getInteger("rebirth.gun", 0);
+    /** -Pgodmode : tout l'arsenal, toutes les munitions, et une sante qu'on ne perd pas. */
+    private final boolean godmode = System.getProperty("rebirth.godmode") != null;
 
     private Hud hud;
     private Sfx audio;
@@ -483,6 +486,14 @@ public class Main extends SimpleApplication {
             }                                      // sinon World a deja donne DEFAULTGAME
             if (System.getProperty("rebirth.health") != null) {
                 objects.inventory.consumables[0] = Integer.getInteger("rebirth.health", 200);
+            }
+            toutDonner();
+            if (godmode) {
+                System.out.printf("[godmode] inventaire plein : %d armes, jetpack,"
+                        + " munitions et sante au plafond (%d). Les cles ne sont PAS"
+                        + " donnees : une porte verrouillee attend toujours son objet.%n",
+                        ab3d2.full.sim.Inventory.NUM_ITEMS
+                                - ab3d2.full.sim.Inventory.WEAPON_START, plafond(0));
             }
             if (System.getProperty("rebirth.gun") != null && glf != null) {
                 // Debug (-Pgun=N) : on donne l'arme demandee et de quoi tirer, comme le harnais
@@ -1002,6 +1013,44 @@ public class Main extends SimpleApplication {
         }
     }
 
+    /**
+     * -Pgodmode : REMPLIT L'INVENTAIRE A RAS BORD, a chaque image.
+     *
+     * <p>Pour parcourir un niveau en entier sans le jouer : les dix armes, le jetpack, toutes
+     * les munitions et la sante au plafond que la base GLF declare
+     * ({@code game_ModProps.gmp_MaxInventory}, dix mille pour la sante).
+     *
+     * <p>Ce n'est PAS une invulnerabilite dans la simulation : rien n'est detourne, les degats
+     * s'appliquent normalement et le releve de douleur continue de les afficher. On remet
+     * simplement la jauge en haut a la fin de chaque image, ce qui revient au meme tant qu'un
+     * seul coup ne depasse pas le plafond.
+     *
+     * <p>Les CLES, elles, ne sont pas donnees : une porte verrouillee l'est par un objet
+     * encore au sol, et le ramassage fait partie de ce qu'on veut pouvoir tester. Pour forcer
+     * un battant sans sa cle, {@code -Pforcedoor=N} existe deja.
+     */
+    private void toutDonner() {
+        if (!godmode || objects == null) {
+            return;
+        }
+        ab3d2.full.sim.Inventory inv = objects.inventory;
+        // On part de 1 et pas de 0 : les boucles du jeu demarrent au JETPACK (InvIT_JetPack_w)
+        // et ne lisent jamais l'item 0. Lui donner quelque chose n'aurait de sens nulle part.
+        for (int i = 1; i < ab3d2.full.sim.Inventory.NUM_ITEMS; i++) {
+            inv.items[i] = 0xFF;
+        }
+        for (int i = 0; i < ab3d2.full.sim.Inventory.NUM_CONSUMABLES; i++) {
+            inv.consumables[i] = plafond(i);
+        }
+    }
+
+    /** Le plafond declare pour ce consommable, ou dix mille si la base ne le dit pas. */
+    private int plafond(int i) {
+        java.util.List<Integer> max = glf == null ? null : glf.maxInventory;
+        Integer v = max != null && i < max.size() ? max.get(i) : null;
+        return v != null && v > 0 ? v : 10000;
+    }
+
     /** Une frame de la simulation d'origine : entrees -&gt; chute -&gt; collision -&gt; animations. */
     private void stepSim() {
         if (state != State.PLAYING) {
@@ -1061,6 +1110,9 @@ public class Main extends SimpleApplication {
             }
             System.out.printf("[douleur] -%d -> sante %d%n", perdu, objects.inventory.health());
         }
+        // APRES le releve, pas avant : on veut continuer a LIRE les degats que le niveau
+        // inflige -- c'est souvent ce qu'on teste -- sans les subir.
+        toutDonner();
         if (builder.lights() != null) {
             builder.lights().tick();                   // brightanim (une frame sur six)
         }

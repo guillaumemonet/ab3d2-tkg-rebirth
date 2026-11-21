@@ -156,7 +156,7 @@ tasks.named('run') {
     flags(it, [
         'level', 'shot', 'shotn', 'forcedoor', 'forcepos', 'freecam', 'at', 'noAction', 'health', 'sfxLog', 'nosound',
         'stats', 'weaponLog', 'shimmer', 'deformLog', 'dynLog', 'shotLog', 'fire',
-        'gun', 'demo', 'spawn', 'autoplay', 'weaponInScene', 'story', 'startmenu',
+        'gun', 'godmode', 'demo', 'spawn', 'autoplay', 'weaponInScene', 'story', 'startmenu',
         'map', 'mapAll', 'angle', 'pitch', 'lightLog', 'lightBatch', 'noshadow',
         'ssao', 'retro', 'zonelights', 'nolamps', 'wallBrightLog', 'ambient', 'lampgain', 'regiongain', 'norelief', 'noglow', 'parallax', 'specular', 'hires', 'nofog', 'fogpartout', 'fogstart', 'fogend', 'cursorLog', 'fullbright', 'vsign', 'nolevelscene', 'noPvsLights', 'fpsLog', 'novsync', 'nophysics', 'noscenelights', 'daygain', 'physicsDebug', 'physicsLog',  'bakedlight', 'nomorph', 'morphLog',
     ])
