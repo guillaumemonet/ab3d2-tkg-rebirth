@@ -898,6 +898,7 @@ public final class LevelBuilder {
                 m.setBoolean("UseVertexColor", bakedLight());
             }
             poserRelief(m);
+            poserCouleurFine(m);
             j3mLoaded++;
             return m;
         } catch (RuntimeException absent) {
@@ -1012,6 +1013,7 @@ public final class LevelBuilder {
                 // rendu l'image insensible au niveau d'ambiante -- on reglait un materiau
                 // que personne n'utilisait.
                 poserRelief(g.getMaterial());
+                poserCouleurFine(g.getMaterial());
             }
         });
     }
@@ -1106,6 +1108,54 @@ public final class LevelBuilder {
      * <p>Une carte par texture, gardee : les murs d'un niveau se comptent par dizaines et
      * se repetent partout.
      */
+    /**
+     * LA COULEUR AGRANDIE, quand il en existe une.
+     *
+     * <p>Un `.j3m` nomme sa texture par son chemin d'origine — {@code textures/floors/floor_00.png}
+     * — et le gestionnaire d'assets de jME va chercher ce fichier-la, litteralement. Il ne connait
+     * pas {@code floors4x}, qui est une convention a nous : la substitution vit dans
+     * {@link Assets#image}, par ou les `.j3m` ne passent pas.
+     *
+     * <p>Consequence, mesuree : {@code -Phires} ne changeait RIEN a la couleur des murs et des
+     * sols. Les planches agrandies etaient bien lues — {@code poserRelief} les demande pour en
+     * tirer le relief, la lueur et la brillance — mais leur quadrant de COULEUR, quatre fois plus
+     * fin, etait decoupe puis jete. Un sol de soixante-quatre pixels restait un sol de
+     * soixante-quatre pixels, avec un relief de deux cent cinquante-six.
+     *
+     * <p>On repose donc ici la texture que {@link Assets#texture} rend, celle qui connait les
+     * dossiers {@code 4x} et le decoupage des planches. Et seulement si elle est PLUS FINE : sans
+     * agrandissement, c'est la meme image et le materiau du fichier reste intact.
+     */
+    private void poserCouleurFine(Material m) {
+        if (!modern || fullbright || m == null) {
+            return;
+        }
+        com.jme3.material.MatParam d = m.getParam("DiffuseMap");
+        if (!(d instanceof com.jme3.material.MatParamTexture t)
+                || t.getTextureValue() == null || t.getTextureValue().getKey() == null) {
+            return;                                // texture batie en memoire : pas de chemin
+        }
+        String chemin = t.getTextureValue().getKey().getName();
+        Texture2D fine = Assets.texture(chemin);
+        if (fine == null || fine.getImage() == null) {
+            return;
+        }
+        com.jme3.texture.Image avant = t.getTextureValue().getImage();
+        if (avant != null && avant.getWidth() >= fine.getImage().getWidth()
+                && avant.getHeight() >= fine.getImage().getHeight()) {
+            return;                                // rien de plus fin a poser
+        }
+        if (couleursFines.add(chemin)) {
+            System.out.printf("[cartes] %s : couleur %dx%d -> %dx%d%n", chemin,
+                    avant == null ? 0 : avant.getWidth(), avant == null ? 0 : avant.getHeight(),
+                    fine.getImage().getWidth(), fine.getImage().getHeight());
+        }
+        m.setTexture("DiffuseMap", fine);
+    }
+
+    /** Les couleurs deja remplacees : une ligne par texture, pas une par materiau. */
+    private final java.util.Set<String> couleursFines = new java.util.HashSet<>();
+
     private void poserRelief(Material m) {
         if (!modern || fullbright || m == null || System.getProperty("rebirth.norelief") != null
                 || m.getMaterialDef().getMaterialParam("NormalMap") == null) {

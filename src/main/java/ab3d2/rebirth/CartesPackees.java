@@ -101,7 +101,16 @@ public final class CartesPackees {
         // dimensionne son tampon sur la largeur ANNONCEE et lit au-dela : BufferOverflow
         // au premier quartier. Une copie coute quatre images de plus au chargement et
         // s'oublie aussitot.
-        return new CartesPackees(copie(src, 0, 0, dw, dh, alpha), copie(src, dw, 0, dw, dh, alpha),
+        // L'ALBEDO SE COPIE SANS SON ALPHA.
+        //
+        // Dans ce format, l'alpha appartient aux NORMALES : c'est la hauteur. Les generateurs
+        // de matiere la laissent pourtant sur TOUTE la planche, quartier de couleur compris --
+        // constate sur les planches EMBOITEES du 21 novembre 2026, ou un quart de l'albedo
+        // portait un alpha intermediaire pour cent quatre-vingts pixels seulement d'alpha nul.
+        // C'est une hauteur, pas un detourage : gardee telle quelle, elle devient une
+        // TRANSPARENCE des que la couleur sert de texture a un mur, et le decor se troue la ou
+        // la pierre est creuse. Les textures d'origine, elles, sont opaques d'un bout a l'autre.
+        return new CartesPackees(copie(src, 0, 0, dw, dh, false), copie(src, dw, 0, dw, dh, alpha),
                 copie(src, 0, dh, dw, dh, alpha), copie(src, dw, dh, dw, dh, alpha), alpha);
     }
 
