@@ -120,6 +120,15 @@ public class Main extends SimpleApplication {
     private com.jme3.post.filters.BloomFilter bloom;
     /** Le brouillard de distance, ou {@code null} avec -Pnofog. */
     private FogFilter fog;
+    /** Ou le brouillard commence et finit SOUS UN PLAFOND. Dehors, il n'y en a pas. */
+    private float fogDebut = 26f;
+    private float fogFin = 95f;
+    /** Part de « dehors » : 0 sous un plafond, 1 a ciel ouvert. Glisse, pour ne pas claquer. */
+    private float dehors;
+    /** Le temps que met le brouillard a se retirer en sortant, ou a revenir en rentrant. */
+    private static final float DUREE_DEHORS = 0.6f;
+    /** -Pfogpartout : garder le brouillard meme dehors, pour comparer. */
+    private final boolean brouillardPartout = System.getProperty("rebirth.fogpartout") != null;
     private com.jme3.post.ssao.SSAOFilter ssao;
     /**
      * LE MENU ET LES ECRANS DE TEXTE SONT DES ETATS DE jME.
@@ -299,8 +308,9 @@ public class Main extends SimpleApplication {
             // proprement.
             if (System.getProperty("rebirth.nofog") == null) {
                 fog = new FogFilter();
-                fog.setRange(Float.parseFloat(System.getProperty("rebirth.fogstart", "26")),
-                        Float.parseFloat(System.getProperty("rebirth.fogend", "95")));
+                fogDebut = Float.parseFloat(System.getProperty("rebirth.fogstart", "26"));
+                fogFin = Float.parseFloat(System.getProperty("rebirth.fogend", "95"));
+                fog.setRange(fogDebut, fogFin);
                 fog.setFrustum(cam.getFrustumNear(), cam.getFrustumFar());
                 fpp.addFilter(fog);
             }
@@ -903,6 +913,7 @@ public class Main extends SimpleApplication {
             // les monstres qui s'y trouvent. On les desarme donc avec -Pfreecam.
             etatLumieres.allumerCeQuiSeVoit(player.zone);
             builder.setVisibleFrom(freeCam ? -1 : player.zone); // tri de visibilite de la frame
+            reglerBrouillard(player.zone, shotAt > 0 ? 1f : tpf);
             applyAnimatedGeometry();
             builder.updateShots(shots.shots());
             etatLumieres.eclairerTirs();
@@ -1184,6 +1195,39 @@ public class Main extends SimpleApplication {
             return 1;                                  // surface a hauteur d'yeux : moitie basse
         }
         return eye > z.water ? 2 : 0;                  // yeux sous la surface : plein ecran
+    }
+
+    /**
+     * LE BROUILLARD EST UNE AFFAIRE DE COULOIR.
+     *
+     * <p>Il a ete mis pour une raison precise : sous un plafond, un couloir s'arretait net sur
+     * un mur peint aussi lisible que celui qu'on touche, et la profondeur ne se lisait plus.
+     * Dehors, ce probleme n'existe pas -- le ciel donne le lointain, et les enceintes de pierre
+     * de L, O et P se voient d'un bout a l'autre. Les noyer dans un gris sombre sous un ciel
+     * clair ne rend rien lisible : cela efface le decor.
+     *
+     * <p>C'est le niveau qui dit lequel des deux on est, par {@code drawBackdrop}
+     * ({@link LevelBuilder#cielOuvert}). On ne bascule pas d'un coup : une porte franchie ferait
+     * claquer tout l'ecran. La part de « dehors » GLISSE en six dixiemes de seconde, et le
+     * brouillard recule au-dela du plan lointain, ou plus rien ne se trouve.
+     *
+     * <p>Sous {@code -Pshot}, ou l'on avance d'un pas par image pour que la capture soit
+     * reproductible, le glissement se fait d'un coup -- comme pour le melange des poses.
+     */
+    private void reglerBrouillard(int zone, float tpf) {
+        if (fog == null || builder == null) {
+            return;
+        }
+        float vise = !brouillardPartout && builder.cielOuvert(zone) ? 1f : 0f;
+        if (tpf >= 1f) {
+            dehors = vise;
+        } else {
+            float pas = tpf / DUREE_DEHORS;
+            dehors += Math.max(-pas, Math.min(pas, vise - dehors));
+        }
+        float loin = cam.getFrustumFar();
+        fog.setRange(fogDebut + (loin - fogDebut) * dehors,
+                fogFin + (loin * 2f - fogFin) * dehors);
     }
 
     private void applyCamera() {

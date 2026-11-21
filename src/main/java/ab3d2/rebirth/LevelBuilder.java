@@ -2884,6 +2884,19 @@ public final class LevelBuilder {
         }
     }
 
+    /**
+     * CETTE ZONE VOIT-ELLE LE CIEL ?
+     *
+     * <p>Le niveau le dit lui-meme : {@code drawBackdrop} est le drapeau par lequel le jeu
+     * d'origine decidait de peindre le fond au lieu d'un plafond. C'est donc la definition du
+     * jeu de « dehors », pas une devinette -- et elle partage les seize niveaux en deux :
+     * A a F, K et N n'ont pas une seule zone a ciel ouvert, L, O et P n'ont que cela.
+     */
+    public boolean cielOuvert(int zone) {
+        LevelData.Zone z = zonesById.get(zone);
+        return z != null && z.drawBackdrop;
+    }
+
     /** Cette zone peut-elle se voir depuis celle du joueur ? */
     private boolean visible(int zone) {
         return visible == null || zone < 0 || zone >= visible.length || visible[zone];
