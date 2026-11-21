@@ -123,6 +123,7 @@ public final class ModelPreview extends SimpleApplication {
         } else {
             try {
                 modele = assetManager.loadModel(f.getName());
+                adoucirLeMetal(modele);
             } catch (RuntimeException e) {
                 System.err.println("[apercu] " + chemin + " illisible : " + e);
                 stop();
@@ -231,6 +232,42 @@ public final class ModelPreview extends SimpleApplication {
     }
 
     /** Le materiau du jeu en rendu moderne : l'atlas en couleurs, eclaire par le moteur. */
+    /**
+     * UN METAL SANS ENVIRONNEMENT REND NOIR.
+     *
+     * <p>Stable Fast 3D exporte ses modeles avec {@code Metallic = 1} et AUCUNE carte
+     * metal-rugosite : tout ce qu'il produit se declare donc metal pur. Or un metal, en rendu
+     * PBR, n'a pas de diffus -- sa couleur de base devient celle de ses REFLETS -- et sans
+     * sonde d'environnement il n'a rien a refleter que les deux lampes de l'apercu. Le modele
+     * sort presque noir, et on ne peut rien en juger.
+     *
+     * <p>On remet donc le metal a zero quand le modele n'a PAS de carte pour en decider -- s'il
+     * en porte une, c'est elle qui commande et on n'y touche pas -- et on le DIT, pour que
+     * personne ne croie voir la matiere que le fichier declare.
+     */
+    private void adoucirLeMetal(Spatial s) {
+        if (s instanceof Node n) {
+            for (Spatial c : n.getChildren()) {
+                adoucirLeMetal(c);
+            }
+            return;
+        }
+        if (!(s instanceof Geometry g) || g.getMaterial() == null) {
+            return;
+        }
+        com.jme3.material.Material m = g.getMaterial();
+        if (m.getParam("MetallicRoughnessMap") != null
+                || m.getMaterialDef().getMaterialParam("Metallic") == null) {
+            return;
+        }
+        com.jme3.material.MatParam p = m.getParam("Metallic");
+        if (p != null && p.getValue() instanceof Float f && f >= 0.9f) {
+            m.setFloat("Metallic", 0f);
+            System.out.printf("[apercu] %s se declare metal pur sans carte metal-rugosite :"
+                    + " metal ramene a 0, sinon il n'a rien a refleter%n", g.getName());
+        }
+    }
+
     private com.jme3.material.Material materiauDuModele() {
         com.jme3.material.Material mat = new com.jme3.material.Material(assetManager,
                 "Common/MatDefs/Light/Lighting.j3md");
@@ -294,7 +331,12 @@ public final class ModelPreview extends SimpleApplication {
         }
         // On lit l'image APRES le rendu de cette vue, et on passe a la suivante.
         java.nio.ByteBuffer bb = com.jme3.util.BufferUtils.createByteBuffer(COTE * COTE * 4);
-        renderer.readFrameBuffer(null, bb);
+        // LE FORMAT SE DEMANDE, IL NE SE DEVINE PAS. `readFrameBuffer` sans format rend ce que
+        // le pilote veut ; ici il rendait du RGBA quand `convertScreenShot` attend du BGRA, et
+        // l'apercu ecrivait donc ses PNG avec le ROUGE ET LE BLEU INTERVERTIS. Invisible sur
+        // les modeles du jeu, qui sont gris ; flagrant sur une trousse de soins, dont la croix
+        // rouge sortait bleue. Les captures du JEU, elles, n'ont jamais eu ce defaut.
+        renderer.readFrameBufferWithFormat(null, bb, com.jme3.texture.Image.Format.BGRA8);
         // TYPE_4BYTE_ABGR, et pas autre chose : Screenshots.convertScreenShot ecrit
         // directement dans le tampon d'octets de l'image, et jette un ClassCastException sur
         // n'importe quel autre type.
