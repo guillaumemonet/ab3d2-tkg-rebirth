@@ -47,9 +47,29 @@ public final class CartesPackees {
     /**
      * Decoupe une planche, ou rend {@code null} si l'image n'en est pas une.
      *
-     * <p>On ne decoupe que si le quartier en haut a droite EST une carte de normales : une
-     * image deux fois trop grande n'est pas forcement une planche, et se tromper donnerait un
-     * mur couvert d'un quart de sa propre texture.
+     * <p>SE TROMPER ICI NE SE VOIT PAS COMME UNE ERREUR : rien ne plante, rien ne manque, on
+     * rend simplement le quartier en haut a gauche d'une image qui n'avait pas de quartiers --
+     * et ce quart-la ressemble assez a l'original pour qu'on l'accuse d'autre chose. Deux cas
+     * reels, tous deux trouves a l'oeil puis mesures :
+     *
+     * <ul>
+     *   <li>la balle du MegaLazer, un anneau BLEU sur fond transparent : son quartier en haut
+     *       a droite a une moyenne de (110, 117, 156), ce qui passe de justesse pour des
+     *       normales. On n'en dessinait que le quart superieur gauche -- un QUART DE CERCLE ;</li>
+     *   <li>{@code water_normal.png}, qui n'est pas une planche mais une carte de normales
+     *       TOUTE SEULE : bleue partout, donc bleue aussi en haut a droite. L'eau n'avait que
+     *       le quart de ses vagues.</li>
+     * </ul>
+     *
+     * <p>D'ou deux conditions de plus, chacune pour l'un de ces cas :
+     *
+     * <ol>
+     *   <li>le quartier d'ALBEDO ne doit PAS ressembler, lui aussi, a des normales : quand les
+     *       deux moities du haut sont bleues, l'image n'est pas une planche, c'est une carte de
+     *       normales entiere ;</li>
+     *   <li>l'albedo d'une MATIERE est opaque. Un sprite, lui, se detoure : son fond est
+     *       transparent. Un tiers du quartier de la balle l'est.</li>
+     * </ol>
      */
     public static CartesPackees decouper(BufferedImage src) {
         if (src == null) {
@@ -65,6 +85,13 @@ public final class CartesPackees {
         BufferedImage hd = src.getSubimage(dw, 0, dw, dh);   // simple lecture : une vue suffit
         if (!ressembleADesNormales(hd)) {
             return null;
+        }
+        BufferedImage hg = src.getSubimage(0, 0, dw, dh);
+        if (ressembleADesNormales(hg)) {
+            return null;                               // bleue des deux cotes : pas une planche
+        }
+        if (troueeDeTransparence(hg)) {
+            return null;                               // un sprite detoure, pas une matiere
         }
         boolean alpha = src.getColorModel().hasAlpha();
         // CHAQUE QUARTIER DANS SA PROPRE IMAGE, et non une vue sur la planche.
@@ -87,6 +114,33 @@ public final class CartesPackees {
         g.drawImage(src, 0, 0, w, h, x, y, x + w, y + h, null);
         g.dispose();
         return out;
+    }
+
+    /** Au-dela de cette part de pixels transparents, le quartier est un sprite detoure. */
+    private static final float PART_TRANSPARENTE = 0.20f;
+
+    /**
+     * Ce quartier est-il TROUE ? Autrement dit : a-t-il un fond transparent ?
+     *
+     * <p>L'albedo d'une matiere couvre toute sa surface -- c'est ce qu'une matiere EST. Un
+     * sprite, lui, est decoupe sur un fond vide, et ce vide se compte.
+     */
+    private static boolean troueeDeTransparence(BufferedImage q) {
+        if (!q.getColorModel().hasAlpha()) {
+            return false;                              // pas d'alpha : rien ne peut etre troue
+        }
+        int vides = 0;
+        int n = 0;
+        int pas = Math.max(1, Math.min(q.getWidth(), q.getHeight()) / 64);
+        for (int y = 0; y < q.getHeight(); y += pas) {
+            for (int x = 0; x < q.getWidth(); x += pas) {
+                if (((q.getRGB(x, y) >>> 24) & 0xFF) < 16) {
+                    vides++;
+                }
+                n++;
+            }
+        }
+        return n > 0 && vides > n * PART_TRANSPARENTE;
     }
 
     /**
