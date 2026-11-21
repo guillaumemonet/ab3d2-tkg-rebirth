@@ -4,6 +4,12 @@ Agrandisseur SEUL (DAT x4) : aucune invention. On ne passe pas par img2img parce
 relief, la hauteur et la brillance sont desormais TIRES de la clarte de la texture -- un
 reflet cuit dans la couleur deviendrait une fausse bosse.
 
+PLUS POUR LES MURS. Ce script agrandit chaque sous-tuile SEPAREMENT : sur une laniere de
+seize pixels, l'agrandisseur invente des bords qui n'existent pas dans la texture d'ou la
+laniere est tiree. Et il ne produit qu'une couleur, la ou le jeu lit desormais une planche
+de quatre cartes. Pour les murs, voir tools/murs_planches.py, qui travaille sur la texture
+entiere puis decoupe. Celui-ci ne sert plus que pour le ciel.
+
 Ecrit a cote des originaux, dans un dossier parallele que le jeu prefere quand on le lui
 demande (-Phires). Les originaux ne bougent pas.
 """
