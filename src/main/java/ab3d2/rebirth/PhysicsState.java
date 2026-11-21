@@ -103,6 +103,24 @@ public final class PhysicsState extends BaseAppState {
     /** Tirage reproductible : deux captures du meme instant doivent se ressembler. */
     private final java.util.Random des = new java.util.Random(20261120L);
 
+    /**
+     * LE PAS DE LA PHYSIQUE QUAND ON CAPTURE.
+     *
+     * <p>Les des sont semes, eux : deux executions jettent les memes eclats dans les memes
+     * directions. Mais Bullet n'avance pas aux des, il avance au TEMPS, et c'est le temps
+     * reel que lui donne jME -- autant dire le chronometre de la machine. Sous {@code -Pshot},
+     * ou l'on fait expres d'avancer d'un pas de simulation par image pour que la capture soit
+     * reproductible, la physique, elle, avancait d'un temps qui changeait a chaque fois. Deux
+     * captures du meme instant ne montraient donc pas les memes eclats.
+     *
+     * <p>On lui impose alors le meme pas qu'a la simulation, et on l'avance SOI-MEME, une fois
+     * par image. En jeu normal, rien ne change : c'est jME qui la conduit, au temps reel.
+     */
+    private static final float PAS_DE_CAPTURE = 1f / 50f;
+
+    /** Vrai sous {@code -Pshot} : la physique avance alors d'un pas fixe, pas au chronometre. */
+    private final boolean poseFixe = System.getProperty("rebirth.shot") != null;
+
     /** Un eclat et le temps qu'il lui reste. */
     private static final class Eclat {
         final Geometry geometrie;
@@ -149,6 +167,10 @@ public final class PhysicsState extends BaseAppState {
         bullet.setDebugEnabled(debug);
         app.getStateManager().attach(bullet);
         bullet.getPhysicsSpace().setGravity(new Vector3f(0f, PESANTEUR, 0f));
+        if (poseFixe) {
+            bullet.getPhysicsSpace().setAccuracy(PAS_DE_CAPTURE);
+            bullet.setEnabled(false);                  // ce n'est plus jME qui l'avance
+        }
 
         eclats = new Node("eclats");
         ((Main) app).getRootNode().attachChild(eclats);
@@ -384,6 +406,11 @@ public final class PhysicsState extends BaseAppState {
 
     @Override
     public void update(float tpf) {
+        if (poseFixe) {
+            // Un pas, un seul, et le meme a chaque image : la capture redevient reproductible.
+            bullet.getPhysicsSpace().update(PAS_DE_CAPTURE, 1);
+            tpf = PAS_DE_CAPTURE;                      // et la duree de vie des eclats avec
+        }
         if (journal && !vivants.isEmpty() && ++tic % 15 == 0) {
             Geometry g = vivants.get(0).geometrie;
             System.out.printf("[physique] %d eclats ; le premier a %s%n",
