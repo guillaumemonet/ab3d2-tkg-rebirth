@@ -435,5 +435,79 @@ vectoriels restent en `.obj` et les tables du jeu sont des `.bin`.
 
 ---
 
-*Alien Breed 3D II : The Killing Grounds* et ses données sont la propriété de **Team17**. Projet
-non commercial, à but d'étude et de préservation.
+## Mentions légales et données du jeu
+
+### Implémentation indépendante du moteur
+
+Ce projet est une réimplémentation indépendante du moteur d'*Alien Breed 3D II : The Killing Grounds*, conçue pour reproduire le comportement du jeu d'origine sur les plateformes modernes.
+
+Le moteur a été développé à partir du code source d'origine (assembleur 68000 et C), tel qu'il est publié dans [mheyer32/alienbreed3d2](https://github.com/mheyer32/alienbreed3d2), par analyse technique et tests de compatibilité. Ce code source n'est pas inclus dans ce dépôt ; le remake s'appuie sur le portage Java fidèle qui en est tiré.
+
+### Fichiers du jeu d'origine
+
+Ce projet nécessite des fichiers du jeu d'origine, comme les cinq disquettes du jeu (images ADF), pour fonctionner.
+
+**Les fichiers du jeu d'origine ne sont pas inclus dans ce projet.**
+
+Chaque utilisateur doit se procurer et fournir ses propres fichiers de jeu auprès d'une source légalement autorisée. Avant de télécharger ou d'utiliser ce moteur, l'utilisateur doit confirmer qu'il possède une copie du jeu d'origine obtenue légalement.
+
+Aucune donnée du jeu n'est versionnée : textures, sons, matériaux et scènes se régénèrent depuis les disquettes. Seuls les shaders, écrits pour le remake, sont dans le dépôt.
+
+Eloane Studio n'héberge, ne distribue ni ne fournit de copies non autorisées de données de jeu protégées par le droit d'auteur.
+
+### Droits d'auteur et marques
+
+Les noms, marques, graphismes, musiques et autres éléments propriétaires d'*Alien Breed 3D II : The Killing Grounds* restent la propriété de leurs titulaires respectifs (Team17).
+
+Ce projet est une implémentation indépendante et non officielle ; il n'est ni affilié, ni approuvé, ni soutenu par les développeurs ou les éditeurs du jeu d'origine.
+
+### Préservation
+
+Ce projet a pour but de préserver le comportement technique et l'expérience de jeu des jeux vidéo classiques, tout en les rendant accessibles sur les systèmes modernes.
+
+Le moteur est fourni à des fins de compatibilité, de préservation et d'éducation.
+
+### Crédits
+
+Moteur d'origine : Team17 (Andy Clitheroe et al.). Sources ASM/C de référence : [mheyer32/alienbreed3d2](https://github.com/mheyer32/alienbreed3d2). Remake 3D : **Guillaume Monet**.
+
+<details>
+<summary>English version</summary>
+
+### Legal Notice & Game Assets
+
+#### Independent Engine Implementation
+
+This project is an independent reimplementation of the *Alien Breed 3D II: The Killing Grounds* engine, designed to reproduce the original game's behavior on modern platforms.
+
+The engine has been developed from the original source code (68000 assembly and C), as published in [mheyer32/alienbreed3d2](https://github.com/mheyer32/alienbreed3d2), through technical analysis and compatibility testing. That source code is not included in this repository; the remake builds on the faithful Java port made from it.
+
+#### Original Game Files
+
+This project requires original game files, such as the game's five Amiga ADF disk images, to run.
+
+**Original game files are not included in this project.**
+
+Users must obtain and provide their own game files from a legally authorized source. Before downloading or using this engine, users are required to confirm that they possess a legally obtained copy of the original game.
+
+No game data is versioned: textures, sounds, materials and scenes are regenerated from the disks. Only the shaders, written for the remake, are in the repository.
+
+Eloane Studio does not host, distribute, or provide unauthorized copies of copyrighted game assets.
+
+#### Copyright & Trademarks
+
+All original game names, trademarks, graphics, music, and other proprietary assets of *Alien Breed 3D II: The Killing Grounds* remain the property of their respective copyright holders (Team17).
+
+This project is an independent, unofficial implementation and is not affiliated with, endorsed by, or sponsored by the original game's developers or publishers.
+
+#### Preservation
+
+The purpose of this project is to preserve the technical behavior and gameplay experience of classic video games while making them accessible on modern systems.
+
+The engine is provided for compatibility, preservation, and educational purposes.
+
+#### Credits
+
+Original engine: Team17 (Andy Clitheroe et al.). Reference ASM/C sources: [mheyer32/alienbreed3d2](https://github.com/mheyer32/alienbreed3d2). 3D remake: **Guillaume Monet**.
+
+</details>
