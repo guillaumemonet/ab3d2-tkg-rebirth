@@ -1,295 +1,297 @@
-# AB3D2 Rebirth — le remake full 3D
+# AB3D2 Rebirth — the full 3D remake
 
-Remake **full 3D** d'*Alien Breed 3D II : The Killing Grounds* (Team17, Amiga, 1996) sur
-**jMonkeyEngine 3**, à partir du portage Java fidèle du moteur d'origine.
+*[Version française](README_fr.md)*
 
-> ⚠️ **Chantier en cours**, pas une version jouable de bout en bout.
+A **full 3D** remake of *Alien Breed 3D II: The Killing Grounds* (Team17, Amiga, 1996) on
+**jMonkeyEngine 3**, built from the faithful Java port of the original engine.
 
-![Le niveau A en vraie 3D](docs/img/rebirth-niveau.png)
+> ⚠️ **Work in progress**, not a version playable from start to finish.
 
-*Le niveau A. Même simulation que le portage d'origine, éclairage par lampes, ombres portées,
-visée verticale réelle.*
+![Level A in true 3D](docs/img/rebirth-niveau.png)
+
+*Level A. Same simulation as the original port, lamp lighting, cast shadows, real vertical
+aiming.*
 
 ---
 
-## Le principe
+## The principle
 
-Ce projet n'est pas un portage de plus : c'est un **autre moteur**. Il ne rejoue pas le
-rasteriseur d'origine, il reconstruit les niveaux en vraie 3D et rejoue la même logique de jeu.
+This project is not just another port: it is a **different engine**. It does not replay the
+original rasteriser; it rebuilds the levels in true 3D and replays the same game logic.
 
-> **Les trois lectures du jeu** : le
-> [portage littéral](https://github.com/guillaumemonet/ab3d2-tkg-java), traduit instruction par
-> instruction, qui sert d'**oracle** aux deux autres ; la
-> [conversion objet](https://github.com/guillaumemonet/ab3d2-tkg-full-java), le même jeu en vrai
-> Java sans mémoire plate ; et **ce remake**, qui change de moteur. Ce dépôt héberge aussi les
-> **extracteurs** qui produisent le corpus de référence des trois.
+> **The three readings of the game**: the
+> [literal port](https://github.com/guillaumemonet/ab3d2-tkg-java), translated instruction by
+> instruction, which serves as the **oracle** for the other two; the
+> [object conversion](https://github.com/guillaumemonet/ab3d2-tkg-full-java), the same game in real
+> Java without flat memory; and **this remake**, which changes engine. This repository also hosts
+> the **extractors** that produce the reference corpus for all three.
 
-> ⚠️ **Dette connue** : ce dépôt a fabriqué les instruments de mesure et ne s'est jamais mesuré.
-> Sa simulation (`src/ab3d2/rebirth/sim/`) est un fork pris **avant** la vingtaine de campagnes
-> d'oracles qui ont corrigé `full`. Constat chiffré, bugs identifiés et plan de rattrapage :
+> ⚠️ **Known debt**: this repository built the measuring instruments and never measured itself.
+> Its simulation (`src/ab3d2/rebirth/sim/`) is a fork taken **before** the twenty or so oracle
+> campaigns that corrected `full`. Figures, identified bugs and catch-up plan:
 > **[docs/DETTE-SIMULATION.md](docs/DETTE-SIMULATION.md)**.
 
-- **Le portage (`../java`) est l'oracle.** Il est compilé avec ce projet
-  (`srcDirs = ['src', '../java/src']`) et sert de **lecteur autoritatif** des formats d'origine
-  pour l'extraction des assets. Quand une règle de jeu est douteuse, c'est contre lui qu'on
-  tranche ; au besoin on remonte à l'assembleur (`../../ab3d2-tkg/ab3d2_source`).
-  **On ne modifie jamais son code.**
-- **Le maximum d'outils jME.** Matériaux en `.j3m`, scènes en `.j3o`, shaders dans `assets/` :
-  tout ce que le jeu affiche doit pouvoir s'ouvrir et se corriger à la main, ou dans le SDK jME,
-  sans recompiler.
-- **jME ouvre la voie Android**, qui est l'une des raisons du choix du moteur.
+- **The port (`../java`) is the oracle.** It is compiled with this project
+  (`srcDirs = ['src', '../java/src']`) and serves as the **authoritative reader** of the original
+  formats for asset extraction. When a game rule is in doubt, it is the port that settles it; if
+  need be, we go back to the assembly (`../../ab3d2-tkg/ab3d2_source`).
+  **Its code is never modified.**
+- **As many jME tools as possible.** Materials in `.j3m`, scenes in `.j3o`, shaders in `assets/`:
+  everything the game displays must be openable and fixable by hand, or in the jME SDK, without
+  recompiling.
+- **jME opens the way to Android**, which is one of the reasons the engine was chosen.
 
 ---
 
-## Les assets : tout est régénérable
+## The assets: everything can be regenerated
 
-**Aucune donnée du jeu n'est versionnée.** Seuls les shaders, qui sont à nous, le sont. Tout le
-reste se reconstruit depuis les cinq disquettes (cf. le portage pour leur récupération) :
+**No game data is versioned.** Only the shaders, which are ours, are. Everything else is
+rebuilt from the five floppy disks (see the port for how to recover them):
 
 ```bash
-gradle -p rebirth extract      # assets d'origine  -> PNG / JSON / OBJ / WAV
-gradle -p rebirth materials    # matériaux          -> assets/materials/*.j3m
-gradle -p rebirth scenes       # niveaux            -> assets/Scenes/*.j3o
+gradle -p rebirth extract      # original assets   -> PNG / JSON / OBJ / WAV
+gradle -p rebirth materials    # materials          -> assets/materials/*.j3m
+gradle -p rebirth scenes       # levels             -> assets/Scenes/*.j3o
 ```
 
-| | format | modifiable à la main |
+| | format | editable by hand |
 | --- | --- | --- |
 | textures, sprites | PNG | ✅ |
-| sons, musiques | WAV | ✅ |
-| matériaux (murs, sols) | **`.j3m`** | ✅ |
-| niveaux | **`.j3o`** | ✅ |
-| shaders | GLSL + `.j3md` | ✅ (versionnés) |
-| modèles vectoriels | OBJ + sidecar `.lvl` | ⚠️ voir ci-dessous |
+| sounds, music | WAV | ✅ |
+| materials (walls, floors) | **`.j3m`** | ✅ |
+| levels | **`.j3o`** | ✅ |
+| shaders | GLSL + `.j3md` | ✅ (versioned) |
+| vector models | OBJ + `.lvl` sidecar | ⚠️ see below |
 
-Les **modèles vectoriels** restent en OBJ : chaque face porte ses données d'éclairage
-directionnel (`frame_NNN.lvl`, niveau de base + secteur d'angle) et le maillage est *régénéré
-quand la lumière change*. Un `.j3o` figé casserait cet éclairage.
+The **vector models** stay in OBJ: each face carries its directional lighting data
+(`frame_NNN.lvl`, base level + angle sector) and the mesh is *regenerated when the light
+changes*. A frozen `.j3o` would break that lighting.
 
-Leur **échelle** vient de l'assembleur, pas de l'œil. Un point de modèle et la position de
-l'objet qui le porte se rencontrent dans le même accumulateur juste avant la division
-perspective : le rapport de leurs deux facteurs donne l'échelle exacte, sans dépendre de la
-projection. Il vaut 1/4 de mot de niveau sur les trois axes, soit **1 unité d'OBJ = 1 unité
-monde**. La valeur réglée à vue qui précédait (0,75) faisait des modèles de moitié trop gros :
-un fusil à pompe de 1,86 unité de long alors que l'œil du joueur est à 1,70. Seule l'arme en
-main y échappe — l'original force sa profondeur à 1 (`DRAW_VECTOR_NEAR_PLANE`), sa taille à
-l'écran ne vient donc pas du monde et garde son propre facteur.
+Their **scale** comes from the assembly, not from eyeballing. A model point and the position of
+the object carrying it meet in the same accumulator just before the perspective division: the
+ratio of their two factors gives the exact scale, independent of the projection. It is 1/4 of a
+level word on all three axes, i.e. **1 OBJ unit = 1 world unit**. The value previously set by eye
+(0.75) made models half again too big: a shotgun 1.86 units long while the player's eye is at
+1.70. Only the weapon in hand is exempt — the original forces its depth to 1
+(`DRAW_VECTOR_NEAR_PLANE`), so its on-screen size does not come from the world and it keeps its
+own factor.
 
-### Deux pièges du `.j3m`
+### Two `.j3m` pitfalls
 
-- **`Repeat` est indispensable.** Sans lui les murs perdent leur motif et le bord de l'image
-  s'étire en traînées verticales.
-- **Le filtrage ne s'exprime pas en `.j3m`.** `LevelBuilder.pixelate()` repose « plus proche
-  voisin » après chargement — y compris sur les matériaux qui reviennent dans une scène `.j3o`,
-  sans quoi jME interpole et les textures de 1996 deviennent floues.
-
----
-
-![Le menu](docs/img/rebirth-menu.png)
-
-*Le menu d'origine — fond qui défile, texte qui brûle — reporté à l'identique. Le feu est un
-portage littéral des trois blits Amiga `D = A_décalé | (B & C)`, où `A` est un plan de la police :
-c'est le texte lui-même qui alimente les flammes.*
+- **`Repeat` is essential.** Without it the walls lose their pattern and the edge of the image
+  stretches into vertical streaks.
+- **Filtering cannot be expressed in `.j3m`.** `LevelBuilder.pixelate()` sets "nearest
+  neighbour" again after loading — including on materials that come back in a `.j3o` scene —
+  otherwise jME interpolates and the 1996 textures turn blurry.
 
 ---
 
-## L'intro, qui était compilée
+![The menu](docs/img/rebirth-menu.png)
 
-La séquence de démarrage des disquettes de boot tient en deux lignes :
+*The original menu — scrolling background, burning text — carried over identically. The fire is
+a literal port of the three Amiga blits `D = A_décalé | (B & C)`, where `A` is a plane of the
+font: it is the text itself that feeds the flames.*
+
+---
+
+## The intro, which was compiled
+
+The boot disks' startup sequence fits in two lines:
 
 ```
 intro.exe
 tkg1:tkg
 ```
 
-L'intro est donc un programme à part, lancé avant le jeu — et on n'y voit rien en l'ouvrant,
-parce que c'est un exécutable Amiga **crunché** (StoneCracker 4.04) : 24 724 octets qui se
-déplient en 69 474.
+So the intro is a separate program, launched before the game — and opening it shows nothing,
+because it is a **crunched** Amiga executable (StoneCracker 4.04): 24,724 bytes that unfold into
+69,474.
 
-Le dépaqueteur n'a pas été reconstitué de mémoire : il est porté **instruction par instruction**
-du 68k que le fichier transporte lui-même, le hunk 1 commençant par 0x188 octets de décruncheur
-suivis du marqueur `S404`. Le flux se lit à l'envers — lecture et écriture descendent, les bits
-sortent par le haut d'une fenêtre de 16 bits — et le contrôle est que les deux pointeurs se
-rejoignent **exactement** : un dépaqueteur faux ne tomberait pas juste au bit près.
+The unpacker was not reconstructed from memory: it is ported **instruction by instruction** from
+the 68k that the file itself carries, hunk 1 starting with 0x188 bytes of decruncher followed by
+the `S404` marker. The stream is read backwards — reading and writing go downwards, bits come out
+of the top of a 16-bit window — and the check is that the two pointers meet **exactly**: a wrong
+unpacker would not land right to the bit.
 
-Ce qu'on obtient n'est pas une image mémoire plate mais un flux de hunks, qu'il faut dérouler à
-son tour (même code 68k, juste après). Une fois séparés :
+What comes out is not a flat memory image but a stream of hunks, which must in turn be unrolled
+(same 68k code, right after). Once separated:
 
-| hunk | mémoire | taille | contenu |
+| hunk | memory | size | contents |
 | --- | --- | --- | --- |
-| 0 | rapide | 58 Ko | le code, ses tables, les images |
-| 1 | rapide | 1,4 Mo | tampon de travail, vide dans le fichier |
-| 2 | **CHIP** | 10 Ko | ce que le matériel lit directement |
-| 3 | CHIP | 313 Ko | les écrans, vides dans le fichier |
+| 0 | fast | 58 KB | the code, its tables, the images |
+| 1 | fast | 1.4 MB | work buffer, empty in the file |
+| 2 | **CHIP** | 10 KB | what the hardware reads directly |
+| 3 | CHIP | 313 KB | the screens, empty in the file |
 
-Aucun nom de fichier dans ses chaînes : l'intro est auto-suffisante, elle ne charge rien.
+No file names in its strings: the intro is self-contained, it loads nothing.
 
-### Ce que fait l'intro
+### What the intro does
 
-Le hunk 0 se désassemble (Capstone sait lire du 68k). L'entrée saute en `$1548`, qui prend la
-main sur le matériel, appelle **`$2a00`** — le corps — puis la rend. Et `$2a00` tient en quinze
-lignes : trois initialisations, une boucle de **11 942 itérations** sur trois routines, l'attente
-du balayage, et l'arrêt.
+Hunk 0 disassembles (Capstone can read 68k). The entry point jumps to `$1548`, which takes over
+the hardware, calls **`$2a00`** — the body — then hands it back. And `$2a00` fits in fifteen
+lines: three initialisations, a loop of **11,942 iterations** over three routines, waiting for
+the beam, and stopping.
 
-La routine de rendu (`$2b56`) écrit **16 000 mots longs, soit exactement 320 × 200 octets**, par
-consultation de tables : à chaque pixel une paire lue dans une table de parcours, une
-perturbation prise dans une seconde, et une couleur sortie d'une troisième. C'est à cela que
-sert le tampon de 1,4 Mo — il ne contient que des tables précalculées. `$2aea` divise `640` par
-la profondeur : une division de perspective. Et quatre phases de sinus, avancées de −7, +2, +4 et
-−3 par image, font bouger le tout.
+The rendering routine (`$2b56`) writes **16,000 longwords, i.e. exactly 320 × 200 bytes**, by
+table lookup: for each pixel, a pair read from a traversal table, a perturbation taken from a
+second one, and a colour drawn from a third. That is what the 1.4 MB buffer is for — it holds
+nothing but precomputed tables. `$2aea` divides `640` by the depth: a perspective division. And
+four sine phases, advanced by −7, +2, +4 and −3 per frame, make the whole thing move.
 
-Les images, elles, se trouvent là où l'intro va les chercher — le désassemblage donne les trois
-instructions :
+The images, for their part, are where the intro goes to fetch them — the disassembly gives the
+three instructions:
 
-| adresse | instruction | ce qu'elle charge |
+| address | instruction | what it loads |
 | --- | --- | --- |
-| `$310C` | `lea $75f8,a0` | le titre, 320 × 40 |
-| `$316A` | `lea $a7f8,a0` | le logo Team17, 160 × 48 |
-| `$317E` | `lea $c5f8,a0` | le logo Ocean, 160 × 48 |
+| `$310C` | `lea $75f8,a0` | the title, 320 × 40 |
+| `$316A` | `lea $a7f8,a0` | the Team17 logo, 160 × 48 |
+| `$317E` | `lea $c5f8,a0` | the Ocean logo, 160 × 48 |
 
-![Le titre de l'intro](docs/img/intro-titre.png)
+![The intro title](docs/img/intro-titre.png)
 
-Le titre n'est pas affiché tel quel. `$310C` l'estampe colonne par colonne dans deux tables de
-hunk 1, **au pas de 0x201** — soit une ligne plus bas et une colonne plus loin à chaque octet,
-donc en diagonale dans une carte de 512 de large — en ne gardant que le maximum. Autrement dit :
-le titre est **gravé en relief dans la carte de bosses** que le moteur déforme ensuite. C'est
-pour ça qu'on ne le trouve nulle part sous forme d'écran.
+The title is not displayed as is. `$310C` stamps it column by column into two hunk 1 tables,
+**with a stride of 0x201** — that is, one row lower and one column further for each byte, hence
+diagonally in a map 512 wide — keeping only the maximum. In other words: the title is **embossed
+into the bump map** that the engine then deforms. That is why it is nowhere to be found as a
+screen.
 
-Les deux logos passent par une routine de conversion chunky → plans de bits qui écrit dans la
-mémoire CHIP par rangées de 20 octets : 160 pixels de large, 48 de haut.
+The two logos go through a chunky → bitplanes conversion routine that writes into CHIP memory in
+rows of 20 bytes: 160 pixels wide, 48 high.
 
-Les images sont du **chunky** — un octet par pixel — le titre rangé colonne par colonne et de bas
-en haut, les logos ligne par ligne.
+The images are **chunky** — one byte per pixel — the title stored column by column and bottom to
+top, the logos row by row.
 
-### La palette
+### The palette
 
-Elle n'est pas rangée avec les images : l'intro la construit, et son constructeur est en
-`$320E`. La table source est en **`$6F78`** — quatre bancs de 32 couleurs, quatre octets chacune
-(`00 RR GG BB`), donc du **24 bits**. Le code met chaque composante à l'échelle d'un facteur de
-fondu, puis la coupe en deux — poids forts et poids faibles — pour écrire **deux** listes Copper
-encadrées de `BPLCON3 = $0000` et `$0200` : le procédé AGA qui donne 8 bits par canal là où le
-Copper n'en adresse que 4.
+It is not stored with the images: the intro builds it, and its builder is at `$320E`. The source
+table is at **`$6F78`** — four banks of 32 colours, four bytes each (`00 RR GG BB`), hence
+**24-bit**. The code scales each component by a fade factor, then splits it in two — high bits
+and low bits — to write **two** Copper lists bracketed by `BPLCON3 = $0000` and `$0200`: the AGA
+technique that gives 8 bits per channel where the Copper only addresses 4.
 
-![Les quatre bancs](docs/img/intro-palette.png)
+![The four banks](docs/img/intro-palette.png)
 
-Les bancs 1 et 3 sont une roue de teintes suivie d'une rampe de gris parfaite, à l'usage du
-moteur. Les bancs 0 (rose) et 2 (bleu) habillent l'écran des logos — et c'est bien un seul écran :
-`$316A` écrit les deux logos **côte à côte**, en hunk 3 `+0` et `+20` octets, soit 160 + 160 = 320
-pixels. Ils partagent donc forcément leurs couleurs, et l'intro passe d'une ambiance à l'autre.
+Banks 1 and 3 are a hue wheel followed by a perfect grey ramp, for the engine's use. Banks 0
+(pink) and 2 (blue) dress the logo screen — and it really is a single screen: `$316A` writes the
+two logos **side by side**, at hunk 3 `+0` and `+20` bytes, i.e. 160 + 160 = 320 pixels. So they
+necessarily share their colours, and the intro switches from one mood to the other.
 
 ![Team17](docs/img/intro-team17.png) ![Ocean](docs/img/intro-ocean.png)
 
-Le titre, lui, n'a pas de palette propre : gravé dans la carte de bosses, il prend les couleurs
-que le moteur calcule. Il sort donc en niveaux de gris, normalisés sur son maximum, ce qui
-restitue l'anticrénelage d'origine mais pas ses teintes.
+The title, for its part, has no palette of its own: embossed into the bump map, it takes the
+colours the engine computes. So it comes out in greyscale, normalised to its maximum, which
+restores the original anti-aliasing but not its hues.
 
-### La carte complète du hunk 0
+### The complete map of hunk 0
 
-En relevant toutes les adresses que le code va chercher — 31 en tout, toutes des `lea` ou des
-`move` absolus — on referme la carte exactement sur la fin du hunk. Il ne reste rien d'inexpliqué :
+By collecting every address the code fetches — 31 in all, all absolute `lea` or `move` — the map
+closes exactly on the end of the hunk. Nothing is left unexplained:
 
-| plage | contenu |
+| range | contents |
 | --- | --- |
-| `0x00000`–`0x04F00` | le code |
-| `0x04F14`–`0x04F5E` | variables de travail du rastériseur (un quad, ses sommets) |
-| `0x05760`, `0x06160` | ses tampons de bords |
-| `0x06B60`–`0x06B78` | les variables de mouvement : quatre phases de sinus, la position |
-| `0x06B78`–`0x06F78` | **palette du tunnel**, 256 couleurs |
-| `0x06F38`–`0x06F78` | 16 entrées écrites à l'exécution par `$2C02` (une rampe de rouge) |
-| `0x06F78`–`0x071F8` | **5 bancs de 32 couleurs** |
-| `0x071F8`–`0x075F8` | **table de sinus**, 512 entrées, amplitude 1023 |
-| `0x075F8`–`0x0A7F8` | le titre, 320 × 40 |
-| `0x0A7F8`–`0x0C5F8` | le logo Team17, 160 × 48 |
-| `0x0C5F8`–`0x0E3F5` | le logo Ocean, 160 × 48 — et c'est la fin du hunk |
+| `0x00000`–`0x04F00` | the code |
+| `0x04F14`–`0x04F5E` | the rasteriser's working variables (a quad, its vertices) |
+| `0x05760`, `0x06160` | its edge buffers |
+| `0x06B60`–`0x06B78` | the motion variables: four sine phases, the position |
+| `0x06B78`–`0x06F78` | **tunnel palette**, 256 colours |
+| `0x06F38`–`0x06F78` | 16 entries written at run time by `$2C02` (a red ramp) |
+| `0x06F78`–`0x071F8` | **5 banks of 32 colours** |
+| `0x071F8`–`0x075F8` | **sine table**, 512 entries, amplitude 1023 |
+| `0x075F8`–`0x0A7F8` | the title, 320 × 40 |
+| `0x0A7F8`–`0x0C5F8` | the Team17 logo, 160 × 48 |
+| `0x0C5F8`–`0x0E3F5` | the Ocean logo, 160 × 48 — and that is the end of the hunk |
 
-![Les cinq bancs](docs/img/intro-palette.png)
+![The five banks](docs/img/intro-palette.png)
 
-![La palette du tunnel](docs/img/intro-palette-tunnel.png)
+![The tunnel palette](docs/img/intro-palette-tunnel.png)
 
-Les deux palettes ne servent pas au même endroit. Les bancs habillent l'écran des logos ; la
-rampe de 256 couleurs, elle, est étendue par `$2C1A` vers `hunk1+0x030000` — précisément la table
-que la boucle de rendu consulte à chaque groupe de pixels. C'est donc celle du **tunnel**.
+The two palettes are not used in the same place. The banks dress the logo screen; the 256-colour
+ramp, for its part, is expanded by `$2C1A` towards `hunk1+0x030000` — precisely the table the
+rendering loop looks up for each group of pixels. So it is the **tunnel**'s.
 
-Et l'effet se laisse deviner dans ses tables : `$2C3A` remplit une carte de 256 × 256 avec
-`(x − 127)² + (y − 127)²` passé dans une table inverse et ramené à 0–63. Un champ radial —
-la signature d'un tunnel. Le reste des 1,4 Mo est du même tonneau : des tables, rien que des
-tables, ce qui explique qu'elles soient absentes du fichier et reconstruites au lancement.
+And the effect can be guessed from its tables: `$2C3A` fills a 256 × 256 map with
+`(x − 127)² + (y − 127)²` passed through an inverse table and brought down to 0–63. A radial
+field — the signature of a tunnel. The rest of the 1.4 MB is of the same kind: tables, nothing
+but tables, which explains why they are absent from the file and rebuilt at launch.
 
-### Faire tourner le moteur
+### Running the engine
 
-La séquence n'est stockée nulle part : elle se calcule. Plutôt que de **transcrire** le moteur —
-une dizaine de routines de génération de tables, où la moindre erreur passerait inaperçue — on
-l'**exécute**. `tools/intro68k/` contient un interpréteur 68000 d'environ cinq cents lignes
-(décodage par Capstone) et un harnais qui appelle les mêmes routines que `$2A00`, dans le même
-ordre, en sautant seulement celles qui ne parlent qu'au matériel.
+The sequence is stored nowhere: it is computed. Rather than **transcribing** the engine — some
+ten table-generation routines, where the slightest error would go unnoticed — we **execute** it.
+`tools/intro68k/` contains a 68000 interpreter of about five hundred lines (decoding by
+Capstone) and a harness that calls the same routines as `$2A00`, in the same order, skipping only
+those that talk only to the hardware.
 
-Deux choses doivent être fournies à la main, parce qu'elles viennent du système et non du
-programme : le bit 0 de `$15DF`, que le cadre de démarrage met quand son interruption de balayage
-est en place, et `$2EC2` elle-même — c'est cette interruption qui fait avancer le temps, donc on
-l'appelle une fois par image. Sans le premier, `$2EC2` rend la main aussitôt et rien ne bouge.
+Two things have to be supplied by hand, because they come from the system and not from the
+program: bit 0 of `$15DF`, which the startup framework sets when its beam interrupt is in place,
+and `$2EC2` itself — it is this interrupt that makes time advance, so it is called once per
+frame. Without the former, `$2EC2` returns immediately and nothing moves.
 
-![La carte de normales](docs/img/intro-normales.png)
+![The normal map](docs/img/intro-normales.png)
 
-Voilà la preuve que la chaîne entière est juste. Cette image est la **carte de normales** que
-`$2DAA` calcule après 26 millions d'instructions : un champ marbré, et **« Alien Breed 3D II »
-gravé en diagonale** au travers — exactement là où le pas de `0x201` de `$310C` le place. Le
-titre n'est donc pas affiché, il est *bosselé* : c'est un effet de **bump mapping**, le relief du
-texte éclairé par une tache de lumière qui se déplace.
+Here is the proof that the whole chain is right. This image is the **normal map** that `$2DAA`
+computes after 26 million instructions: a marbled field, with **"Alien Breed 3D II" engraved
+diagonally** across it — exactly where the `0x201` stride of `$310C` puts it. So the title is
+not displayed, it is *embossed*: it is a **bump mapping** effect, the relief of the text lit by a
+moving patch of light.
 
-![Une image rendue](docs/img/intro-rendu.png)
+![A rendered frame](docs/img/intro-rendu.png)
 
-Et voici ce que ça donne : une **boule lumineuse survole un plan sombre et l'éclaire au passage**.
-Le relief du plan — et le titre qui y est gravé — n'existe que là où la lumière tombe.
+And here is the result: a **glowing ball flies over a dark plane and lights it as it passes**.
+The relief of the plane — and the title engraved in it — exists only where the light falls.
 
-![Dix secondes d'intro](docs/img/intro-planche.png)
+![Ten seconds of intro](docs/img/intro-planche.png)
 
-Une image toutes les 40, de la 40ᵉ à la 320ᵉ : la boule entre par la droite, la bande éclairée
-enfle, balaie, puis s'efface.
+One frame every 40, from the 40th to the 320th: the ball enters from the right, the lit band
+swells, sweeps, then fades.
 
-**La palette est un piège.** Il y en a deux, et j'ai d'abord pris la mauvaise. Celle de `0x6B78`,
-256 couleurs, est la palette **source du moteur** : `$2C1A` l'étend vers `hunk1+0x030000` pour que
-la boucle de rendu y pioche. Mais ce que le rendu *écrit*, ce sont des index d'écran — et l'écran
-est décrit par le gabarit Copper : `BPLCON0 = $7201` en `0x44CA`, soit **sept plans de bits**.
-Donc **128 couleurs**, et le bit 7 de l'octet de pixel n'est pas affiché.
+**The palette is a trap.** There are two, and I first took the wrong one. The one at `0x6B78`,
+256 colours, is the **engine's source** palette: `$2C1A` expands it towards `hunk1+0x030000` for
+the rendering loop to draw from. But what the rendering *writes* are screen indices — and the
+screen is described by the Copper template: `BPLCON0 = $7201` at `0x44CA`, i.e. **seven
+bitplanes**. Hence **128 colours**, and bit 7 of the pixel byte is not displayed.
 
-Ces 128 couleurs sont les quatre bancs de 32 que `$320E` envoie au Copper, **un banc par passe** —
-`addi.l #$2000,d6`, le champ BANK de `BPLCON3`. Appliquer la palette source donnait des formes
-justes sur un fond rouge sombre ; la bonne donne un fond noir et une lumière bleu-blanc-rose.
+Those 128 colours are the four banks of 32 that `$320E` sends to the Copper, **one bank per
+pass** — `addi.l #$2000,d6`, the BANK field of `BPLCON3`. Applying the source palette gave the
+right shapes on a dark red background; the right one gives a black background and a
+blue-white-pink light.
 
-Le tramage, lui, est d'origine : chaque entrée de la table de couleurs tient **quatre pixels**
-dans un mot long, ce qui donne ces dégradés en damier qui se fondaient sur un écran cathodique.
+The dithering, for its part, is original: each entry of the colour table holds **four pixels**
+in a longword, which produces those checkerboard gradients that blended together on a CRT
+screen.
 
 ```bash
-gradle -p rebirth intro                  # depose les hunks dans assets/intro/
+gradle -p rebirth intro                  # drops the hunks into assets/intro/
 cd tools/intro68k && python3 runintro.py 200
 ```
 
-Une mise en garde : rien ici ne certifie la **fidélité au pixel**. Faute de référence — il
-faudrait un émulateur à côté — je peux dire que le moteur tourne, que ses tables sont celles
-qu'il construit vraiment et que le titre s'y trouve, mais pas que l'image est identique à celle
-de 1996. Comptez une seconde par image ; l'interpréteur est en Python, c'est un outil
-d'archéologie, pas de rendu.
+A word of caution: nothing here certifies **pixel accuracy**. Lacking a reference — that would
+take an emulator alongside — I can say that the engine runs, that its tables are the ones it
+really builds and that the title is in them, but not that the image is identical to the 1996
+one. Count one second per frame; the interpreter is in Python, it is an archaeology tool, not a
+renderer.
 
-### La musique
+### The music
 
-Le hunk 2 — les 10 Ko en mémoire CHIP, la seule que Paula sait lire — est le morceau. C'est un
-tracker maison, mais d'une parenté évidente avec le MOD : ses cellules font quatre octets et se
-lisent exactement pareil. Son lecteur est en `$0008`, et la disposition s'y lit :
+Hunk 2 — the 10 KB in CHIP memory, the only memory Paula can read — is the tune. It is a
+home-made tracker, but with an obvious kinship to MOD: its cells are four bytes and read exactly
+the same way. Its player is at `$0008`, and the layout can be read from it:
 
-| offset | contenu |
+| offset | contents |
 | --- | --- |
-| `0x000` | 31 entrées de 8 octets : longueur, volume, boucle, longueur de boucle |
-| `0x0F8` | longueur du morceau, puis un drapeau « table déjà convertie » |
-| `0x0FA` | 4 voies × 128 positions : un numéro de **piste** par case, rangé **par voie** |
-| `0x2FA` | `nb_pistes × 64` mots : chaque mot désigne une cellule |
-| … | un mot long donnant la taille du vivier, puis les cellules, puis l'échantillon |
+| `0x000` | 31 entries of 8 bytes: length, volume, loop, loop length |
+| `0x0F8` | song length, then a "table already converted" flag |
+| `0x0FA` | 4 channels × 128 positions: one **track** number per slot, stored **by channel** |
+| `0x2FA` | `nb_pistes × 64` words: each word refers to a cell |
+| … | a longword giving the size of the cell pool, then the cells, then the sample |
 
-L'astuce est là : les cellules ne sont **pas répétées**, les pistes les désignent. Ce morceau
-tient en 41 cellules — un seul échantillon de 8 Ko, cinq notes, et vingt-huit réglages de volume
-qui lui sculptent ses enveloppes à la main. Le `.mod` reconstruit déplie tout, une piste par voie
-et par position : plus gros, mais lisible par n'importe quel lecteur.
+That is the trick: cells are **not repeated**, the tracks refer to them. This tune fits in 41
+cells — a single 8 KB sample, five notes, and twenty-eight volume settings that sculpt its
+envelopes by hand. The rebuilt `.mod` unfolds everything, one track per channel and per
+position: bigger, but readable by any player.
 
-Le contrôle de lecture est que l'échantillon tombe **exactement** à la fin du hunk — à l'octet
-près, ce qui ne laisse guère de place à une mauvaise interprétation de la disposition.
+The read check is that the sample ends **exactly** at the end of the hunk — to the byte, which
+leaves little room for a misinterpretation of the layout.
 
 ```bash
 gradle -p rebirth intro
@@ -297,192 +299,153 @@ gradle -p rebirth intro
 
 ---
 
-## Les scènes `.j3o`
+## The `.j3o` scenes
 
-Le jeu **charge** `assets/Scenes/level_<x>.j3o` quand il existe : corriger un mur dans le SDK se
-voit en jeu. `-Pnolevelscene` force l'ancien chemin (reconstruction depuis le JSON), ce qui
-permet de comparer les deux à tout moment — ils sont **identiques au pixel près**.
+The game **loads** `assets/Scenes/level_<x>.j3o` when it exists: fixing a wall in the SDK shows
+up in game. `-Pnolevelscene` forces the old path (rebuilding from the JSON), which makes it
+possible to compare the two at any time — they are **pixel-identical**.
 
-La scène ne contient que le **décor**. Les objets (ramassages, décor animé, monstres) sont des
-entités que le jeu place et retire en cours de partie : les figer n'aurait pas de sens.
+The scene contains only the **scenery**. Objects (pickups, animated scenery, monsters) are
+entities the game places and removes during play: freezing them would make no sense.
 
-Les parties **mobiles** du décor sont ré-attachées **par nom de nœud** après chargement. Un nom
-qui désigne deux nœuds ne se voit pas — `Node.getChild` rend le premier venu, on anime le mauvais
-objet et rien ne proteste. Le chargement vérifie donc que chaque nœud rattaché porte bien la
-géométrie attendue, et le dit à voix haute sinon :
+The **moving** parts of the scenery are re-attached **by node name** after loading. A name that
+refers to two nodes goes unnoticed — `Node.getChild` returns whichever comes first, the wrong
+object gets animated and nothing complains. So loading checks that each re-attached node really
+carries the expected geometry, and says so out loud otherwise:
 
-| nœud | rôle |
+| node | role |
 | --- | --- |
-| `lift_zone_<id>` | sol d'ascenseur |
-| `door_zone_<id>` | plafond de zone-porte (le dessous du battant) |
-| `jambs_zone_<id>` | murs propres d'une zone-porte ou -ascenseur : les jambages, **fixes** |
-| `deform_<n>_<clé>` | groupe de murs que la porte/l'ascenseur `<n>` déforme |
-| `water_<id>` | surface d'eau |
-| `flat_tile<n>`, `wall_<clé>` | décor statique |
+| `lift_zone_<id>` | lift floor |
+| `door_zone_<id>` | door-zone ceiling (the underside of the door leaf) |
+| `jambs_zone_<id>` | a door or lift zone's own walls: the jambs, **fixed** |
+| `deform_<n>_<clé>` | group of walls that door/lift `<n>` deforms |
+| `water_<id>` | water surface |
+| `flat_tile<n>`, `wall_<clé>` | static scenery |
 
-![Le niveau C, deux étages dans un même secteur](docs/img/rebirth-etage.png)
+![Level C, two storeys in the same sector](docs/img/rebirth-etage.png)
 
-*Niveau C, zone 117. Le jeu empile deux planchers dans un même secteur : une zone porte **deux**
-flux de géométrie. L'extraction n'en lisait qu'un et tout l'étage supérieur manquait — ici la
-passerelle au-dessus de l'escalier.*
-
----
-
-## Les entités : toutes ne sont pas des panneaux
-
-![Le boss Mantis, en polygones](docs/img/rebirth-mantis.png)
-
-*Niveau P. Le boss Mantis est un maillage de 256 triangles, pas un sprite — comme dans le jeu
-d'origine. À droite, un garde : lui est bien un panneau.*
-
-Le jeu range monstres et objets dans la même table d'entités, et choisit le dessin par une
-**donnée**, pas par une catégorie : `draw_Object` regarde un champ de l'entité et part sur
-`draw_Bitmap` ou sur `draw_PolygonModel`. Neuf monstres sont dans le second cas — les boss
-**Wasp**, **Crab** et **Mantis**, répartis dans H, L, O et P.
-
-Deux pièges s'y sont succédé. D'abord le remake forçait toutes les entités de la table des
-monstres en panneau ; comme une entité vectorielle n'a pas de champ « feuille de sprite », elles
-recevaient la feuille 0, donc un graphisme faux. Ensuite, une fois branchées sur leur modèle,
-elles affichaient toutes le **même** : l'extraction lisait l'index dans le mot `GFXType`, qui ne
-porte que le drapeau « vectoriel » et vaut donc 1 pour toutes. Le vrai index est l'**octet 0 du
-pas d'animation** (`ai.s:1917`), exactement comme pour un objet vectoriel. Le contrôle qui le
-prouve tient en une ligne : les noms d'entités et les noms de modèles coïncident désormais
-(*Mantis Boss* → `MANTIS`), ce qui n'était le cas pour aucun des neuf.
-
-Ces boss **s'animent** comme les autres : le champ que la simulation appelle `sheet` est leur
-index de modèle, et sa frame choisit l'un des maillages (13 pour le Wasp, 20 pour le Crab et le
-Mantis). Contrairement à un panneau, un maillage **tourne** au lieu de se billboarder, et le
-signe de la frame — qui pour un sprite commande le miroir — ne s'applique pas.
+*Level C, zone 117. The game stacks two floors in the same sector: one zone carries **two**
+geometry streams. The extraction read only one and the whole upper storey was missing — here the
+walkway above the staircase.*
 
 ---
 
-## L'éclairage
+## Entities: not all of them are billboards
 
-Une lumière par zone, toutes attachées à la racine. On n'allume que les zones **potentiellement
-visibles** depuis celle du joueur — le PVS du jeu d'origine, qu'on extrait avec le reste :
+![The Mantis boss, in polygons](docs/img/rebirth-mantis.png)
 
-| niveau | lumières | allumées |
+*Level P. The Mantis boss is a 256-triangle mesh, not a sprite — as in the original game. On the
+right, a guard: that one really is a billboard.*
+
+The game stores monsters and objects in the same entity table, and chooses how to draw them by a
+**data field**, not by a category: `draw_Object` looks at a field of the entity and goes to
+either `draw_Bitmap` or `draw_PolygonModel`. Nine monsters are in the second case — the
+**Wasp**, **Crab** and **Mantis** bosses, spread across H, L, O and P.
+
+Two pitfalls came one after the other. First, the remake forced every entity in the monster
+table to be a billboard; since a vector entity has no "sprite sheet" field, they received sheet
+0, hence the wrong graphics. Then, once wired to their model, they all displayed the **same**
+one: the extraction read the index from the `GFXType` word, which carries only the "vector" flag
+and is therefore 1 for all of them. The real index is **byte 0 of the animation step**
+(`ai.s:1917`), exactly as for a vector object. The check that proves it fits in one line: entity
+names and model names now match (*Mantis Boss* → `MANTIS`), which was the case for none of the
+nine.
+
+These bosses **animate** like the others: the field the simulation calls `sheet` is their model
+index, and its frame selects one of the meshes (13 for the Wasp, 20 for the Crab and the
+Mantis). Unlike a billboard, a mesh **rotates** instead of billboarding, and the sign of the
+frame — which for a sprite controls mirroring — does not apply.
+
+---
+
+## Lighting
+
+One light per zone, all attached to the root. Only the zones **potentially visible** from the
+player's zone are lit — the original game's PVS, which is extracted with the rest:
+
+| level | lights | lit |
 | --- | --- | --- |
 | A | 134 | 11 |
 | C | 199 | 14 |
 | O | 166 | 37 |
 
-**Écarter une lumière, c'est annuler son RAYON, pas sa couleur.** jME filtre les lumières en
-testant leur rayon contre le volume englobant de chaque géométrie (`DefaultLightFilter`) : une
-lumière noire mais de grand rayon reste dans le lot et coûte toujours sa passe. La première
-version de ce tri éteignait la couleur et ne gagnait donc **rien** — les compteurs du moteur
-donnaient le même nombre de soumissions avec et sans.
+**Dropping a light means zeroing its RADIUS, not its colour.** jME filters lights by testing
+their radius against the bounding volume of each geometry (`DefaultLightFilter`): a black light
+with a large radius stays in the batch and still costs its pass. The first version of this
+culling switched off the colour and therefore gained **nothing** — the engine's counters gave the
+same number of submissions with and without it.
 
-Mesuré, VSync coupée, trois tirs par cas (`-PfpsLog -Pnovsync`, contre `-PnoPvsLights`) :
+Measured, VSync off, three runs per case (`-PfpsLog -Pnovsync`, against `-PnoPvsLights`):
 
-| niveau | sans tri | avec tri | soumissions |
+| level | without culling | with culling | submissions |
 | --- | --- | --- | --- |
-| A | 175-178 img/s | **231-233** | 306 → 157 |
-| C | 306-322 img/s | **360-406** | 135 → 74 |
-| O | 102-111 img/s | **147-150** | 718 → 580 |
+| A | 175-178 fps | **231-233** | 306 → 157 |
+| C | 306-322 fps | **360-406** | 135 → 74 |
+| O | 102-111 fps | **147-150** | 718 → 580 |
 
-Soit 20 à 38 %, et environ moitié moins d'appels de dessin.
+That is 20 to 38%, and roughly half as many draw calls.
 
-Ce qui coûte dans ce moteur, ce sont les **soumissions**, pas l'ombrage : `-Pfullbright` ne gagne
-que 2 %, `-Pnoshadow` 9 %. Et agrandir le paquet de lumières est contre-productif — `lightBatch=8`
-descend à 456 soumissions mais tombe à 105 img/s, `16` à 349 et 92 img/s, chaque passe évaluant
-alors plus de lumières par fragment. Le défaut de **4** est le bon.
+What costs in this engine is the **submissions**, not the shading: `-Pfullbright` gains only 2%,
+`-Pnoshadow` 9%. And enlarging the light batch is counter-productive — `lightBatch=8` goes down to
+456 submissions but drops to 105 fps, `16` to 349 and 92 fps, each pass then evaluating more
+lights per fragment. The default of **4** is the right one.
 
-Invisible à l'image (vérifié) : une lumière hors PVS n'éclairait rien de ce qu'on voit.
+Invisible in the image (verified): a light outside the PVS lit nothing that can be seen.
 
 ---
 
-## Lancer
+## Running
 
 ```bash
-gradle -p rebirth run                 # le jeu
-gradle -p rebirth run -Plevel=c       # un autre niveau
+gradle -p rebirth run                 # the game
+gradle -p rebirth run -Plevel=c       # another level
 gradle -p rebirth moveTest shotTest alienTest [-Plevel=c]   # simulation, headless
-gradle -p rebirth menuTest            # le menu
+gradle -p rebirth menuTest            # the menu
 ```
 
-Quelques options utiles : `-Pnolevelscene` (rebâtir au lieu de charger la scène), `-Pretro`
-(émulation du rasteriseur d'origine), `-Pfullbright`, `-PlightLog`, `-PdeformLog`,
-`-Pshot=N` (capture après N frames), `-Pnosound`.
+A few useful options: `-Pnolevelscene` (rebuild instead of loading the scene), `-Pretro`
+(emulation of the original rasteriser), `-Pfullbright`, `-PlightLog`, `-PdeformLog`,
+`-Pshot=N` (screenshot after N frames), `-Pnosound`.
 
-Pour mesurer : `-PfpsLog` imprime le temps de frame moyen, le nombre de soumissions et le
-découpage de l'arbre en géométries, `-Pnovsync` lève le plafond du rafraîchissement (sans elle
-toute mesure donne 60 et ne veut rien dire), `-PnoPvsLights` rallume toutes les lumières pour
-servir de référence — à ajouter aussi avec `-Pfreecam`, dont la caméra sort de la zone du joueur
-et se retrouve donc dans le noir.
+For measuring: `-PfpsLog` prints the average frame time, the number of submissions and the
+splitting of the tree into geometries, `-Pnovsync` lifts the refresh-rate cap (without it every
+measurement gives 60 and means nothing), `-PnoPvsLights` turns all the lights back on to serve as
+a reference — to be added with `-Pfreecam` too, whose camera leaves the player's zone and
+therefore ends up in the dark.
 
-## Ouvrir dans le SDK jME
+## Opening in the jME SDK
 
-**Extraire les assets d'abord.** `assets/` ne contient, après clonage, que les shaders — tout le
-reste vient des disquettes. Un SDK ouvert sur un dossier vide n'a rien à montrer :
+**Extract the assets first.** After cloning, `assets/` contains only the shaders — everything
+else comes from the floppy disks. An SDK opened on an empty folder has nothing to show:
 
 ```bash
 gradle -p rebirth extract && gradle -p rebirth materials && gradle -p rebirth scenes
 ```
 
-Le dossier est un projet jME (`nbproject/`, calqué sur le gabarit officiel du SDK). Gradle reste
-le build de référence ; le build Ant écrit dans `build-nb/` pour ne pas marcher dessus.
+The folder is a jME project (`nbproject/`, modelled on the SDK's official template). Gradle
+remains the reference build; the Ant build writes into `build-nb/` so as not to tread on it.
 
-Deux détails de ce `nbproject/` méritent d'être connus, parce qu'ils se ressemblent et ne se
-traitent pas pareil. `build-impl.xml` est **régénéré** par NetBeans à chaque ouverture : il n'a
-rien à faire dans le dépôt. `assets-impl.xml`, lui, n'est écrit qu'à la **création** du projet par
-l'assistant ; il est donc versionné. L'avoir ignoré faisait pointer dans le vide l'extension
-`assets` déclarée par `project.xml`, et le projet s'ouvrait sans ses assets.
+Two details of this `nbproject/` are worth knowing, because they look alike and are not handled
+the same way. `build-impl.xml` is **regenerated** by NetBeans every time the project is opened:
+it has no business in the repository. `assets-impl.xml`, on the other hand, is written only when
+the wizard **creates** the project; so it is versioned. Ignoring it left the `assets` extension
+declared by `project.xml` pointing at nothing, and the project opened without its assets.
 
-Enfin, `assets.excludes` est **vide** chez nous, alors que le gabarit du SDK y écarte les formats
-sources destinés à être convertis en `.j3o`. Ici ce sont des données d'exécution : les modèles
-vectoriels restent en `.obj` et les tables du jeu sont des `.bin`.
+Finally, `assets.excludes` is **empty** here, whereas the SDK template uses it to exclude source
+formats meant to be converted to `.j3o`. Here they are runtime data: the vector models stay in
+`.obj` and the game tables are `.bin` files.
 
 ---
 
-## Mentions légales et données du jeu
+## Legal Notice & Game Assets
 
-### Implémentation indépendante du moteur
-
-Ce projet est une réimplémentation indépendante du moteur d'*Alien Breed 3D II : The Killing Grounds*, conçue pour reproduire le comportement du jeu d'origine sur les plateformes modernes.
-
-Le moteur a été développé à partir du code source d'origine (assembleur 68000 et C), tel qu'il est publié dans [mheyer32/alienbreed3d2](https://github.com/mheyer32/alienbreed3d2), par analyse technique et tests de compatibilité. Ce code source n'est pas inclus dans ce dépôt ; le remake s'appuie sur le portage Java fidèle qui en est tiré.
-
-### Fichiers du jeu d'origine
-
-Ce projet nécessite des fichiers du jeu d'origine, comme les cinq disquettes du jeu (images ADF), pour fonctionner.
-
-**Les fichiers du jeu d'origine ne sont pas inclus dans ce projet.**
-
-Chaque utilisateur doit se procurer et fournir ses propres fichiers de jeu auprès d'une source légalement autorisée. Avant de télécharger ou d'utiliser ce moteur, l'utilisateur doit confirmer qu'il possède une copie du jeu d'origine obtenue légalement.
-
-Aucune donnée du jeu n'est versionnée : textures, sons, matériaux et scènes se régénèrent depuis les disquettes. Seuls les shaders, écrits pour le remake, sont dans le dépôt.
-
-Eloane Studio n'héberge, ne distribue ni ne fournit de copies non autorisées de données de jeu protégées par le droit d'auteur.
-
-### Droits d'auteur et marques
-
-Les noms, marques, graphismes, musiques et autres éléments propriétaires d'*Alien Breed 3D II : The Killing Grounds* restent la propriété de leurs titulaires respectifs (Team17).
-
-Ce projet est une implémentation indépendante et non officielle ; il n'est ni affilié, ni approuvé, ni soutenu par les développeurs ou les éditeurs du jeu d'origine.
-
-### Préservation
-
-Ce projet a pour but de préserver le comportement technique et l'expérience de jeu des jeux vidéo classiques, tout en les rendant accessibles sur les systèmes modernes.
-
-Le moteur est fourni à des fins de compatibilité, de préservation et d'éducation.
-
-### Crédits
-
-Moteur d'origine : Team17 (Andy Clitheroe et al.). Sources ASM/C de référence : [mheyer32/alienbreed3d2](https://github.com/mheyer32/alienbreed3d2). Remake 3D : **Guillaume Monet**.
-
-<details>
-<summary>English version</summary>
-
-### Legal Notice & Game Assets
-
-#### Independent Engine Implementation
+### Independent Engine Implementation
 
 This project is an independent reimplementation of the *Alien Breed 3D II: The Killing Grounds* engine, designed to reproduce the original game's behavior on modern platforms.
 
 The engine has been developed from the original source code (68000 assembly and C), as published in [mheyer32/alienbreed3d2](https://github.com/mheyer32/alienbreed3d2), through technical analysis and compatibility testing. That source code is not included in this repository; the remake builds on the faithful Java port made from it.
 
-#### Original Game Files
+### Original Game Files
 
 This project requires original game files, such as the game's five Amiga ADF disk images, to run.
 
@@ -494,20 +457,18 @@ No game data is versioned: textures, sounds, materials and scenes are regenerate
 
 Eloane Studio does not host, distribute, or provide unauthorized copies of copyrighted game assets.
 
-#### Copyright & Trademarks
+### Copyright & Trademarks
 
 All original game names, trademarks, graphics, music, and other proprietary assets of *Alien Breed 3D II: The Killing Grounds* remain the property of their respective copyright holders (Team17).
 
 This project is an independent, unofficial implementation and is not affiliated with, endorsed by, or sponsored by the original game's developers or publishers.
 
-#### Preservation
+### Preservation
 
 The purpose of this project is to preserve the technical behavior and gameplay experience of classic video games while making them accessible on modern systems.
 
 The engine is provided for compatibility, preservation, and educational purposes.
 
-#### Credits
+### Credits
 
 Original engine: Team17 (Andy Clitheroe et al.). Reference ASM/C sources: [mheyer32/alienbreed3d2](https://github.com/mheyer32/alienbreed3d2). 3D remake: **Guillaume Monet**.
-
-</details>
